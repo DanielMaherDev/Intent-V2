@@ -239,6 +239,8 @@ data class NextAction(
     val intentionId: String?,
     val sessionId: String? = null,
     val sessionRunId: String? = null,
+    /** Wall-clock start of the active [SessionRun]; UI derives elapsed locally. */
+    val startedAtEpochMs: Long? = null,
     val proposalId: String? = null,
     val beginLabel: String? = null,
     val deferLabel: String? = null,

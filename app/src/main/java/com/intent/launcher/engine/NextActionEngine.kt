@@ -159,6 +159,7 @@ object NextActionEngine {
                 intentionId = run.intentionId,
                 sessionId = run.sessionId,
                 sessionRunId = run.id,
+                startedAtEpochMs = run.startedAtEpochMs,
                 discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
             )
         }
@@ -170,6 +171,7 @@ object NextActionEngine {
             intentionId = run.intentionId,
             sessionId = run.sessionId,
             sessionRunId = run.id,
+            startedAtEpochMs = run.startedAtEpochMs,
             completeLabel = if (canComplete) "Complete" else null,
             abandonLabel = if (canAbandon) "Abandon" else null,
             discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
