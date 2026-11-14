@@ -15,6 +15,8 @@ import com.intent.launcher.domain.Provenance
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.domain.ScheduledSession
+import com.intent.launcher.domain.SessionRun
+import com.intent.launcher.domain.SessionRunStatus
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -183,6 +185,11 @@ class IntentionFlowStore(
 
             is FlowCommand.DeferNextSession -> {
                 val session = migrated.sessions.firstOrNull { it.id == command.sessionId }
+                // Do not defer while a run for this session is already in progress.
+                val inProgress = migrated.sessionRuns.any {
+                    it.sessionId == command.sessionId && it.status == SessionRunStatus.IN_PROGRESS
+                }
+                if (inProgress) return migrated
                 migrated.copy(
                     sessions = migrated.sessions.map {
                         if (it.id == command.sessionId) {
@@ -195,6 +202,39 @@ class IntentionFlowStore(
                         migrated.intentions
                     }
                 )
+            }
+
+            is FlowCommand.BeginSession -> {
+                val session = migrated.sessions.firstOrNull { it.id == command.sessionId }
+                    ?: return migrated
+                val alreadyActive = migrated.sessionRuns.any {
+                    it.intentionId == session.intentionId && it.status == SessionRunStatus.IN_PROGRESS
+                }
+                if (alreadyActive) return migrated
+                val run = SessionRun(
+                    id = command.runId,
+                    sessionId = session.id,
+                    intentionId = session.intentionId,
+                    title = session.title,
+                    status = SessionRunStatus.IN_PROGRESS,
+                    startedAtEpochMs = command.nowEpochMs
+                )
+                migrated.copy(
+                    sessionRuns = migrated.sessionRuns.filterNot { it.id == run.id } + run,
+                    // Starting clears a pending deferral for this session.
+                    sessions = migrated.sessions.map {
+                        if (it.id == session.id) it.copy(deferredUntilEpochMs = null) else it
+                    },
+                    intentions = touch(migrated.intentions, session.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.CompleteSessionRun -> {
+                endSessionRun(migrated, command.runId, SessionRunStatus.COMPLETED, command.nowEpochMs)
+            }
+
+            is FlowCommand.AbandonSessionRun -> {
+                endSessionRun(migrated, command.runId, SessionRunStatus.ABANDONED, command.nowEpochMs)
             }
 
             is FlowCommand.SetActiveIntention -> {
@@ -212,6 +252,24 @@ class IntentionFlowStore(
                 )
             }
         }
+    }
+
+    private fun endSessionRun(
+        migrated: IntentionSnapshot,
+        runId: String,
+        endStatus: SessionRunStatus,
+        nowEpochMs: Long
+    ): IntentionSnapshot {
+        val run = migrated.sessionRuns.firstOrNull { it.id == runId } ?: return migrated
+        if (run.status != SessionRunStatus.IN_PROGRESS) return migrated
+        return migrated.copy(
+            sessionRuns = migrated.sessionRuns.map {
+                if (it.id == runId) {
+                    it.copy(status = endStatus, endedAtEpochMs = nowEpochMs)
+                } else it
+            },
+            intentions = touch(migrated.intentions, run.intentionId, nowEpochMs)
+        )
     }
 
     fun migrate(snapshot: IntentionSnapshot): IntentionSnapshot {
@@ -307,6 +365,16 @@ class IntentionFlowStore(
         val deferredUntilEpochMs: Long? = null
     )
 
+    data class WireSessionRun(
+        val id: String = "",
+        val sessionId: String = "",
+        val intentionId: String = "",
+        val title: String = "",
+        val status: String = SessionRunStatus.IN_PROGRESS.name,
+        val startedAtEpochMs: Long = 0L,
+        val endedAtEpochMs: Long? = null
+    )
+
     data class WireTurn(
         val id: String = "",
         val intentionId: String = "",
@@ -322,6 +390,7 @@ class IntentionFlowStore(
         val hypotheses: List<WireHypothesis> = emptyList(),
         val proposals: List<WireProposal> = emptyList(),
         val sessions: List<WireSession> = emptyList(),
+        val sessionRuns: List<WireSessionRun> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
         val activeIntentionId: String? = null
     ) {
@@ -369,6 +438,17 @@ class IntentionFlowStore(
                     deferredUntilEpochMs = it.deferredUntilEpochMs
                 )
             },
+            sessionRuns = sessionRuns.map {
+                SessionRun(
+                    id = it.id,
+                    sessionId = it.sessionId,
+                    intentionId = it.intentionId,
+                    title = it.title,
+                    status = SessionRunStatus.valueOf(it.status),
+                    startedAtEpochMs = it.startedAtEpochMs,
+                    endedAtEpochMs = it.endedAtEpochMs
+                )
+            },
             turns = turns.map {
                 ConversationTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
             },
@@ -401,6 +481,12 @@ class IntentionFlowStore(
                     WireSession(
                         it.id, it.intentionId, it.title, it.dayOfWeek, it.hour, it.minute,
                         it.deferredUntilEpochMs
+                    )
+                },
+                sessionRuns = s.sessionRuns.map {
+                    WireSessionRun(
+                        it.id, it.sessionId, it.intentionId, it.title,
+                        it.status.name, it.startedAtEpochMs, it.endedAtEpochMs
                     )
                 },
                 turns = s.turns.map {

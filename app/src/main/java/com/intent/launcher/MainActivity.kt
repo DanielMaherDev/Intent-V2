@@ -6,10 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,7 +33,6 @@ class MainActivity : ComponentActivity() {
                     val pending = snap.proposals.firstOrNull {
                         it.status == ProposalStatus.PENDING && it.intentionId == intention?.id
                     }
-                    var showBeginAck by remember { mutableStateOf(false) }
                     val intentionHint = when (intention?.shapeTag) {
                         "marathon" -> "Run a marathon · Base before speed"
                         "business" -> "Business idea · Stay in discovery"
@@ -57,12 +52,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenIntention = { nav.navigate("intention") },
                                 onReviewProposal = { nav.navigate("proposal") },
-                                onBegin = {
-                                    showBeginAck = true
-                                    vm.beginNoted()
-                                },
+                                onBegin = { vm.beginSession() },
                                 onDefer = { vm.deferNext() },
                                 onDiscuss = { nav.navigate("conversation") },
+                                onCompleteSession = { vm.completeActiveSession() },
+                                onAbandonSession = { vm.abandonActiveSession() },
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
                                         vm.startMarathonExploration()

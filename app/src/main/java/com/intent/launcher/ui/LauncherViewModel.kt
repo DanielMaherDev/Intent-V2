@@ -12,6 +12,7 @@ import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
@@ -145,8 +146,65 @@ class LauncherViewModel(
         refresh()
     }
 
-    fun beginNoted() {
-        // Begin is acknowledged in UI; schedule unchanged
+    /**
+     * Begin the recommended (or given) scheduled session via the command path.
+     * No-op when begin_session is locked or the session is already in progress.
+     */
+    fun beginSession(sessionId: String? = nextAction.sessionId): Boolean {
+        if (!capabilityRegistry.canRecommendBegin()) return false
+        val id = sessionId
+            ?: snapshot.sessions.firstOrNull { it.intentionId == activeIntention()?.id }?.id
+            ?: return false
+        val intentionId = snapshot.sessions.firstOrNull { it.id == id }?.intentionId
+        val alreadyActive = snapshot.sessionRuns.any {
+            it.intentionId == intentionId && it.status == SessionRunStatus.IN_PROGRESS
+        }
+        if (alreadyActive) return false
+        val now = System.currentTimeMillis()
+        store.apply(
+            FlowCommand.BeginSession(
+                runId = "run-$id-$now",
+                sessionId = id,
+                nowEpochMs = now
+            )
+        )
         refresh()
+        return snapshot.sessionRuns.any {
+            it.sessionId == id && it.status == SessionRunStatus.IN_PROGRESS
+        }
+    }
+
+    fun completeActiveSession(): Boolean {
+        if (!capabilityRegistry.canCompleteSession()) return false
+        val runId = nextAction.sessionRunId
+            ?: snapshot.sessionRuns.firstOrNull {
+                it.intentionId == activeIntention()?.id && it.status == SessionRunStatus.IN_PROGRESS
+            }?.id
+            ?: return false
+        store.apply(
+            FlowCommand.CompleteSessionRun(
+                runId = runId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+        return true
+    }
+
+    fun abandonActiveSession(): Boolean {
+        if (!capabilityRegistry.canAbandonSession()) return false
+        val runId = nextAction.sessionRunId
+            ?: snapshot.sessionRuns.firstOrNull {
+                it.intentionId == activeIntention()?.id && it.status == SessionRunStatus.IN_PROGRESS
+            }?.id
+            ?: return false
+        store.apply(
+            FlowCommand.AbandonSessionRun(
+                runId = runId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+        return true
     }
 }
