@@ -1,10 +1,13 @@
 package com.intent.launcher.domain
 
+import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.capability.SuggestedChip
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
  * Scripted Spanish exploring → fact → proposal path for v0.0.01.
  * No invented lesson counts or completion percentages.
+ * Chips and proposals consult [CapabilityRegistry] (Rule 5).
  */
 object SpanishScenario {
     const val INTENTION_ID = "intention-spanish"
@@ -15,11 +18,21 @@ object SpanishScenario {
     const val TITLE = "Learn Spanish"
     const val STATEMENT = "I want to speak Spanish more confidently in everyday life."
 
-    val conversationChips = listOf(
-        "Everyday conversations",
-        "I meet a tutor on Thursdays at six",
-        "I meet a Spanish tutor"
+    /** Honest chips only — fake caps (e.g. lesson completion) stay out of this list. */
+    val suggestedChips: List<SuggestedChip> = listOf(
+        SuggestedChip("Everyday conversations", CapabilityRegistry.ID_ADD_HYPOTHESIS),
+        SuggestedChip("I meet a tutor on Thursdays at six", CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION),
+        SuggestedChip("I meet a Spanish tutor", CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION)
     )
+
+    /** Dishonest chip kept for registry filter tests — must never surface via [conversationChips]. */
+    val dishonestLessonCompletionChip = SuggestedChip(
+        label = "Track my Duolingo lesson completion automatically",
+        requiredCapabilityId = CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION
+    )
+
+    fun conversationChips(registry: CapabilityRegistry = CapabilityRegistry.default): List<String> =
+        registry.filterChips(suggestedChips)
 
     fun seed(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
         store.apply(
@@ -48,7 +61,12 @@ object SpanishScenario {
         }
     }
 
-    fun onChip(store: IntentionFlowStore, chip: String, now: Long = System.currentTimeMillis()) {
+    fun onChip(
+        store: IntentionFlowStore,
+        chip: String,
+        now: Long = System.currentTimeMillis(),
+        registry: CapabilityRegistry = CapabilityRegistry.default
+    ) {
         ensureSeeded(store, now)
         store.apply(
             FlowCommand.AddConversationTurn(
@@ -61,6 +79,10 @@ object SpanishScenario {
         )
         when {
             chip.contains("Everyday conversations", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) {
+                    refuseUnavailable(store, now, CapabilityRegistry.ID_ADD_HYPOTHESIS, registry)
+                    return
+                }
                 store.apply(
                     FlowCommand.AddHypothesis(
                         hypothesisId = "hyp-everyday",
@@ -87,6 +109,10 @@ object SpanishScenario {
                 )
             }
             chip.contains("tutor", ignoreCase = true) || chip.contains("Thursdays", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) {
+                    refuseUnavailable(store, now, CapabilityRegistry.ID_RECORD_FACT, registry)
+                    return
+                }
                 store.apply(
                     FlowCommand.AddUserFact(
                         factId = FACT_TUTOR_ID,
@@ -95,6 +121,21 @@ object SpanishScenario {
                         nowEpochMs = now
                     )
                 )
+                if (!registry.canProposeRecurringSession()) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-agent-no-schedule-$now",
+                            intentionId = INTENTION_ID,
+                            role = "agent",
+                            text = honestUnavailableMessage(
+                                CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION,
+                                registry
+                            ),
+                            nowEpochMs = now + 1
+                        )
+                    )
+                    return
+                }
                 store.apply(
                     FlowCommand.ProposeRecurringSession(
                         proposalId = PROPOSAL_ID,
@@ -118,7 +159,33 @@ object SpanishScenario {
                     )
                 )
             }
+            chip.contains("Duolingo", ignoreCase = true) || chip.contains("lesson completion", ignoreCase = true) -> {
+                refuseUnavailable(store, now, CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION, registry)
+            }
         }
+    }
+
+    private fun refuseUnavailable(
+        store: IntentionFlowStore,
+        now: Long,
+        capabilityId: String,
+        registry: CapabilityRegistry
+    ) {
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-agent-unavailable-$now",
+                intentionId = INTENTION_ID,
+                role = "agent",
+                text = honestUnavailableMessage(capabilityId, registry),
+                nowEpochMs = now + 1
+            )
+        )
+    }
+
+    private fun honestUnavailableMessage(capabilityId: String, registry: CapabilityRegistry): String {
+        val entry = registry.get(capabilityId)
+        return entry?.limitNote
+            ?: "That capability is not available in INTENT yet."
     }
 
     fun approve(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {

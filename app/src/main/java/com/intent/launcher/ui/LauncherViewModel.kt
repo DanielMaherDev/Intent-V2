@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.intent.launcher.IntentApp
+import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
@@ -15,7 +16,8 @@ import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
 
 class LauncherViewModel(
-    private val store: IntentionFlowStore = IntentApp.instance.store
+    private val store: IntentionFlowStore = IntentApp.instance.store,
+    private val capabilityRegistry: CapabilityRegistry = CapabilityRegistry.default
 ) : ViewModel() {
 
     var snapshot by mutableStateOf(store.snapshot())
@@ -30,7 +32,11 @@ class LauncherViewModel(
     }
 
     private fun recommend(): NextAction =
-        NextActionEngine.recommend(store.snapshot(), System.currentTimeMillis())
+        NextActionEngine.recommend(
+            store.snapshot(),
+            System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
 
     fun activeIntention(): Intention? {
         val snap = snapshot
@@ -40,14 +46,14 @@ class LauncherViewModel(
 
     fun conversationChips(): List<String> =
         when (activeIntention()?.shapeTag) {
-            "marathon" -> MarathonScenario.conversationChips
-            else -> SpanishScenario.conversationChips
+            "marathon" -> MarathonScenario.conversationChips(capabilityRegistry)
+            else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
     fun onConversationChip(chip: String) {
         when (activeIntention()?.shapeTag) {
-            "marathon" -> MarathonScenario.onChip(store, chip)
-            else -> SpanishScenario.onChip(store, chip)
+            "marathon" -> MarathonScenario.onChip(store, chip, registry = capabilityRegistry)
+            else -> SpanishScenario.onChip(store, chip, registry = capabilityRegistry)
         }
         refresh()
     }
