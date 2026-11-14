@@ -15,8 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,7 +60,7 @@ fun ConversationScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 19.dp, vertical = 18.dp)
+                .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
             ScreenTopBar(
                 contextLabel = intentionTitle.ifBlank { "Conversation" },
@@ -110,7 +116,7 @@ private fun UserBubble(text: String) {
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .clip(RoundedCornerShape(17.dp, 17.dp, 5.dp, 17.dp))
-                .background(IntentColors.AccentSoft)
+                .background(IntentColors.UserBubble)
                 .padding(horizontal = 13.dp, vertical = 11.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = IntentColors.Ink
@@ -163,7 +169,12 @@ private fun ChoiceRow(text: String, onClick: () -> Unit) {
             color = IntentColors.Ink,
             modifier = Modifier.weight(1f)
         )
-        Text("›", color = IntentColors.Accent, fontSize = 18.sp)
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            contentDescription = null,
+            tint = IntentColors.Accent,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
@@ -186,9 +197,9 @@ private fun ComposerBar() {
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .border(1.dp, Color(0xFFCDD1C9), RoundedCornerShape(18.dp))
+                    .border(1.dp, IntentColors.ComposerBorder, RoundedCornerShape(18.dp))
                     .background(Color.White, RoundedCornerShape(18.dp))
-                    .padding(horizontal = 13.dp, vertical = 10.dp),
+                    .padding(start = 13.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -197,16 +208,27 @@ private fun ComposerBar() {
                     color = IntentColors.ComposerHint,
                     modifier = Modifier.weight(1f)
                 )
+                Icon(
+                    imageVector = Icons.Outlined.Keyboard,
+                    contentDescription = null,
+                    tint = IntentColors.ComposerHint,
+                    modifier = Modifier.size(18.dp)
+                )
             }
             Spacer(modifier = Modifier.size(8.dp))
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(13.dp))
+                    .size(44.dp)
+                    .clip(CircleShape)
                     .background(IntentColors.Accent),
                 contentAlignment = Alignment.Center
             ) {
-                Text("◉", color = Color.White, fontSize = 16.sp)
+                Icon(
+                    imageVector = Icons.Outlined.Mic,
+                    contentDescription = "Speak",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
     }
