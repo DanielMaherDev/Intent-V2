@@ -4,6 +4,7 @@ import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.capability.CapabilityStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.domain.SessionElapsed
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.store.IntentionFlowStore
@@ -64,6 +65,9 @@ class SessionBeginExecutionTest {
         assertEquals("run-exec-1", active.sessionRunId)
         assertEquals("Complete", active.completeLabel)
         assertEquals("Abandon", active.abandonLabel)
+        assertEquals(dueNow, active.startedAtEpochMs)
+        assertEquals(dueNow, run.startedAtEpochMs)
+        assertEquals("1:00", SessionElapsed.format(run.startedAtEpochMs, dueNow + 60_000L))
         assertTrue(active.reason.contains("user-reported", ignoreCase = true))
     }
 

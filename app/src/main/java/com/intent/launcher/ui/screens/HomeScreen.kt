@@ -17,11 +17,20 @@ import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.domain.SessionElapsed
 import com.intent.launcher.ui.components.DateLabel
 import com.intent.launcher.ui.components.GlyphTone
 import com.intent.launcher.ui.components.HeroCard
@@ -30,6 +39,7 @@ import com.intent.launcher.ui.components.HomeBottomNav
 import com.intent.launcher.ui.components.HomeBrandRow
 import com.intent.launcher.ui.components.IntentPill
 import com.intent.launcher.ui.components.IntentPrimaryButton
+import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.LineRow
@@ -40,6 +50,7 @@ import com.intent.launcher.ui.theme.IntentColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -88,134 +99,116 @@ fun HomeScreen(
             Lede(lede)
             Spacer(modifier = Modifier.height(26.dp))
 
-            val cardTitle = when (nextAction.kind) {
-                NextActionKind.CONTINUE_EXPLORING ->
-                    if (intentionTitle.contains("Spanish", ignoreCase = true)) {
-                        "Speak Spanish at work"
-                    } else {
-                        intentionTitle.ifBlank { nextAction.label }
-                    }
-                else -> nextAction.label
-            }
-            val cardDetail = when {
-                nextAction.reason.isNotBlank() -> nextAction.reason
-                nextAction.kind == NextActionKind.CONTINUE_EXPLORING ->
-                    "We know what matters to you. Let's decide how you want to practise."
-                else -> nextAction.detail
-            }
+            if (nextAction.kind == NextActionKind.ACTIVE_SESSION) {
+                ActiveSessionCard(
+                    nextAction = nextAction,
+                    intentionTitle = intentionTitle,
+                    onCompleteSession = onCompleteSession,
+                    onAbandonSession = onAbandonSession,
+                    onDiscuss = onDiscuss
+                )
+            } else {
+                val cardTitle = when (nextAction.kind) {
+                    NextActionKind.CONTINUE_EXPLORING ->
+                        if (intentionTitle.contains("Spanish", ignoreCase = true)) {
+                            "Speak Spanish at work"
+                        } else {
+                            intentionTitle.ifBlank { nextAction.label }
+                        }
+                    else -> nextAction.label
+                }
+                val cardDetail = when {
+                    nextAction.reason.isNotBlank() -> nextAction.reason
+                    nextAction.kind == NextActionKind.CONTINUE_EXPLORING ->
+                        "We know what matters to you. Let's decide how you want to practise."
+                    else -> nextAction.detail
+                }
 
-            HeroCard(tone = heroTone) {
-                SmallLabel(
-                    text = smallLabel,
-                    color = when (heroTone) {
-                        HeroTone.Warm -> IntentColors.Warm
-                        HeroTone.Success -> IntentColors.Success
-                        HeroTone.Accent -> IntentColors.Accent
-                    }
-                )
-                Spacer(modifier = Modifier.height(7.dp))
-                Text(
-                    text = cardTitle,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = IntentColors.Ink
-                )
-                Spacer(modifier = Modifier.height(7.dp))
-                Text(
-                    text = cardDetail,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = IntentColors.Muted
-                )
-                if (nextAction.reason.isNotBlank() &&
-                    nextAction.detail.isNotBlank() &&
-                    nextAction.detail != nextAction.reason
-                ) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                HeroCard(tone = heroTone) {
+                    SmallLabel(
+                        text = smallLabel,
+                        color = when (heroTone) {
+                            HeroTone.Warm -> IntentColors.Warm
+                            HeroTone.Success -> IntentColors.Success
+                            HeroTone.Accent -> IntentColors.Accent
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
                     Text(
-                        text = nextAction.detail,
-                        style = MaterialTheme.typography.bodySmall,
+                        text = cardTitle,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
+                    Text(
+                        text = cardDetail,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = IntentColors.Muted
                     )
-                }
-                if (pills.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        pills.forEach { (text, tone) ->
-                            IntentPill(text = text, tone = tone)
+                    if (nextAction.reason.isNotBlank() &&
+                        nextAction.detail.isNotBlank() &&
+                        nextAction.detail != nextAction.reason
+                    ) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = nextAction.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IntentColors.Muted
+                        )
+                    }
+                    if (pills.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            pills.forEach { (text, tone) ->
+                                IntentPill(text = text, tone = tone)
+                            }
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(15.dp))
-                when (nextAction.kind) {
-                    NextActionKind.CONTINUE_EXPLORING -> {
-                        IntentPrimaryButton(
-                            text = "Continue exploring",
-                            onClick = onContinueExploring
-                        )
-                    }
-                    NextActionKind.REVIEW_PROPOSAL -> {
-                        IntentPrimaryButton(
-                            text = "Review proposal",
-                            onClick = onReviewProposal
-                        )
-                    }
-                    NextActionKind.BEGIN -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                    Spacer(modifier = Modifier.height(15.dp))
+                    when (nextAction.kind) {
+                        NextActionKind.CONTINUE_EXPLORING -> {
                             IntentPrimaryButton(
-                                text = nextAction.beginLabel ?: "Begin",
-                                onClick = onBegin,
-                                modifier = Modifier.weight(1.4f)
-                            )
-                            IntentSecondaryButton(
-                                text = nextAction.deferLabel ?: "Later",
-                                onClick = onDefer,
-                                modifier = Modifier.weight(1f)
+                                text = "Continue exploring",
+                                onClick = onContinueExploring
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        IntentSecondaryButton(
-                            text = nextAction.discussLabel ?: "Discuss",
-                            onClick = onDiscuss
-                        )
-                    }
-                    NextActionKind.ACTIVE_SESSION -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (nextAction.completeLabel != null) {
+                        NextActionKind.REVIEW_PROPOSAL -> {
+                            IntentPrimaryButton(
+                                text = "Review proposal",
+                                onClick = onReviewProposal
+                            )
+                        }
+                        NextActionKind.BEGIN -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 IntentPrimaryButton(
-                                    text = nextAction.completeLabel,
-                                    onClick = onCompleteSession,
+                                    text = nextAction.beginLabel ?: "Begin",
+                                    onClick = onBegin,
                                     modifier = Modifier.weight(1.4f)
                                 )
-                            }
-                            if (nextAction.abandonLabel != null) {
                                 IntentSecondaryButton(
-                                    text = nextAction.abandonLabel,
-                                    onClick = onAbandonSession,
+                                    text = nextAction.deferLabel ?: "Later",
+                                    onClick = onDefer,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                        }
-                        if (nextAction.discussLabel != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             IntentSecondaryButton(
-                                text = nextAction.discussLabel,
+                                text = nextAction.discussLabel ?: "Discuss",
                                 onClick = onDiscuss
                             )
                         }
-                    }
-                    NextActionKind.DISCUSS -> {
-                        IntentPrimaryButton(text = "Discuss", onClick = onDiscuss)
-                    }
-                    else -> {
-                        IntentPrimaryButton(
-                            text = "Open your intention",
-                            onClick = onOpenIntention
-                        )
+                        NextActionKind.DISCUSS -> {
+                            IntentPrimaryButton(text = "Discuss", onClick = onDiscuss)
+                        }
+                        else -> {
+                            IntentPrimaryButton(
+                                text = "Open your intention",
+                                onClick = onOpenIntention
+                            )
+                        }
                     }
                 }
             }
@@ -296,13 +289,10 @@ private fun homeCopy(nextAction: NextAction, intentionTitle: String): HomeCopy =
         )
         NextActionKind.ACTIVE_SESSION -> HomeCopy(
             headline = "You're in a session.",
-            lede = nextAction.reason.ifBlank { "Mark complete when finished, or abandon if you stop." },
+            lede = "Mark complete when finished, or abandon if you stop.",
             heroTone = HeroTone.Success,
             smallLabel = "In progress",
-            pills = listOf(
-                "Active session" to PillTone.Success,
-                intentionTitle.ifBlank { "In motion" } to PillTone.Neutral
-            )
+            pills = emptyList()
         )
         NextActionKind.DISCUSS -> HomeCopy(
             headline = "Not due just yet.",
@@ -319,3 +309,109 @@ private fun homeCopy(nextAction: NextAction, intentionTitle: String): HomeCopy =
             pills = emptyList()
         )
     }
+
+/**
+ * In-progress SessionCard on Home: title, intention label, status, honest local
+ * elapsed clock, and always-reachable Complete / Abandon (Discuss stays quiet).
+ */
+@Composable
+private fun ActiveSessionCard(
+    nextAction: NextAction,
+    intentionTitle: String,
+    onCompleteSession: () -> Unit,
+    onAbandonSession: () -> Unit,
+    onDiscuss: () -> Unit
+) {
+    val startedAt = nextAction.startedAtEpochMs
+    var nowEpochMs by remember(startedAt) {
+        mutableLongStateOf(System.currentTimeMillis())
+    }
+    LaunchedEffect(startedAt) {
+        if (startedAt == null) return@LaunchedEffect
+        while (true) {
+            nowEpochMs = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
+    val elapsedText = if (startedAt != null) {
+        SessionElapsed.format(startedAt, nowEpochMs)
+    } else {
+        "—"
+    }
+    val elapsedLabel = if (startedAt != null) {
+        SessionElapsed.label(startedAt, nowEpochMs)
+    } else {
+        "Elapsed unavailable"
+    }
+    val intentionLabel = intentionTitle.ifBlank { "Your intention" }
+
+    HeroCard(tone = HeroTone.Success) {
+        SmallLabel(text = "In progress", color = IntentColors.Success)
+        Spacer(modifier = Modifier.height(7.dp))
+        Text(
+            text = nextAction.label.ifBlank { "Active session" },
+            style = MaterialTheme.typography.headlineSmall,
+            color = IntentColors.Ink
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = intentionLabel,
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IntentPill(text = "In progress", tone = PillTone.Success)
+            IntentPill(text = intentionLabel, tone = PillTone.Neutral)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "ELAPSED",
+            style = MaterialTheme.typography.labelMedium,
+            color = IntentColors.Section,
+            letterSpacing = 1.1.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = elapsedText,
+            modifier = Modifier.semantics { contentDescription = elapsedLabel },
+            style = MaterialTheme.typography.displayLarge,
+            color = IntentColors.Ink,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "From when you tapped Begin — local clock only.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(15.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (nextAction.completeLabel != null) {
+                IntentPrimaryButton(
+                    text = nextAction.completeLabel,
+                    onClick = onCompleteSession,
+                    modifier = Modifier.weight(1.4f)
+                )
+            }
+            if (nextAction.abandonLabel != null) {
+                IntentSecondaryButton(
+                    text = nextAction.abandonLabel,
+                    onClick = onAbandonSession,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        if (nextAction.discussLabel != null) {
+            Spacer(modifier = Modifier.height(2.dp))
+            IntentQuietButton(
+                text = nextAction.discussLabel,
+                onClick = onDiscuss
+            )
+        }
+    }
+}
