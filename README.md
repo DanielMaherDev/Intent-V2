@@ -23,4 +23,6 @@ Shared core records (`Intention`, facts, hypotheses, proposals, sessions). Shape
 
 ## Download
 
-Debug APK (v0.0.01): [`artifacts/INTENT-v0.0.01-debug.apk`](artifacts/INTENT-v0.0.01-debug.apk)
+Debug APK (v0.0.02): [INTENT-v0.0.02-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.02-debug.apk)
+
+(Prior: [INTENT-v0.0.01-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk))
