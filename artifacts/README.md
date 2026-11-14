@@ -1,3 +1,5 @@
 # Artifacts
 
-Debug APK: [`INTENT-v0.0.01-debug.apk`](./INTENT-v0.0.01-debug.apk)
+Latest debug APK: [`INTENT-v0.0.02-debug.apk`](./INTENT-v0.0.02-debug.apk)
+
+Prior: [`INTENT-v0.0.01-debug.apk`](./INTENT-v0.0.01-debug.apk)
