@@ -27,12 +27,14 @@ import com.intent.launcher.domain.NextActionKind
 @Composable
 fun HomeScreen(
     nextAction: NextAction,
+    intentionHint: String,
     onContinueExploring: () -> Unit,
     onOpenIntention: () -> Unit,
     onReviewProposal: () -> Unit,
     onBegin: () -> Unit,
     onDefer: () -> Unit,
     onDiscuss: () -> Unit,
+    onExploreMarathon: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -84,10 +86,19 @@ fun HomeScreen(
                         Text("Open your intention")
                     }
                     Text(
-                        text = "Learn Spanish · Speak Spanish when ready",
+                        text = intentionHint,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                    if (onExploreMarathon != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = onExploreMarathon,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Explore a marathon")
+                        }
+                    }
                 }
                 NextActionKind.REVIEW_PROPOSAL -> {
                     Button(onClick = onReviewProposal, modifier = Modifier.fillMaxWidth()) {

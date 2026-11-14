@@ -6,8 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.intent.launcher.IntentApp
 import com.intent.launcher.domain.FlowCommand
-import com.intent.launcher.domain.IntentionSnapshot
+import com.intent.launcher.domain.Intention
+import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.NextAction
+import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
@@ -30,27 +32,77 @@ class LauncherViewModel(
     private fun recommend(): NextAction =
         NextActionEngine.recommend(store.snapshot(), System.currentTimeMillis())
 
+    fun activeIntention(): Intention? {
+        val snap = snapshot
+        val id = snap.activeIntentionId
+        return snap.intentions.firstOrNull { it.id == id } ?: snap.intentions.firstOrNull()
+    }
+
+    fun conversationChips(): List<String> =
+        when (activeIntention()?.shapeTag) {
+            "marathon" -> MarathonScenario.conversationChips
+            else -> SpanishScenario.conversationChips
+        }
+
     fun onConversationChip(chip: String) {
-        SpanishScenario.onChip(store, chip)
+        when (activeIntention()?.shapeTag) {
+            "marathon" -> MarathonScenario.onChip(store, chip)
+            else -> SpanishScenario.onChip(store, chip)
+        }
+        refresh()
+    }
+
+    fun startMarathonExploration() {
+        MarathonScenario.ensureSeeded(store)
+        refresh()
+    }
+
+    fun activateSpanish() {
+        SpanishScenario.ensureSeeded(store)
+        store.apply(
+            FlowCommand.SetActiveIntention(
+                intentionId = SpanishScenario.INTENTION_ID,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
         refresh()
     }
 
     fun approveProposal() {
-        SpanishScenario.approve(store)
+        val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
+        val sessionId = when (pending.id) {
+            MarathonScenario.PROPOSAL_ID -> MarathonScenario.SESSION_ID
+            SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
+            else -> "session-${pending.id}"
+        }
+        store.apply(
+            FlowCommand.ApproveProposal(
+                proposalId = pending.id,
+                sessionId = sessionId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
         refresh()
     }
 
     fun declineProposal() {
-        SpanishScenario.decline(store)
+        val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
+        store.apply(
+            FlowCommand.DeclineProposal(
+                proposalId = pending.id,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
         refresh()
     }
 
     fun editProposalToFriday() {
+        val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
         store.apply(
             FlowCommand.EditProposal(
-                proposalId = SpanishScenario.PROPOSAL_ID,
+                proposalId = pending.id,
                 dayOfWeek = 5,
-                hour = 18,
+                hour = if (pending.id == MarathonScenario.PROPOSAL_ID) 9 else 18,
                 minute = 0,
                 nowEpochMs = System.currentTimeMillis()
             )
@@ -59,7 +111,9 @@ class LauncherViewModel(
     }
 
     fun deferNext() {
-        val sessionId = nextAction.sessionId ?: SpanishScenario.SESSION_ID
+        val sessionId = nextAction.sessionId
+            ?: snapshot.sessions.firstOrNull { it.intentionId == activeIntention()?.id }?.id
+            ?: return
         val until = System.currentTimeMillis() + 2 * 60 * 60 * 1000L
         store.apply(
             FlowCommand.DeferNextSession(
@@ -72,7 +126,7 @@ class LauncherViewModel(
     }
 
     fun beginNoted() {
-        // v0.0.01: begin is acknowledged in UI; schedule unchanged
+        // v0.0.02: begin is acknowledged in UI; schedule unchanged
         refresh()
     }
 }

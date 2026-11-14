@@ -19,11 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intent.launcher.domain.ConversationTurn
-import com.intent.launcher.domain.SpanishScenario
 
 @Composable
 fun ConversationScreen(
     turns: List<ConversationTurn>,
+    chips: List<String>,
     onChip: (String) -> Unit,
     onBack: () -> Unit,
     onOpenProposal: () -> Unit,
@@ -61,7 +61,7 @@ fun ConversationScreen(
         Spacer(modifier = Modifier.height(12.dp))
         Text("Choose a direction", style = MaterialTheme.typography.titleSmall)
         Spacer(modifier = Modifier.height(8.dp))
-        SpanishScenario.conversationChips.forEach { chip ->
+        chips.forEach { chip ->
             AssistChip(
                 onClick = { onChip(chip) },
                 label = { Text(chip) },
