@@ -2,6 +2,14 @@
 
 Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.02**.
 
+## Download
+
+**Debug APK (v0.0.01)** — current published artifact:
+
+https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk
+
+(Repo is at v0.0.02; a matching debug APK has not been published under `artifacts/` yet.)
+
 ## Build
 
 ```bash
@@ -20,7 +28,3 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 ## Shapes
 
 Shared core records (`Intention`, facts, hypotheses, proposals, sessions). Shape tag: `language` | `marathon` | `business`.
-
-## Download
-
-Debug APK (v0.0.01): [`artifacts/INTENT-v0.0.01-debug.apk`](artifacts/INTENT-v0.0.01-debug.apk)
