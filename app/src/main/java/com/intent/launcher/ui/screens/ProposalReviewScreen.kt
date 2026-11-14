@@ -1,23 +1,44 @@
 package com.intent.launcher.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.Proposal
+import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.ui.components.Callout
+import com.intent.launcher.ui.components.IntentPrimaryButton
+import com.intent.launcher.ui.components.IntentQuietButton
+import com.intent.launcher.ui.components.IntentSecondaryButton
+import com.intent.launcher.ui.components.Lede
+import com.intent.launcher.ui.components.LineRow
+import com.intent.launcher.ui.components.ScreenTopBar
+import com.intent.launcher.ui.components.SectionTitle
+import com.intent.launcher.ui.components.SmallLabel
+import com.intent.launcher.ui.components.SoftCard
+import com.intent.launcher.ui.theme.IntentColors
 
 @Composable
 fun ProposalReviewScreen(
@@ -29,50 +50,222 @@ fun ProposalReviewScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val pending = proposal?.status == ProposalStatus.PENDING
+    val dayName = proposal?.let { dayName(it.proposedDayOfWeek) } ?: "—"
+    val timeLabel = proposal?.let { "%02d:%02d".format(it.proposedHour, it.proposedMinute) } ?: "—"
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(28.dp)
+            .background(IntentColors.Paper)
     ) {
-        TextButton(onClick = onBack) { Text("Back") }
-        Text(
-            text = "Proposal review",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        if (proposal == null) {
-            Text("No pending proposal.")
-            return
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 19.dp, vertical = 18.dp)
+        ) {
+            ScreenTopBar(contextLabel = "Review", onBack = onBack)
+            Spacer(modifier = Modifier.height(23.dp))
+
+            if (proposal == null) {
+                SmallLabel(text = "No commitment yet")
+                Spacer(modifier = Modifier.height(7.dp))
+                Text(
+                    text = "First, choose a direction.",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = IntentColors.Ink
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Lede("INTENT can help compare approaches before it proposes a routine.")
+                Spacer(modifier = Modifier.height(26.dp))
+                SoftCard {
+                    SectionTitle("Possible approaches")
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LineRow(
+                        glyph = "◧",
+                        title = "Specialist app",
+                        subtitle = "Structured lessons; INTENT manages the habit",
+                        showArrow = false
+                    )
+                    LineRow(
+                        glyph = "♧",
+                        title = "Tutor or conversation partner",
+                        subtitle = "Real speaking practice with a person",
+                        showArrow = false
+                    )
+                    LineRow(
+                        glyph = "✦",
+                        title = "Practise with your agent",
+                        subtitle = "Conversations tailored to your level",
+                        showArrow = false
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Callout(text = "Choosing an approach will not create a schedule until you approve one.")
+            } else {
+                SmallLabel(
+                    text = if (pending) "Your approval required" else "Reviewed",
+                    color = if (pending) IntentColors.Warm else IntentColors.Accent
+                )
+                Spacer(modifier = Modifier.height(7.dp))
+                Text(
+                    text = if (pending) "Make this part of your week?" else proposal.title,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = IntentColors.Ink
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Lede(
+                    if (pending) "You can change the details now or later."
+                    else proposal.summary
+                )
+                Spacer(modifier = Modifier.height(26.dp))
+
+                SoftCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(IntentColors.SuccessSoft, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("▣", color = IntentColors.Success, fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = proposal.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = IntentColors.Ink
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    ApprovalGrid(
+                        day = "Every $dayName",
+                        time = timeLabel,
+                        duration = "60 minutes",
+                        source = "You told INTENT"
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Callout(
+                    title = "What changes",
+                    text = "This session can appear on Home when it is relevant. INTENT can ask how it went afterward. No tutor or calendar service will be contacted."
+                )
+
+                if (relatedFacts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SectionTitle("Based on your facts")
+                    relatedFacts.forEach { f ->
+                        Text(
+                            text = "• ${f.text}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IntentColors.Muted,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+                }
+
+                if (pending) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    IntentSecondaryButton(text = "Edit the details", onClick = onEdit)
+                }
+            }
         }
-        Text(proposal.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(proposal.summary, style = MaterialTheme.typography.bodyLarge)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "Proposed: day ${proposal.proposedDayOfWeek} at %02d:%02d".format(
-                proposal.proposedHour,
-                proposal.proposedMinute
-            ),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Distinct user fact(s)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        relatedFacts.forEach { f ->
-            Text("• ${f.text}", modifier = Modifier.padding(vertical = 4.dp))
-        }
-        Spacer(modifier = Modifier.height(28.dp))
-        Button(onClick = onApprove, modifier = Modifier.fillMaxWidth()) {
-            Text("Approve weekly session")
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
-            Text("Edit")
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        TextButton(onClick = onDecline, modifier = Modifier.fillMaxWidth()) {
-            Text("Decline")
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(IntentColors.Line)
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(IntentColors.NavBar)
+                    .padding(horizontal = 17.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                if (proposal == null) {
+                    IntentPrimaryButton(text = "Discuss the options", onClick = onBack)
+                    IntentQuietButton(text = "Return to intention", onClick = onBack)
+                } else if (pending) {
+                    IntentPrimaryButton(text = "Approve weekly session", onClick = onApprove)
+                    IntentQuietButton(text = "Not now", onClick = onDecline)
+                } else {
+                    IntentQuietButton(text = "Return", onClick = onBack)
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun ApprovalGrid(
+    day: String,
+    time: String,
+    duration: String,
+    source: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(12.dp))
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            GridCell("Day", day, Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(64.dp)
+                    .background(IntentColors.Line)
+            )
+            GridCell("Time", time, Modifier.weight(1f))
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(IntentColors.Line)
+        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            GridCell("Duration", duration, Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(64.dp)
+                    .background(IntentColors.Line)
+            )
+            GridCell("Source", source, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun GridCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(Color(0xFFF2F2EC))
+            .padding(10.dp)
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = IntentColors.Muted,
+            letterSpacing = 0.8.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = IntentColors.Ink
+        )
+    }
+}
+
+private fun dayName(isoDay: Int): String =
+    listOf("", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        .getOrElse(isoDay) { "Day $isoDay" }

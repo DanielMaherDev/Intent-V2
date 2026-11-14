@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
@@ -40,7 +41,7 @@ class MainActivity : ComponentActivity() {
                     val intentionHint = when (intention?.shapeTag) {
                         "marathon" -> "Run a marathon · Base before speed"
                         "business" -> "Business idea · Stay in discovery"
-                        else -> "Learn Spanish · Speak Spanish when ready"
+                        else -> "Open your intention"
                     }
                     val showMarathonEntry = intention?.shapeTag != "marathon"
 
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 nextAction = vm.nextAction,
                                 intentionHint = intentionHint,
+                                intentionTitle = intention?.title.orEmpty(),
                                 onContinueExploring = {
                                     nav.navigate("intention")
                                 },
@@ -78,7 +80,12 @@ class MainActivity : ComponentActivity() {
                                 facts = vm.snapshot.facts.filter { it.intentionId == active?.id },
                                 hypotheses = vm.snapshot.hypotheses.filter { it.intentionId == active?.id },
                                 sessions = vm.snapshot.sessions.filter { it.intentionId == active?.id },
-                                onWorkThisOut = { nav.navigate("conversation") },
+                                onWorkThisOut = {
+                                    when (active?.phase) {
+                                        IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
+                                        else -> nav.navigate("conversation")
+                                    }
+                                },
                                 onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -88,6 +95,7 @@ class MainActivity : ComponentActivity() {
                             ConversationScreen(
                                 turns = vm.snapshot.turns.filter { it.intentionId == active?.id },
                                 chips = vm.conversationChips(),
+                                intentionTitle = active?.title.orEmpty(),
                                 onChip = { chip ->
                                     vm.onConversationChip(chip)
                                     val after = vm.snapshot
