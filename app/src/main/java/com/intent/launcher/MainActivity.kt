@@ -54,7 +54,12 @@ class MainActivity : ComponentActivity() {
                                 onReviewProposal = { nav.navigate("proposal") },
                                 onBegin = { vm.beginSession() },
                                 onDefer = { vm.deferNext() },
-                                onDiscuss = { nav.navigate("conversation") },
+                                onDiscuss = {
+                                    val route = vm.openDiscussFromHome()
+                                    if (route != null) {
+                                        nav.navigate(route)
+                                    }
+                                },
                                 onCompleteSession = { vm.completeActiveSession() },
                                 onAbandonSession = { vm.abandonActiveSession() },
                                 onExploreMarathon = if (showMarathonEntry) {
