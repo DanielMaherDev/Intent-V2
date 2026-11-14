@@ -4,6 +4,7 @@ import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ProvenanceKind
+import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.domain.NextActionKind
@@ -146,6 +147,48 @@ class IntentionFlowStoreTest {
         assertEquals(IntentionPhase.EXPLORING, snap.intentions.first().phase)
         val action = NextActionEngine.recommend(snap, now + 3, tz)
         assertEquals(NextActionKind.CONTINUE_EXPLORING, action.kind)
+    }
+
+    @Test
+    fun marathonFlow_factDistinctFromProposal_approveDeferPersist() {
+        MarathonScenario.seed(store, now)
+        var snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == MarathonScenario.INTENTION_ID }.phase)
+        assertEquals("marathon", snap.intentions.first { it.id == MarathonScenario.INTENTION_ID }.shapeTag)
+
+        MarathonScenario.onChip(store, "Build a base before speed work", now + 10)
+        MarathonScenario.onChip(store, "Long runs feel best on Sundays", now + 20)
+        snap = store.snapshot()
+
+        val fact = snap.facts.first { it.id == MarathonScenario.FACT_LONG_RUN_ID }
+        assertEquals(ProvenanceKind.SAID, fact.provenance.kind)
+        val proposal = snap.proposals.first { it.id == MarathonScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertNotEquals(fact.text, proposal.summary)
+        assertTrue(proposal.basedOnFactIds.contains(fact.id))
+        assertEquals(IntentionPhase.PROPOSAL_PENDING, snap.intentions.first { it.id == MarathonScenario.INTENTION_ID }.phase)
+
+        MarathonScenario.approve(store, now + 40)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == MarathonScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == MarathonScenario.SESSION_ID })
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == MarathonScenario.INTENTION_ID }.phase)
+
+        val next = NextActionEngine.recommend(snap, now + 50, tz)
+        assertEquals(NextActionKind.BEGIN, next.kind)
+
+        val deferUntil = now + 3_600_000L
+        MarathonScenario.deferSession(store, deferUntil, now + 60)
+        snap = store.snapshot()
+        assertEquals(deferUntil, snap.sessions.first { it.id == MarathonScenario.SESSION_ID }.deferredUntilEpochMs)
+        val afterDefer = NextActionEngine.recommend(snap, now + 70, tz)
+        assertTrue(afterDefer.detail.contains("Deferred"))
+
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == MarathonScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == MarathonScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == MarathonScenario.FACT_LONG_RUN_ID }.provenance.kind)
     }
 
     @Test

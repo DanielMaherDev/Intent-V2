@@ -15,7 +15,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.ProposalStatus
-import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.HomeScreen
@@ -33,15 +32,23 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val nav = rememberNavController()
                     val snap = vm.snapshot
-                    val intention = snap.intentions.firstOrNull { it.id == SpanishScenario.INTENTION_ID }
-                        ?: snap.intentions.firstOrNull()
-                    val pending = snap.proposals.firstOrNull { it.status == ProposalStatus.PENDING }
+                    val intention = vm.activeIntention()
+                    val pending = snap.proposals.firstOrNull {
+                        it.status == ProposalStatus.PENDING && it.intentionId == intention?.id
+                    }
                     var showBeginAck by remember { mutableStateOf(false) }
+                    val intentionHint = when (intention?.shapeTag) {
+                        "marathon" -> "Run a marathon · Base before speed"
+                        "business" -> "Business idea · Stay in discovery"
+                        else -> "Learn Spanish · Speak Spanish when ready"
+                    }
+                    val showMarathonEntry = intention?.shapeTag != "marathon"
 
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
                             HomeScreen(
                                 nextAction = vm.nextAction,
+                                intentionHint = intentionHint,
                                 onContinueExploring = {
                                     nav.navigate("intention")
                                 },
@@ -53,27 +60,42 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onDefer = { vm.deferNext() },
                                 onDiscuss = { nav.navigate("conversation") },
+                                onExploreMarathon = if (showMarathonEntry) {
+                                    {
+                                        vm.startMarathonExploration()
+                                        nav.navigate("intention")
+                                    }
+                                } else {
+                                    null
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                         composable("intention") {
+                            val active = vm.activeIntention()
                             IntentionSpaceScreen(
-                                intention = intention,
-                                facts = snap.facts.filter { it.intentionId == intention?.id },
-                                hypotheses = snap.hypotheses.filter { it.intentionId == intention?.id },
-                                sessions = snap.sessions.filter { it.intentionId == intention?.id },
+                                intention = active,
+                                facts = vm.snapshot.facts.filter { it.intentionId == active?.id },
+                                hypotheses = vm.snapshot.hypotheses.filter { it.intentionId == active?.id },
+                                sessions = vm.snapshot.sessions.filter { it.intentionId == active?.id },
                                 onWorkThisOut = { nav.navigate("conversation") },
                                 onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
                         composable("conversation") {
+                            val active = vm.activeIntention()
                             ConversationScreen(
-                                turns = snap.turns.filter { it.intentionId == intention?.id },
+                                turns = vm.snapshot.turns.filter { it.intentionId == active?.id },
+                                chips = vm.conversationChips(),
                                 onChip = { chip ->
                                     vm.onConversationChip(chip)
                                     val after = vm.snapshot
-                                    if (after.proposals.any { it.status == ProposalStatus.PENDING }) {
+                                    if (after.proposals.any {
+                                            it.status == ProposalStatus.PENDING &&
+                                                it.intentionId == active?.id
+                                        }
+                                    ) {
                                         nav.navigate("proposal")
                                     }
                                 },
@@ -84,8 +106,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("proposal") {
-                            val p = vm.snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING }
-                                ?: vm.snapshot.proposals.lastOrNull()
+                            val active = vm.activeIntention()
+                            val p = vm.snapshot.proposals.firstOrNull {
+                                it.status == ProposalStatus.PENDING && it.intentionId == active?.id
+                            } ?: vm.snapshot.proposals.lastOrNull { it.intentionId == active?.id }
                             ProposalReviewScreen(
                                 proposal = p,
                                 relatedFacts = vm.snapshot.facts.filter { fact ->
