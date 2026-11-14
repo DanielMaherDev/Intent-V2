@@ -94,8 +94,9 @@ fun HomeScreen(
                     }
                 else -> nextAction.label
             }
-            val cardDetail = when (nextAction.kind) {
-                NextActionKind.CONTINUE_EXPLORING ->
+            val cardDetail = when {
+                nextAction.reason.isNotBlank() -> nextAction.reason
+                nextAction.kind == NextActionKind.CONTINUE_EXPLORING ->
                     "We know what matters to you. Let's decide how you want to practise."
                 else -> nextAction.detail
             }
@@ -121,6 +122,17 @@ fun HomeScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = IntentColors.Muted
                 )
+                if (nextAction.reason.isNotBlank() &&
+                    nextAction.detail.isNotBlank() &&
+                    nextAction.detail != nextAction.reason
+                ) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = nextAction.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
                 if (pills.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,16 +245,25 @@ private fun homeCopy(nextAction: NextAction, intentionTitle: String): HomeCopy =
         )
         NextActionKind.BEGIN -> HomeCopy(
             headline = "One small step today.",
-            lede = nextAction.detail.ifBlank { "Something useful is ready." },
+            lede = nextAction.reason.ifBlank {
+                nextAction.detail.ifBlank { "Something useful is ready." }
+            },
             heroTone = HeroTone.Success,
             smallLabel = "Relevant now",
             pills = listOf(
                 intentionTitle.ifBlank { "In motion" } to PillTone.Success
             )
         )
+        NextActionKind.DISCUSS -> HomeCopy(
+            headline = "Not due just yet.",
+            lede = nextAction.reason.ifBlank { "Talk it through when you are ready." },
+            heroTone = HeroTone.Warm,
+            smallLabel = "Upcoming",
+            pills = listOf(intentionTitle.ifBlank { "Planned" } to PillTone.Warm)
+        )
         else -> HomeCopy(
             headline = "Where would you like to begin?",
-            lede = "Your space is ready when you are.",
+            lede = nextAction.reason.ifBlank { "Your space is ready when you are." },
             heroTone = HeroTone.Accent,
             smallLabel = "Your space",
             pills = emptyList()

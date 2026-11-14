@@ -61,18 +61,22 @@ class IntentionFlowStoreTest {
         assertEquals(1, snap.sessions.size)
         assertEquals(IntentionPhase.ACTIVE, snap.intentions.first().phase)
 
-        val next = NextActionEngine.recommend(snap, now + 50, tz)
+        // Thursday 16 Nov 2023 18:30 UTC — session day, due now
+        val dueNow = 1_700_159_400_000L
+        val next = NextActionEngine.recommend(snap, dueNow, tz)
         assertEquals(NextActionKind.BEGIN, next.kind)
         assertEquals("Begin", next.beginLabel)
         assertEquals("Later", next.deferLabel)
         assertEquals("Discuss", next.discussLabel)
+        assertTrue(next.reason.isNotBlank())
 
-        val deferUntil = now + 3_600_000L
-        SpanishScenario.deferSession(store, deferUntil, now + 60)
+        val deferUntil = dueNow + 3_600_000L
+        SpanishScenario.deferSession(store, deferUntil, dueNow + 10)
         snap = store.snapshot()
         assertEquals(deferUntil, snap.sessions.first().deferredUntilEpochMs)
-        val afterDefer = NextActionEngine.recommend(snap, now + 70, tz)
+        val afterDefer = NextActionEngine.recommend(snap, dueNow + 20, tz)
         assertTrue(afterDefer.detail.contains("Deferred"))
+        assertTrue(afterDefer.reason.contains("deferred", ignoreCase = true))
 
         // Restart = new store instance on same file
         val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
@@ -174,15 +178,19 @@ class IntentionFlowStoreTest {
         assertEquals(1, snap.sessions.count { it.id == MarathonScenario.SESSION_ID })
         assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == MarathonScenario.INTENTION_ID }.phase)
 
-        val next = NextActionEngine.recommend(snap, now + 50, tz)
+        // Marathon long-run is Sunday 09:00 — pin Sun 19 Nov 2023 09:00 UTC
+        val sundayDue = 1_700_384_400_000L
+        val next = NextActionEngine.recommend(snap, sundayDue, tz)
         assertEquals(NextActionKind.BEGIN, next.kind)
+        assertTrue(next.reason.isNotBlank())
 
-        val deferUntil = now + 3_600_000L
-        MarathonScenario.deferSession(store, deferUntil, now + 60)
+        val deferUntil = sundayDue + 3_600_000L
+        MarathonScenario.deferSession(store, deferUntil, sundayDue + 10)
         snap = store.snapshot()
         assertEquals(deferUntil, snap.sessions.first { it.id == MarathonScenario.SESSION_ID }.deferredUntilEpochMs)
-        val afterDefer = NextActionEngine.recommend(snap, now + 70, tz)
+        val afterDefer = NextActionEngine.recommend(snap, sundayDue + 20, tz)
         assertTrue(afterDefer.detail.contains("Deferred"))
+        assertTrue(afterDefer.reason.contains("deferred", ignoreCase = true))
 
         val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
         val again = restarted.snapshot()
@@ -215,7 +223,9 @@ class IntentionFlowStoreTest {
         assertTrue(snap.sessions.isEmpty())
         assertTrue(snap.proposals.isEmpty())
         assertEquals(IntentionPhase.EXPLORING, snap.intentions.first().phase)
-        assertEquals(NextActionKind.CONTINUE_EXPLORING, NextActionEngine.recommend(snap, now + 2, tz).kind)
+        val bizNext = NextActionEngine.recommend(snap, now + 2, tz)
+        assertEquals(NextActionKind.CONTINUE_EXPLORING, bizNext.kind)
+        assertTrue(bizNext.reason.contains("discovery", ignoreCase = true))
     }
 
     @Test

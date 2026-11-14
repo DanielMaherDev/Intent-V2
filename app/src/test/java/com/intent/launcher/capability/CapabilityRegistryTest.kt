@@ -78,10 +78,13 @@ class CapabilityRegistryTest {
 
         SpanishScenario.approve(store, now + 30)
         snap = store.snapshot()
-        val begin = NextActionEngine.recommend(snap, now + 40, tz, registry)
+        // Thursday 16 Nov 2023 18:30 UTC — due now for Thu 18:00 session
+        val dueNow = 1_700_159_400_000L
+        val begin = NextActionEngine.recommend(snap, dueNow, tz, registry)
         assertEquals(NextActionKind.BEGIN, begin.kind)
         assertEquals("Begin", begin.beginLabel)
         assertEquals("Later", begin.deferLabel)
+        assertTrue(begin.reason.isNotBlank())
     }
 
     @Test
@@ -128,7 +131,9 @@ class CapabilityRegistryTest {
         SpanishScenario.approve(store, now + 2)
         val snap = store.snapshot()
         assertEquals(1, snap.sessions.size)
-        val next = NextActionEngine.recommend(snap, now + 3, tz, noBegin)
+        val dueNow = 1_700_159_400_000L
+        val next = NextActionEngine.recommend(snap, dueNow, tz, noBegin)
         assertTrue(next.kind != NextActionKind.BEGIN)
+        assertTrue(next.reason.isNotBlank())
     }
 }

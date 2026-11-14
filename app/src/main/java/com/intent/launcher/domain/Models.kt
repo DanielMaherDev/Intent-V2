@@ -189,6 +189,8 @@ data class NextAction(
     val kind: NextActionKind,
     val label: String,
     val detail: String,
+    /** Explainable “why this now?” tied to schedule, state, or capability honesty. */
+    val reason: String = "",
     val intentionId: String?,
     val sessionId: String? = null,
     val proposalId: String? = null,
