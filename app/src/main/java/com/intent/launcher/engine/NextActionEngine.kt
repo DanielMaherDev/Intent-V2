@@ -1,5 +1,6 @@
 package com.intent.launcher.engine
 
+import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.NextAction
@@ -13,7 +14,8 @@ object NextActionEngine {
     fun recommend(
         snapshot: IntentionSnapshot,
         nowEpochMs: Long,
-        timeZone: TimeZone = TimeZone.getDefault()
+        timeZone: TimeZone = TimeZone.getDefault(),
+        registry: CapabilityRegistry = CapabilityRegistry.default
     ): NextAction {
         val intentionId = snapshot.activeIntentionId
             ?: snapshot.intentions.firstOrNull()?.id
@@ -35,7 +37,7 @@ object NextActionEngine {
         val pending = snapshot.proposals.firstOrNull {
             it.intentionId == intentionId && it.status == ProposalStatus.PENDING
         }
-        if (pending != null) {
+        if (pending != null && registry.canRecommendReviewProposal()) {
             return NextAction(
                 kind = NextActionKind.REVIEW_PROPOSAL,
                 label = "Review weekly session",
@@ -49,7 +51,7 @@ object NextActionEngine {
             .filter { it.intentionId == intentionId }
             .minByOrNull { urgency(it.deferredUntilEpochMs, it.dayOfWeek, it.hour, it.minute, nowEpochMs, timeZone) }
 
-        if (session != null && intention.phase == IntentionPhase.ACTIVE) {
+        if (session != null && intention.phase == IntentionPhase.ACTIVE && registry.canRecommendBegin()) {
             val whenLabel = formatSessionWhen(session.deferredUntilEpochMs, session.dayOfWeek, session.hour, session.minute, nowEpochMs, timeZone)
             return NextAction(
                 kind = NextActionKind.BEGIN,
@@ -58,24 +60,47 @@ object NextActionEngine {
                 intentionId = intentionId,
                 sessionId = session.id,
                 beginLabel = "Begin",
-                deferLabel = "Later",
-                discussLabel = "Discuss"
+                deferLabel = if (registry.canRecommendDefer()) "Later" else null,
+                discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
             )
         }
 
         return when (intention.phase) {
-            IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> NextAction(
-                kind = NextActionKind.CONTINUE_EXPLORING,
-                label = "Continue exploring",
-                detail = intention.title,
-                intentionId = intentionId
-            )
-            IntentionPhase.PROPOSAL_PENDING -> NextAction(
-                kind = NextActionKind.REVIEW_PROPOSAL,
-                label = "Review proposal",
-                detail = intention.title,
-                intentionId = intentionId
-            )
+            IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> {
+                if (registry.canContinueExploring()) {
+                    NextAction(
+                        kind = NextActionKind.CONTINUE_EXPLORING,
+                        label = "Continue exploring",
+                        detail = intention.title,
+                        intentionId = intentionId
+                    )
+                } else {
+                    NextAction(
+                        kind = NextActionKind.NONE,
+                        label = "Where would you like to begin?",
+                        detail = registry.get(CapabilityRegistry.ID_CONTINUE_EXPLORING)?.limitNote
+                            ?: "Exploration is unavailable.",
+                        intentionId = intentionId
+                    )
+                }
+            }
+            IntentionPhase.PROPOSAL_PENDING -> {
+                if (registry.canRecommendReviewProposal()) {
+                    NextAction(
+                        kind = NextActionKind.REVIEW_PROPOSAL,
+                        label = "Review proposal",
+                        detail = intention.title,
+                        intentionId = intentionId
+                    )
+                } else {
+                    NextAction(
+                        kind = NextActionKind.CONTINUE_EXPLORING,
+                        label = "Continue exploring",
+                        detail = intention.title,
+                        intentionId = intentionId
+                    )
+                }
+            }
             IntentionPhase.PAUSED -> NextAction(
                 kind = NextActionKind.DISCUSS,
                 label = "Discuss",

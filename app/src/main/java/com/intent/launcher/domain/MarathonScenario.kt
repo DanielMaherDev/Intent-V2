@@ -1,11 +1,14 @@
 package com.intent.launcher.domain
 
+import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.capability.SuggestedChip
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
  * Scripted marathon exploring → fact → proposal path for v0.0.02.
  * Shares the same core records as Spanish (facts, hypotheses, proposals, sessions).
  * No invented mileage totals or race-day completion percentages.
+ * Chips and proposals consult [CapabilityRegistry] (Rule 5).
  */
 object MarathonScenario {
     const val INTENTION_ID = "intention-marathon"
@@ -16,11 +19,14 @@ object MarathonScenario {
     const val TITLE = "Run a marathon"
     const val STATEMENT = "Train for a spring marathon without forcing a full plan before the base is clear."
 
-    val conversationChips = listOf(
-        "Build a base before speed work",
-        "Long runs feel best on Sundays",
-        "I already jog a few times a week"
+    val suggestedChips: List<SuggestedChip> = listOf(
+        SuggestedChip("Build a base before speed work", CapabilityRegistry.ID_ADD_HYPOTHESIS),
+        SuggestedChip("Long runs feel best on Sundays", CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION),
+        SuggestedChip("I already jog a few times a week", CapabilityRegistry.ID_RECORD_FACT)
     )
+
+    fun conversationChips(registry: CapabilityRegistry = CapabilityRegistry.default): List<String> =
+        registry.filterChips(suggestedChips)
 
     fun seed(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
         store.apply(
@@ -57,7 +63,12 @@ object MarathonScenario {
         }
     }
 
-    fun onChip(store: IntentionFlowStore, chip: String, now: Long = System.currentTimeMillis()) {
+    fun onChip(
+        store: IntentionFlowStore,
+        chip: String,
+        now: Long = System.currentTimeMillis(),
+        registry: CapabilityRegistry = CapabilityRegistry.default
+    ) {
         ensureSeeded(store, now)
         store.apply(
             FlowCommand.AddConversationTurn(
@@ -70,6 +81,7 @@ object MarathonScenario {
         )
         when {
             chip.contains("base before speed", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) return
                 store.apply(
                     FlowCommand.AddHypothesis(
                         hypothesisId = "hyp-base-building",
@@ -96,6 +108,7 @@ object MarathonScenario {
                 )
             }
             chip.contains("Sundays", ignoreCase = true) || chip.contains("Long runs", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) return
                 store.apply(
                     FlowCommand.AddUserFact(
                         factId = FACT_LONG_RUN_ID,
@@ -104,6 +117,19 @@ object MarathonScenario {
                         nowEpochMs = now
                     )
                 )
+                if (!registry.canProposeRecurringSession()) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-marathon-agent-no-schedule-$now",
+                            intentionId = INTENTION_ID,
+                            role = "agent",
+                            text = registry.get(CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION)?.limitNote
+                                ?: "Scheduling is not available.",
+                            nowEpochMs = now + 1
+                        )
+                    )
+                    return
+                }
                 store.apply(
                     FlowCommand.ProposeRecurringSession(
                         proposalId = PROPOSAL_ID,
@@ -128,6 +154,7 @@ object MarathonScenario {
                 )
             }
             chip.contains("jog", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) return
                 store.apply(
                     FlowCommand.AddUserFact(
                         factId = "fact-already-jogging",
