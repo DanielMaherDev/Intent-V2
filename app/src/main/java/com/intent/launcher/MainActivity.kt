@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
                         else -> "Open your intention"
                     }
                     val showMarathonEntry = intention?.shapeTag != "marathon"
+                    val showBusinessEntry = intention?.shapeTag != "business"
 
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
@@ -65,6 +66,14 @@ class MainActivity : ComponentActivity() {
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
                                         vm.startMarathonExploration()
+                                        nav.navigate("intention")
+                                    }
+                                } else {
+                                    null
+                                },
+                                onExploreBusiness = if (showBusinessEntry) {
+                                    {
+                                        vm.startBusinessExploration()
                                         nav.navigate("intention")
                                     }
                                 } else {

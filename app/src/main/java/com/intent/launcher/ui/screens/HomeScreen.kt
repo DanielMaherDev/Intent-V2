@@ -53,6 +53,7 @@ fun HomeScreen(
     onDefer: () -> Unit,
     onDiscuss: () -> Unit,
     onExploreMarathon: (() -> Unit)? = null,
+    onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
@@ -204,6 +205,15 @@ fun HomeScreen(
                     title = "Explore a marathon",
                     subtitle = "Second shape on the same foundation",
                     onClick = onExploreMarathon,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onExploreBusiness != null) {
+                LineRow(
+                    title = "Explore a business idea",
+                    subtitle = "Third shape — discovery without forced tasks",
+                    onClick = onExploreBusiness,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
                 )

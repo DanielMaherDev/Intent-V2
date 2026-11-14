@@ -1,5 +1,6 @@
 package com.intent.launcher
 
+import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
@@ -201,31 +202,88 @@ class IntentionFlowStoreTest {
 
     @Test
     fun businessDiscovery_noForcedTasks() {
-        store.apply(
-            FlowCommand.SeedExploring(
-                intentionId = "intention-biz",
-                title = "Explore a small business idea",
-                statement = "Still figuring out whether a neighborhood repair service makes sense.",
-                shapeTag = "business",
-                nowEpochMs = now
-            )
-        )
-        store.apply(
-            FlowCommand.AddHypothesis(
-                hypothesisId = "hyp-market",
-                intentionId = "intention-biz",
-                text = "Demand is unclear; stay in discovery",
-                nowEpochMs = now + 1
-            )
-        )
+        BusinessScenario.seed(store, now)
+        BusinessScenario.onChip(store, "Keep this in discovery for now", now + 10)
         val snap = store.snapshot()
-        assertEquals("business", snap.intentions.first().shapeTag)
-        assertTrue(snap.sessions.isEmpty())
-        assertTrue(snap.proposals.isEmpty())
-        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first().phase)
-        val bizNext = NextActionEngine.recommend(snap, now + 2, tz)
+        val intention = snap.intentions.first { it.id == BusinessScenario.INTENTION_ID }
+        assertEquals("business", intention.shapeTag)
+        assertTrue(snap.sessions.none { it.intentionId == BusinessScenario.INTENTION_ID })
+        assertTrue(snap.proposals.none { it.intentionId == BusinessScenario.INTENTION_ID })
+        assertEquals(IntentionPhase.EXPLORING, intention.phase)
+        val bizNext = NextActionEngine.recommend(snap, now + 20, tz)
         assertEquals(NextActionKind.CONTINUE_EXPLORING, bizNext.kind)
         assertTrue(bizNext.reason.contains("discovery", ignoreCase = true))
+        assertTrue(snap.hypotheses.any { it.id == "hyp-stay-discovery" })
+    }
+
+    @Test
+    fun businessFlow_factDistinctFromProposal_approveDeferPersist() {
+        BusinessScenario.seed(store, now)
+        var snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == BusinessScenario.INTENTION_ID }.phase)
+        assertEquals("business", snap.intentions.first { it.id == BusinessScenario.INTENTION_ID }.shapeTag)
+
+        BusinessScenario.onChip(store, "Demand is still unclear", now + 10)
+        BusinessScenario.onChip(store, "Customer chats work best on Wednesdays", now + 20)
+        snap = store.snapshot()
+
+        val fact = snap.facts.first { it.id == BusinessScenario.FACT_CUSTOMER_CHAT_ID }
+        assertEquals(ProvenanceKind.SAID, fact.provenance.kind)
+        val proposal = snap.proposals.first { it.id == BusinessScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertNotEquals(fact.text, proposal.summary)
+        assertTrue(proposal.basedOnFactIds.contains(fact.id))
+        assertEquals(
+            IntentionPhase.PROPOSAL_PENDING,
+            snap.intentions.first { it.id == BusinessScenario.INTENTION_ID }.phase
+        )
+
+        val review = NextActionEngine.recommend(snap, now + 30, tz)
+        assertEquals(NextActionKind.REVIEW_PROPOSAL, review.kind)
+        assertTrue(review.reason.isNotBlank())
+
+        BusinessScenario.approve(store, now + 40)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == BusinessScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == BusinessScenario.SESSION_ID })
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == BusinessScenario.INTENTION_ID }.phase)
+
+        // Wednesday research hour is Wed 12:00 — pin Wed 15 Nov 2023 12:00 UTC
+        val wednesdayDue = 1_700_049_600_000L
+        val next = NextActionEngine.recommend(snap, wednesdayDue, tz)
+        assertEquals(NextActionKind.BEGIN, next.kind)
+        assertTrue(next.reason.isNotBlank())
+
+        val deferUntil = wednesdayDue + 3_600_000L
+        BusinessScenario.deferSession(store, deferUntil, wednesdayDue + 10)
+        snap = store.snapshot()
+        assertEquals(deferUntil, snap.sessions.first { it.id == BusinessScenario.SESSION_ID }.deferredUntilEpochMs)
+        val afterDefer = NextActionEngine.recommend(snap, wednesdayDue + 20, tz)
+        assertTrue(afterDefer.detail.contains("Deferred"))
+        assertTrue(afterDefer.reason.contains("deferred", ignoreCase = true))
+
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == BusinessScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == BusinessScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals(
+            ProvenanceKind.SAID,
+            again.facts.first { it.id == BusinessScenario.FACT_CUSTOMER_CHAT_ID }.provenance.kind
+        )
+    }
+
+    @Test
+    fun threeShapes_shareCoreRecordsWithoutSpecialCaseFields() {
+        SpanishScenario.seed(store, now)
+        MarathonScenario.seed(store, now + 1)
+        BusinessScenario.seed(store, now + 2)
+        val snap = store.snapshot()
+        assertEquals(3, snap.intentions.size)
+        assertTrue(snap.intentions.any { it.shapeTag == "language" })
+        assertTrue(snap.intentions.any { it.shapeTag == "marathon" })
+        assertTrue(snap.intentions.any { it.shapeTag == "business" })
+        // Same Intention / Fact / Hypothesis / Proposal / Session types — no shape-specific columns
+        assertEquals(BusinessScenario.INTENTION_ID, snap.activeIntentionId)
     }
 
     @Test
