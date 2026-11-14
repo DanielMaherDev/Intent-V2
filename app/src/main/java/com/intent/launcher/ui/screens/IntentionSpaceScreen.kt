@@ -153,11 +153,18 @@ private fun intentionCopy(phase: IntentionPhase, shapeTag: String?): IntentionCo
             phaseLabel = "Exploring",
             heroTone = HeroTone.Accent,
             heroLabel = "The question now",
-            heroTitle = if (shapeTag == "marathon") "How will you train?" else "How will you practise?",
-            heroBody = if (shapeTag == "marathon") {
-                "We can shape this around base mileage, long runs, or a mix you can keep."
-            } else {
-                "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
+            heroTitle = when (shapeTag) {
+                "marathon" -> "How will you train?"
+                "business" -> "How will you learn?"
+                else -> "How will you practise?"
+            },
+            heroBody = when (shapeTag) {
+                "marathon" ->
+                    "We can shape this around base mileage, long runs, or a mix you can keep."
+                "business" ->
+                    "We can stay in discovery, talk to customers, or add a light research habit — nothing forced."
+                else ->
+                    "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
             },
             heroCta = "Work this out"
         )
@@ -197,5 +204,6 @@ private fun defaultGoalFact(intention: Intention?): String =
 private fun defaultTimeframeFact(intention: Intention?): String =
     when (intention?.shapeTag) {
         "marathon" -> "Timeframe · build base first"
+        "business" -> "Timeframe · stay in discovery"
         else -> "Timeframe · within a year"
     }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
@@ -47,12 +48,14 @@ class LauncherViewModel(
     fun conversationChips(): List<String> =
         when (activeIntention()?.shapeTag) {
             "marathon" -> MarathonScenario.conversationChips(capabilityRegistry)
+            "business" -> BusinessScenario.conversationChips(capabilityRegistry)
             else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
     fun onConversationChip(chip: String) {
         when (activeIntention()?.shapeTag) {
             "marathon" -> MarathonScenario.onChip(store, chip, registry = capabilityRegistry)
+            "business" -> BusinessScenario.onChip(store, chip, registry = capabilityRegistry)
             else -> SpanishScenario.onChip(store, chip, registry = capabilityRegistry)
         }
         refresh()
@@ -60,6 +63,11 @@ class LauncherViewModel(
 
     fun startMarathonExploration() {
         MarathonScenario.ensureSeeded(store)
+        refresh()
+    }
+
+    fun startBusinessExploration() {
+        BusinessScenario.ensureSeeded(store)
         refresh()
     }
 
@@ -78,6 +86,7 @@ class LauncherViewModel(
         val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
         val sessionId = when (pending.id) {
             MarathonScenario.PROPOSAL_ID -> MarathonScenario.SESSION_ID
+            BusinessScenario.PROPOSAL_ID -> BusinessScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
@@ -104,11 +113,16 @@ class LauncherViewModel(
 
     fun editProposalToFriday() {
         val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
+        val hour = when (pending.id) {
+            MarathonScenario.PROPOSAL_ID -> 9
+            BusinessScenario.PROPOSAL_ID -> 12
+            else -> 18
+        }
         store.apply(
             FlowCommand.EditProposal(
                 proposalId = pending.id,
                 dayOfWeek = 5,
-                hour = if (pending.id == MarathonScenario.PROPOSAL_ID) 9 else 18,
+                hour = hour,
                 minute = 0,
                 nowEpochMs = System.currentTimeMillis()
             )
@@ -132,7 +146,7 @@ class LauncherViewModel(
     }
 
     fun beginNoted() {
-        // v0.0.02: begin is acknowledged in UI; schedule unchanged
+        // Begin is acknowledged in UI; schedule unchanged
         refresh()
     }
 }
