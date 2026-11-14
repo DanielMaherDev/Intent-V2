@@ -213,4 +213,18 @@ object BusinessScenario {
             )
         )
     }
+
+    fun beginSession(
+        store: IntentionFlowStore,
+        now: Long = System.currentTimeMillis(),
+        runId: String = "run-$SESSION_ID-$now"
+    ) {
+        store.apply(
+            FlowCommand.BeginSession(
+                runId = runId,
+                sessionId = SESSION_ID,
+                nowEpochMs = now
+            )
+        )
+    }
 }

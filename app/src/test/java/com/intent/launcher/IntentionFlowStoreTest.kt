@@ -3,12 +3,13 @@ package com.intent.launcher
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.MarathonScenario
+import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ProvenanceKind
-import com.intent.launcher.domain.MarathonScenario
+import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.NextActionEngine
-import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.store.IntentionFlowStore
 import java.io.File
 import java.util.TimeZone
@@ -292,7 +293,84 @@ class IntentionFlowStoreTest {
         val f = tmp.newFile("old.json")
         f.writeText(raw)
         val s = IntentionFlowStore(f)
-        assertEquals(1, s.snapshot().schemaVersion)
+        assertEquals(2, s.snapshot().schemaVersion)
+        assertTrue(s.snapshot().sessionRuns.isEmpty())
+    }
+
+    @Test
+    fun beginSession_createsInProgressRun_completeAndAbandon() {
+        SpanishScenario.seed(store, now)
+        SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 1)
+        SpanishScenario.approve(store, now + 2)
+
+        SpanishScenario.beginSession(store, now + 3, runId = "run-spanish-1")
+        var snap = store.snapshot()
+        assertEquals(1, snap.sessionRuns.size)
+        assertEquals(SessionRunStatus.IN_PROGRESS, snap.sessionRuns.first().status)
+        assertEquals(SpanishScenario.SESSION_ID, snap.sessionRuns.first().sessionId)
+
+        val dueNow = 1_700_159_400_000L
+        val active = NextActionEngine.recommend(snap, dueNow, tz)
+        assertEquals(NextActionKind.ACTIVE_SESSION, active.kind)
+        assertEquals("Complete", active.completeLabel)
+        assertEquals("Abandon", active.abandonLabel)
+
+        store.apply(
+            FlowCommand.CompleteSessionRun(runId = "run-spanish-1", nowEpochMs = now + 4)
+        )
+        snap = store.snapshot()
+        assertEquals(SessionRunStatus.COMPLETED, snap.sessionRuns.first().status)
+        assertNotNull(snap.sessionRuns.first().endedAtEpochMs)
+
+        // After complete, engine returns to Begin (or Discuss) for the schedule — not ACTIVE_SESSION
+        val afterComplete = NextActionEngine.recommend(snap, dueNow, tz)
+        assertTrue(afterComplete.kind != NextActionKind.ACTIVE_SESSION)
+
+        SpanishScenario.beginSession(store, now + 5, runId = "run-spanish-2")
+        store.apply(
+            FlowCommand.AbandonSessionRun(runId = "run-spanish-2", nowEpochMs = now + 6)
+        )
+        snap = store.snapshot()
+        assertEquals(SessionRunStatus.ABANDONED, snap.sessionRuns.first { it.id == "run-spanish-2" }.status)
+
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(2, again.sessionRuns.size)
+        assertEquals(SessionRunStatus.COMPLETED, again.sessionRuns.first { it.id == "run-spanish-1" }.status)
+        assertEquals(SessionRunStatus.ABANDONED, again.sessionRuns.first { it.id == "run-spanish-2" }.status)
+    }
+
+    @Test
+    fun beginSession_secondBeginWhileActive_isNoOp() {
+        SpanishScenario.seed(store, now)
+        SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 1)
+        SpanishScenario.approve(store, now + 2)
+        SpanishScenario.beginSession(store, now + 3, runId = "run-a")
+        SpanishScenario.beginSession(store, now + 4, runId = "run-b")
+        val snap = store.snapshot()
+        assertEquals(1, snap.sessionRuns.size)
+        assertEquals("run-a", snap.sessionRuns.first().id)
+    }
+
+    @Test
+    fun marathonAndBusiness_beginCreatesActiveSession() {
+        MarathonScenario.seed(store, now)
+        MarathonScenario.onChip(store, "Long runs feel best on Sundays", now + 1)
+        MarathonScenario.approve(store, now + 2)
+        MarathonScenario.beginSession(store, now + 3, runId = "run-marathon")
+        val sundayDue = 1_700_384_400_000L
+        val marathonNext = NextActionEngine.recommend(store.snapshot(), sundayDue, tz)
+        assertEquals(NextActionKind.ACTIVE_SESSION, marathonNext.kind)
+
+        BusinessScenario.seed(store, now + 10)
+        BusinessScenario.onChip(store, "Customer chats work best on Wednesdays", now + 11)
+        BusinessScenario.approve(store, now + 12)
+        BusinessScenario.beginSession(store, now + 13, runId = "run-business")
+        // Business becomes active intention after seed; Wed due
+        val wednesdayDue = 1_700_049_600_000L
+        val bizNext = NextActionEngine.recommend(store.snapshot(), wednesdayDue, tz)
+        assertEquals(NextActionKind.ACTIVE_SESSION, bizNext.kind)
+        assertEquals(BusinessScenario.SESSION_ID, bizNext.sessionId)
     }
 
     @Test

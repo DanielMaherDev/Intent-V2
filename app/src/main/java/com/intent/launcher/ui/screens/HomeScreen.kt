@@ -52,6 +52,8 @@ fun HomeScreen(
     onBegin: () -> Unit,
     onDefer: () -> Unit,
     onDiscuss: () -> Unit,
+    onCompleteSession: () -> Unit = {},
+    onAbandonSession: () -> Unit = {},
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -178,6 +180,34 @@ fun HomeScreen(
                             onClick = onDiscuss
                         )
                     }
+                    NextActionKind.ACTIVE_SESSION -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (nextAction.completeLabel != null) {
+                                IntentPrimaryButton(
+                                    text = nextAction.completeLabel,
+                                    onClick = onCompleteSession,
+                                    modifier = Modifier.weight(1.4f)
+                                )
+                            }
+                            if (nextAction.abandonLabel != null) {
+                                IntentSecondaryButton(
+                                    text = nextAction.abandonLabel,
+                                    onClick = onAbandonSession,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        if (nextAction.discussLabel != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            IntentSecondaryButton(
+                                text = nextAction.discussLabel,
+                                onClick = onDiscuss
+                            )
+                        }
+                    }
                     NextActionKind.DISCUSS -> {
                         IntentPrimaryButton(text = "Discuss", onClick = onDiscuss)
                     }
@@ -262,6 +292,16 @@ private fun homeCopy(nextAction: NextAction, intentionTitle: String): HomeCopy =
             smallLabel = "Relevant now",
             pills = listOf(
                 intentionTitle.ifBlank { "In motion" } to PillTone.Success
+            )
+        )
+        NextActionKind.ACTIVE_SESSION -> HomeCopy(
+            headline = "You're in a session.",
+            lede = nextAction.reason.ifBlank { "Mark complete when finished, or abandon if you stop." },
+            heroTone = HeroTone.Success,
+            smallLabel = "In progress",
+            pills = listOf(
+                "Active session" to PillTone.Success,
+                intentionTitle.ifBlank { "In motion" } to PillTone.Neutral
             )
         )
         NextActionKind.DISCUSS -> HomeCopy(

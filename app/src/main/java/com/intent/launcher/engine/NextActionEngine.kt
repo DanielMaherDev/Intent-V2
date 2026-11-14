@@ -7,6 +7,8 @@ import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ScheduledSession
+import com.intent.launcher.domain.SessionRun
+import com.intent.launcher.domain.SessionRunStatus
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -60,6 +62,14 @@ object NextActionEngine {
                 intentionId = intentionId,
                 proposalId = pending.id
             )
+        }
+
+        // An in-progress run outranks scheduling recommendations for this intention.
+        val activeRun = snapshot.sessionRuns.firstOrNull {
+            it.intentionId == intentionId && it.status == SessionRunStatus.IN_PROGRESS
+        }
+        if (activeRun != null) {
+            return recommendForActiveRun(activeRun, registry)
         }
 
         val session = snapshot.sessions
@@ -130,6 +140,40 @@ object NextActionEngine {
                 intentionId = intentionId
             )
         }
+    }
+
+    private fun recommendForActiveRun(
+        run: SessionRun,
+        registry: CapabilityRegistry
+    ): NextAction {
+        val canComplete = registry.canCompleteSession()
+        val canAbandon = registry.canAbandonSession()
+        if (!canComplete && !canAbandon) {
+            val note = registry.get(CapabilityRegistry.ID_COMPLETE_SESSION)?.limitNote
+                ?: "Session completion controls are not available in this build."
+            return NextAction(
+                kind = NextActionKind.DISCUSS,
+                label = run.title,
+                detail = "Session in progress",
+                reason = note,
+                intentionId = run.intentionId,
+                sessionId = run.sessionId,
+                sessionRunId = run.id,
+                discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
+            )
+        }
+        return NextAction(
+            kind = NextActionKind.ACTIVE_SESSION,
+            label = run.title,
+            detail = "Session in progress",
+            reason = "You started this session — mark it complete when finished, or abandon if you stop. Completion is user-reported, not verified by calendar or an LLM.",
+            intentionId = run.intentionId,
+            sessionId = run.sessionId,
+            sessionRunId = run.id,
+            completeLabel = if (canComplete) "Complete" else null,
+            abandonLabel = if (canAbandon) "Abandon" else null,
+            discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
+        )
     }
 
     private fun recommendForSession(

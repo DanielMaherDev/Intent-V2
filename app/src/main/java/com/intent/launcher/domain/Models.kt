@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 1
+const val SCHEMA_VERSION: Int = 2
 
 enum class ProvenanceKind {
     SAID,
@@ -24,12 +24,21 @@ enum class ProposalStatus {
     EDITED
 }
 
+/** Local session-run lifecycle — user-reported; not calendar/LLM verified. */
+enum class SessionRunStatus {
+    IN_PROGRESS,
+    COMPLETED,
+    ABANDONED
+}
+
 enum class NextActionKind {
     CONTINUE_EXPLORING,
     BEGIN,
     DEFER,
     DISCUSS,
     REVIEW_PROPOSAL,
+    /** A session run is in progress — Complete / Abandon, not another Begin. */
+    ACTIVE_SESSION,
     NONE
 }
 
@@ -61,6 +70,21 @@ data class ScheduledSession(
     val hour: Int,
     val minute: Int,
     val deferredUntilEpochMs: Long? = null
+)
+
+/**
+ * One started occurrence of a [ScheduledSession].
+ * Begin creates an IN_PROGRESS run; Complete / Abandon end it.
+ * Evidence is user-reported via the command path — not external calendar or LLM claims.
+ */
+data class SessionRun(
+    val id: String,
+    val sessionId: String,
+    val intentionId: String,
+    val title: String,
+    val status: SessionRunStatus,
+    val startedAtEpochMs: Long,
+    val endedAtEpochMs: Long? = null
 )
 
 data class Proposal(
@@ -101,6 +125,7 @@ data class IntentionSnapshot(
     val hypotheses: List<Hypothesis> = emptyList(),
     val proposals: List<Proposal> = emptyList(),
     val sessions: List<ScheduledSession> = emptyList(),
+    val sessionRuns: List<SessionRun> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
     val activeIntentionId: String? = null
 )
@@ -173,6 +198,26 @@ sealed class FlowCommand {
         val nowEpochMs: Long
     ) : FlowCommand()
 
+    /**
+     * Start a scheduled session as an in-progress [SessionRun].
+     * Requires [CapabilityRegistry] begin_session to be actionable at the call site.
+     */
+    data class BeginSession(
+        val runId: String,
+        val sessionId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class CompleteSessionRun(
+        val runId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class AbandonSessionRun(
+        val runId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
     data class SetActiveIntention(
         val intentionId: String,
         val nowEpochMs: Long
@@ -193,8 +238,11 @@ data class NextAction(
     val reason: String = "",
     val intentionId: String?,
     val sessionId: String? = null,
+    val sessionRunId: String? = null,
     val proposalId: String? = null,
     val beginLabel: String? = null,
     val deferLabel: String? = null,
-    val discussLabel: String? = null
+    val discussLabel: String? = null,
+    val completeLabel: String? = null,
+    val abandonLabel: String? = null
 )

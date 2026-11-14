@@ -64,6 +64,12 @@ class CapabilityRegistry(
     fun canRecommendDefer(): Boolean =
         isActionable(ID_DEFER_SESSION)
 
+    fun canCompleteSession(): Boolean =
+        isActionable(ID_COMPLETE_SESSION)
+
+    fun canAbandonSession(): Boolean =
+        isActionable(ID_ABANDON_SESSION)
+
     fun canRecommendReviewProposal(): Boolean =
         isActionable(ID_PROPOSE_RECURRING_SESSION)
 
@@ -77,6 +83,8 @@ class CapabilityRegistry(
         const val ID_PROPOSE_RECURRING_SESSION = "propose_recurring_session"
         const val ID_SCHEDULE_SESSION = "schedule_session"
         const val ID_BEGIN_SESSION = "begin_session"
+        const val ID_COMPLETE_SESSION = "complete_session"
+        const val ID_ABANDON_SESSION = "abandon_session"
         const val ID_DEFER_SESSION = "defer_session"
         const val ID_DISCUSS = "discuss"
         const val ID_LAUNCH_INSTALLED_APP = "launch_installed_app"
@@ -122,7 +130,19 @@ class CapabilityRegistry(
                 id = ID_BEGIN_SESSION,
                 title = "Begin session",
                 status = CapabilityStatus.AVAILABLE,
-                limitNote = "Acknowledges starting scheduled work; does not verify completion."
+                limitNote = "Starts a local in-progress session run from the schedule — not an external calendar event or LLM-verified start."
+            ),
+            CapabilityEntry(
+                id = ID_COMPLETE_SESSION,
+                title = "Complete session",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Marks the active run complete as user-reported; does not verify app progress or lesson completion."
+            ),
+            CapabilityEntry(
+                id = ID_ABANDON_SESSION,
+                title = "Abandon session",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Ends the active run without claiming completion."
             ),
             CapabilityEntry(
                 id = ID_DEFER_SESSION,
