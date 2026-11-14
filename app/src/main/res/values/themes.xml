@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.IntentLauncher" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">#FFF7F2EB</item>
-        <item name="android:windowBackground">#FFF7F2EB</item>
+        <item name="android:navigationBarColor">#FFF4F2EC</item>
+        <item name="android:windowBackground">#FFF4F2EC</item>
     </style>
 </resources>

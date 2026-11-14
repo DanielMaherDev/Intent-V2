@@ -51,7 +51,7 @@ fun IntentionSpaceScreen(
             .fillMaxSize()
             .background(IntentColors.Paper)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 19.dp, vertical = 18.dp)
+            .padding(horizontal = 19.dp, vertical = 15.dp)
     ) {
         ScreenTopBar(contextLabel = "Intention", onBack = onBack)
         Spacer(modifier = Modifier.height(23.dp))
@@ -60,7 +60,8 @@ fun IntentionSpaceScreen(
             color = when (heroTone) {
                 HeroTone.Warm -> IntentColors.Warm
                 HeroTone.Success -> IntentColors.Success
-                HeroTone.Accent -> IntentColors.Accent
+                // JPG exploring label is muted olive, not accent
+                HeroTone.Accent -> IntentColors.Section
             }
         )
         Spacer(modifier = Modifier.height(7.dp))
@@ -79,7 +80,7 @@ fun IntentionSpaceScreen(
                 color = when (heroTone) {
                     HeroTone.Warm -> IntentColors.Warm
                     HeroTone.Success -> IntentColors.Success
-                    HeroTone.Accent -> IntentColors.Accent
+                    HeroTone.Accent -> IntentColors.Section
                 }
             )
             Spacer(modifier = Modifier.height(7.dp))
@@ -100,7 +101,7 @@ fun IntentionSpaceScreen(
 
         Spacer(modifier = Modifier.height(26.dp))
         SectionTitle("What we know")
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(9.dp))
         Column(
             modifier = Modifier
                 .fillMaxWidth()

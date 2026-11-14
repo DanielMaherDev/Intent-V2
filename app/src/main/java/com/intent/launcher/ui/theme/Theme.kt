@@ -29,6 +29,16 @@ object IntentColors {
     val PillText = Color(0xFF536058)
     val EmptyBorder = Color(0xFFC9CFC5)
     val ComposerHint = Color(0xFF7A847C)
+    val Lede = Color(0xFF4E5952)
+    val Section = Color(0xFF59645C)
+    val FactText = Color(0xFF4C5851)
+    val NavIdle = Color(0xFF6D766E)
+    val Arrow = Color(0xFF8E9891)
+    val GridCell = Color(0xFFF2F2EC)
+    val CalloutText = Color(0xFF444A84)
+    val ComposerBorder = Color(0xFFCDD1C9)
+    val EmptyFill = Color(0xFFFBFAF6)
+    val UserBubble = Color(0xFFF3EDE3)
 }
 
 private val Scheme = lightColorScheme(
@@ -54,34 +64,38 @@ private val Scheme = lightColorScheme(
     outlineVariant = IntentColors.Line
 )
 
+/**
+ * Inter-like stack (platform sans). HTML mock + JPG mocks use sans display —
+ * v0.0.03 serif Home headline was the documented mismatch.
+ */
 private val IntentTypography = Typography(
     displayLarge = TextStyle(
-        fontFamily = FontFamily.Serif,
+        fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
-        fontSize = 34.sp,
+        fontSize = 35.sp,
         lineHeight = 38.sp,
-        letterSpacing = (-0.8).sp
+        letterSpacing = (-2.0).sp
     ),
     headlineLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
         fontSize = 32.sp,
         lineHeight = 36.sp,
-        letterSpacing = (-0.6).sp
+        letterSpacing = (-1.6).sp
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 30.sp,
-        letterSpacing = (-0.4).sp
+        letterSpacing = (-1.0).sp
     ),
     headlineSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 21.sp,
-        lineHeight = 26.sp,
-        letterSpacing = (-0.3).sp
+        lineHeight = 24.sp,
+        letterSpacing = (-0.8).sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -106,7 +120,7 @@ private val IntentTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
-        lineHeight = 22.sp
+        lineHeight = 21.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -118,7 +132,7 @@ private val IntentTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
-        lineHeight = 16.sp
+        lineHeight = 17.sp
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -131,7 +145,7 @@ private val IntentTypography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 11.sp,
         lineHeight = 14.sp,
-        letterSpacing = 1.1.sp
+        letterSpacing = 1.4.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,

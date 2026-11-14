@@ -16,12 +16,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.HourglassBottom
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,7 +73,7 @@ fun ProposalReviewScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 19.dp, vertical = 18.dp)
+                .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
             ScreenTopBar(contextLabel = "Review", onBack = onBack)
             Spacer(modifier = Modifier.height(23.dp))
@@ -74,7 +83,7 @@ fun ProposalReviewScreen(
                 Spacer(modifier = Modifier.height(7.dp))
                 Text(
                     text = "First, choose a direction.",
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.displayLarge,
                     color = IntentColors.Ink
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -84,22 +93,22 @@ fun ProposalReviewScreen(
                     SectionTitle("Possible approaches")
                     Spacer(modifier = Modifier.height(4.dp))
                     LineRow(
-                        glyph = "◧",
                         title = "Specialist app",
                         subtitle = "Structured lessons; INTENT manages the habit",
-                        showArrow = false
+                        showArrow = false,
+                        glyphIcon = Icons.Outlined.Widgets
                     )
                     LineRow(
-                        glyph = "♧",
                         title = "Tutor or conversation partner",
                         subtitle = "Real speaking practice with a person",
-                        showArrow = false
+                        showArrow = false,
+                        glyphIcon = Icons.Outlined.School
                     )
                     LineRow(
-                        glyph = "✦",
                         title = "Practise with your agent",
                         subtitle = "Conversations tailored to your level",
-                        showArrow = false
+                        showArrow = false,
+                        glyphIcon = Icons.Outlined.AutoAwesome
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -107,12 +116,12 @@ fun ProposalReviewScreen(
             } else {
                 SmallLabel(
                     text = if (pending) "Your approval required" else "Reviewed",
-                    color = if (pending) IntentColors.Warm else IntentColors.Accent
+                    color = if (pending) IntentColors.Section else IntentColors.Accent
                 )
                 Spacer(modifier = Modifier.height(7.dp))
                 Text(
                     text = if (pending) "Make this part of your week?" else proposal.title,
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.displayLarge,
                     color = IntentColors.Ink
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -130,7 +139,12 @@ fun ProposalReviewScreen(
                                 .background(IntentColors.SuccessSoft, RoundedCornerShape(10.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("▣", color = IntentColors.Success, fontSize = 16.sp)
+                            Icon(
+                                imageVector = Icons.Outlined.School,
+                                contentDescription = null,
+                                tint = IntentColors.Ink,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
@@ -169,7 +183,11 @@ fun ProposalReviewScreen(
 
                 if (pending) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    IntentSecondaryButton(text = "Edit the details", onClick = onEdit)
+                    IntentSecondaryButton(
+                        text = "Edit the details",
+                        onClick = onEdit,
+                        accentOutline = true
+                    )
                 }
             }
         }
@@ -215,14 +233,24 @@ private fun ApprovalGrid(
             .border(1.dp, IntentColors.Line, RoundedCornerShape(12.dp))
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            GridCell("Day", day, Modifier.weight(1f))
+            GridCell(
+                icon = Icons.Outlined.CalendarMonth,
+                label = "Day",
+                value = day,
+                modifier = Modifier.weight(1f)
+            )
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(64.dp)
+                    .height(72.dp)
                     .background(IntentColors.Line)
             )
-            GridCell("Time", time, Modifier.weight(1f))
+            GridCell(
+                icon = Icons.Outlined.AccessTime,
+                label = "Time",
+                value = time,
+                modifier = Modifier.weight(1f)
+            )
         }
         Box(
             modifier = Modifier
@@ -231,31 +259,55 @@ private fun ApprovalGrid(
                 .background(IntentColors.Line)
         )
         Row(modifier = Modifier.fillMaxWidth()) {
-            GridCell("Duration", duration, Modifier.weight(1f))
+            GridCell(
+                icon = Icons.Outlined.HourglassBottom,
+                label = "Duration",
+                value = duration,
+                modifier = Modifier.weight(1f)
+            )
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(64.dp)
+                    .height(72.dp)
                     .background(IntentColors.Line)
             )
-            GridCell("Source", source, Modifier.weight(1f))
+            GridCell(
+                icon = Icons.Outlined.PersonOutline,
+                label = "Source",
+                value = source,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
 
 @Composable
-private fun GridCell(label: String, value: String, modifier: Modifier = Modifier) {
+private fun GridCell(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
-            .background(Color(0xFFF2F2EC))
+            .background(IntentColors.GridCell)
             .padding(10.dp)
     ) {
-        Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = IntentColors.Muted,
-            letterSpacing = 0.8.sp
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = IntentColors.Ink,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = IntentColors.Muted,
+                letterSpacing = 0.8.sp
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,

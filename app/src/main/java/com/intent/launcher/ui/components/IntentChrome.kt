@@ -18,8 +18,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -28,7 +37,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,7 +63,7 @@ fun IntentBrandMark(
         Text(
             text = "✦",
             color = IntentColors.Accent,
-            fontSize = if (compact) 18.sp else 20.sp,
+            fontSize = if (compact) 18.sp else 22.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.width(5.dp))
@@ -57,7 +71,7 @@ fun IntentBrandMark(
             text = "INTENT",
             style = MaterialTheme.typography.labelMedium,
             color = IntentColors.Ink,
-            letterSpacing = 2.2.sp,
+            letterSpacing = 2.4.sp,
             fontWeight = FontWeight.ExtraBold
         )
     }
@@ -85,7 +99,12 @@ fun HomeBrandRow(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text("⋯", color = IntentColors.Ink, fontSize = 18.sp)
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = "Settings",
+                tint = IntentColors.Ink,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -101,14 +120,13 @@ fun ScreenTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "‹",
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+            contentDescription = "Back",
+            tint = IntentColors.Ink,
             modifier = Modifier
+                .size(24.dp)
                 .clickable(onClick = onBack)
-                .padding(end = 8.dp),
-            color = IntentColors.Ink,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Medium
         )
         IntentBrandMark(compact = true)
         Text(
@@ -129,7 +147,8 @@ fun SmallLabel(
         text = text.uppercase(),
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
-        color = color
+        color = color,
+        letterSpacing = 1.6.sp
     )
 }
 
@@ -142,8 +161,8 @@ fun SectionTitle(
         text = text.uppercase(),
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
-        color = Color(0xFF59645C),
-        letterSpacing = 1.0.sp
+        color = IntentColors.Section,
+        letterSpacing = 1.1.sp
     )
 }
 
@@ -157,7 +176,7 @@ fun DateLabel(
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
         color = IntentColors.Muted,
-        letterSpacing = 1.4.sp
+        letterSpacing = 1.5.sp
     )
 }
 
@@ -170,7 +189,8 @@ fun Lede(
         text = text,
         modifier = modifier,
         style = MaterialTheme.typography.bodyLarge,
-        color = Color(0xFF4E5952)
+        color = IntentColors.Lede,
+        lineHeight = 21.sp
     )
 }
 
@@ -193,7 +213,7 @@ fun IntentPill(
         modifier = modifier
             .clip(RoundedCornerShape(100.dp))
             .background(bg)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 9.dp, vertical = 5.dp),
         style = MaterialTheme.typography.labelSmall,
         color = fg,
         fontWeight = FontWeight.Bold,
@@ -277,7 +297,8 @@ fun IntentPrimaryButton(
 fun IntentSecondaryButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    accentOutline: Boolean = false
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -285,10 +306,13 @@ fun IntentSecondaryButton(
             .fillMaxWidth()
             .height(48.dp),
         shape = RoundedCornerShape(13.dp),
-        border = BorderStroke(1.dp, IntentColors.Line),
+        border = BorderStroke(
+            1.dp,
+            if (accentOutline) IntentColors.Accent else IntentColors.Line
+        ),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = IntentColors.Card,
-            contentColor = IntentColors.Ink
+            contentColor = if (accentOutline) IntentColors.Accent else IntentColors.Ink
         )
     ) {
         Text(
@@ -318,15 +342,27 @@ fun IntentQuietButton(
     }
 }
 
+enum class GlyphTone { Accent, Success }
+
 @Composable
 fun LineRow(
-    glyph: String,
     title: String,
     subtitle: String,
     onClick: (() -> Unit)? = null,
     showArrow: Boolean = true,
+    glyph: String? = null,
+    glyphIcon: ImageVector? = null,
+    glyphTone: GlyphTone = GlyphTone.Accent,
     modifier: Modifier = Modifier
 ) {
+    val bg = when (glyphTone) {
+        GlyphTone.Accent -> IntentColors.AccentSoft
+        GlyphTone.Success -> IntentColors.SuccessSoft
+    }
+    val fg = when (glyphTone) {
+        GlyphTone.Accent -> IntentColors.AccentDark
+        GlyphTone.Success -> IntentColors.Success
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -337,10 +373,18 @@ fun LineRow(
         Box(
             modifier = Modifier
                 .size(26.dp)
-                .background(IntentColors.AccentSoft, RoundedCornerShape(8.dp)),
+                .background(bg, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text(glyph, color = IntentColors.AccentDark, fontSize = 14.sp)
+            when {
+                glyphIcon != null -> Icon(
+                    imageVector = glyphIcon,
+                    contentDescription = null,
+                    tint = fg,
+                    modifier = Modifier.size(15.dp)
+                )
+                glyph != null -> Text(glyph, color = fg, fontSize = 14.sp)
+            }
         }
         Spacer(modifier = Modifier.width(11.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -357,7 +401,12 @@ fun LineRow(
             )
         }
         if (showArrow) {
-            Text("›", color = Color(0xFF8E9891), fontSize = 19.sp)
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = null,
+                tint = IntentColors.Arrow,
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }
@@ -372,19 +421,38 @@ fun FactRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = if (pending) "◌" else "✓",
-            color = if (pending) IntentColors.Warm else IntentColors.Success,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 12.sp
-        )
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .background(
+                    if (pending) IntentColors.WarmSoft else IntentColors.SuccessSoft,
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (pending) {
+                Text(
+                    text = "◌",
+                    color = IntentColors.Warm,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 11.sp
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = IntentColors.Success,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(9.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF4C5851)
+            color = IntentColors.FactText
         )
     }
 }
@@ -394,11 +462,22 @@ fun EmptyNote(
     text: String,
     modifier: Modifier = Modifier
 ) {
+    val borderColor = IntentColors.EmptyBorder
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, IntentColors.EmptyBorder, RoundedCornerShape(16.dp))
-            .background(Color(0xFFFBFAF6), RoundedCornerShape(16.dp))
+            .drawBehind {
+                val stroke = Stroke(
+                    width = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+                )
+                drawRoundRect(
+                    color = borderColor,
+                    cornerRadius = CornerRadius(16.dp.toPx()),
+                    style = stroke
+                )
+            }
+            .background(IntentColors.EmptyFill, RoundedCornerShape(16.dp))
             .padding(13.dp)
     ) {
         Text(
@@ -426,7 +505,7 @@ fun Callout(
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
-                color = Color(0xFF444A84),
+                color = IntentColors.CalloutText,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -434,7 +513,7 @@ fun Callout(
         Text(
             text = text,
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF444A84),
+            color = IntentColors.CalloutText,
             lineHeight = 18.sp
         )
     }
@@ -458,41 +537,61 @@ fun HomeBottomNav(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(60.dp)
                 .background(IntentColors.NavBar)
-                .padding(vertical = 10.dp),
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavItem("⌂", "Home", selected == "home", onHome)
-            NavItem("◎", "Intentions", selected == "intentions", onIntentions)
-            NavItem("✦", "Agent", selected == "agent", onAgent)
+            NavItem(
+                icon = Icons.Outlined.Home,
+                label = "Home",
+                selected = selected == "home",
+                onClick = onHome
+            )
+            NavItem(
+                icon = Icons.Outlined.Layers,
+                label = "Intentions",
+                selected = selected == "intentions",
+                onClick = onIntentions
+            )
+            NavItem(
+                icon = Icons.Outlined.AutoAwesome,
+                label = "Agent",
+                selected = selected == "agent",
+                onClick = onAgent
+            )
         }
     }
 }
 
 @Composable
 private fun NavItem(
-    glyph: String,
+    icon: ImageVector,
     label: String,
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val color = if (selected) IntentColors.Accent else IntentColors.NavIdle
     Column(
         modifier = Modifier
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(
-            text = glyph,
-            fontSize = 18.sp,
-            color = if (selected) IntentColors.Accent else Color(0xFF6D766E)
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = color,
+            modifier = Modifier.size(20.dp)
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (selected) IntentColors.Accent else Color(0xFF6D766E),
-            letterSpacing = 0.sp
+            color = color,
+            letterSpacing = 0.sp,
+            fontSize = 10.sp
         )
     }
 }

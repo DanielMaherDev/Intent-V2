@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.ui.components.DateLabel
+import com.intent.launcher.ui.components.GlyphTone
 import com.intent.launcher.ui.components.HeroCard
 import com.intent.launcher.ui.components.HeroTone
 import com.intent.launcher.ui.components.HomeBottomNav
@@ -65,7 +69,7 @@ fun HomeScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 19.dp, vertical = 18.dp)
+                .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
             HomeBrandRow()
             Spacer(modifier = Modifier.height(37.dp))
@@ -175,19 +179,21 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(26.dp))
             SectionTitle("Your space")
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(9.dp))
             LineRow(
-                glyph = "◎",
                 title = intentionTitle.ifBlank { "Your intention" },
                 subtitle = intentionHint.ifBlank { "Open your intention" },
-                onClick = onOpenIntention
+                onClick = onOpenIntention,
+                glyphIcon = Icons.Outlined.Spa,
+                glyphTone = GlyphTone.Success
             )
             if (onExploreMarathon != null) {
                 LineRow(
-                    glyph = "✦",
                     title = "Explore a marathon",
                     subtitle = "Second shape on the same foundation",
-                    onClick = onExploreMarathon
+                    onClick = onExploreMarathon,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
                 )
             }
         }
