@@ -33,6 +33,7 @@ import com.intent.launcher.domain.HomeIntentionSwipe
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.ScreenTimeBar
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.engine.BackNavigationPolicy
 import com.intent.launcher.engine.CaptureThought
@@ -449,11 +450,15 @@ class MainActivity : ComponentActivity() {
                                     showCheckOutWhatHappened = true
                                 },
                                 destinationLaunchNote = vm.destinationLaunchNote,
+                                screenTimeBarContent = vm.screenTimeBarObservation?.content
+                                    ?: ScreenTimeBar.Content.Hidden,
                                 usageNote = vm.usageObservation?.note,
                                 usageGranted = vm.usageObservation?.permissionGranted == true,
                                 usageForegroundMs = vm.usageObservation?.foregroundMs,
                                 usageAppLabel = vm.usageObservation?.appLabel,
-                                showGrantUsageAccess = vm.usageObservation?.canOpenSettings == true,
+                                showGrantUsageAccess =
+                                    vm.usageObservation?.canOpenSettings == true ||
+                                        vm.screenTimeBarObservation?.canOpenSettings == true,
                                 onGrantUsageAccess = {
                                     startActivity(
                                         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
@@ -715,6 +720,10 @@ class MainActivity : ComponentActivity() {
                                                 .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                                         )
                                     }
+                                },
+                                screenTimeBarVisible = vm.screenTimeBarPrefVisible,
+                                onScreenTimeBarVisibleChange = { visible ->
+                                    vm.setScreenTimeBarVisible(visible)
                                 },
                                 onBack = {
                                     vm.clearConnectionUnlinkNote()

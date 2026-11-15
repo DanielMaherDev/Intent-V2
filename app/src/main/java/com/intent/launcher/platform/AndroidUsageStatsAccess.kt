@@ -45,6 +45,26 @@ class AndroidUsageStatsAccess(
         }
     }
 
+    override fun totalForegroundMs(
+        startEpochMs: Long,
+        endEpochMs: Long
+    ): Long? {
+        if (!hasPermission()) return null
+        if (endEpochMs <= startEpochMs) return 0L
+        return try {
+            val manager =
+                context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val stats = manager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                startEpochMs,
+                endEpochMs
+            ) ?: return 0L
+            stats.sumOf { it.totalTimeInForeground }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override fun currentForegroundPackage(): String? {
         if (!hasPermission()) return null
         return try {

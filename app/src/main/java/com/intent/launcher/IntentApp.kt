@@ -3,6 +3,7 @@ package com.intent.launcher
 import android.app.Application
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.HomeRoleAccess
+import com.intent.launcher.engine.HomeChromePrefs
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LiveLlmAccess
 import com.intent.launcher.engine.NotificationListenerAccess
@@ -14,6 +15,7 @@ import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.VoicePermissionAccess
 import com.intent.launcher.platform.AndroidHomeRoleAccess
+import com.intent.launcher.platform.AndroidHomeChromePrefs
 import com.intent.launcher.platform.AndroidLiveLlmAccess
 import com.intent.launcher.platform.AndroidNotificationListenerAccess
 import com.intent.launcher.platform.AndroidOverlayPermissionAccess
@@ -63,6 +65,9 @@ class IntentApp : Application() {
     lateinit var liveLlmAccess: LiveLlmAccess
         private set
 
+    lateinit var homeChromePrefs: HomeChromePrefs
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -83,6 +88,8 @@ class IntentApp : Application() {
         liveLlmAccess = AndroidLiveLlmAccess(this)
         // Parent + honest local child for Intention Space breadcrumb (OS-141).
         SpanishScenario.ensureParentChildSeeded(store)
+        homeChromePrefs = AndroidHomeChromePrefs(this)
+        SpanishScenario.ensureSeeded(store)
     }
 
     companion object {
