@@ -45,6 +45,8 @@ import com.intent.launcher.ui.screens.IntentionDrawerScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
+import com.intent.launcher.ui.screens.CheckOutWhatHappenedDialog
+import com.intent.launcher.ui.screens.EveningThoughtTriageSheet
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
@@ -61,6 +63,12 @@ class MainActivity : ComponentActivity() {
     private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
     /** When true, STT result goes to CaptureThought instead of Conversation. */
     private var speechForThoughtCapture: Boolean = false
+
+    /** Evening check-out: what-happened → optional thought triage → Keep/Defer commit. */
+    private var showCheckOutWhatHappened by mutableStateOf(false)
+    private var showEveningTriage by mutableStateOf(false)
+    private var pendingCheckOutDefer by mutableStateOf(false)
+    private var pendingWhatHappened by mutableStateOf("")
 
     private val screenCaptureConsent = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -229,6 +237,52 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (showCheckOutWhatHappened) {
+                        CheckOutWhatHappenedDialog(
+                            initialText = pendingWhatHappened,
+                            onDismiss = {
+                                showCheckOutWhatHappened = false
+                            },
+                            onConfirm = { text ->
+                                pendingWhatHappened = text
+                                showCheckOutWhatHappened = false
+                                if (vm.nextRawThoughtForCheckOut() != null) {
+                                    showEveningTriage = true
+                                } else {
+                                    finishEveningCheckOut()
+                                }
+                            }
+                        )
+                    }
+
+                    if (showEveningTriage) {
+                        val current = vm.nextRawThoughtForCheckOut()
+                        LaunchedEffect(current?.id, showEveningTriage) {
+                            if (showEveningTriage && current == null) {
+                                showEveningTriage = false
+                                finishEveningCheckOut()
+                            }
+                        }
+                        if (current != null) {
+                            val remaining = vm.rawThoughtsForCheckOut().size
+                            EveningThoughtTriageSheet(
+                                thought = current,
+                                remainingCount = remaining,
+                                onClassify = { disposition ->
+                                    vm.classifyThought(current.id, disposition)
+                                    if (vm.nextRawThoughtForCheckOut() == null) {
+                                        showEveningTriage = false
+                                        finishEveningCheckOut()
+                                    }
+                                },
+                                onSkipRest = {
+                                    showEveningTriage = false
+                                    finishEveningCheckOut()
+                                }
+                            )
+                        }
+                    }
+
                     if (vm.deferConfirmPending) {
                         val preview = vm.deferPreview
                         if (preview != null) {
@@ -276,16 +330,14 @@ class MainActivity : ComponentActivity() {
                                 onOpenDestination = { vm.launchDestinationApp() },
                                 onConfirmCheckIn = { vm.confirmDailyCheckIn() },
                                 onCheckOutKeepSchedule = {
-                                    vm.completeDailyCheckOut(
-                                        whatHappened = "",
-                                        deferTomorrow = false
-                                    )
+                                    pendingCheckOutDefer = false
+                                    pendingWhatHappened = ""
+                                    showCheckOutWhatHappened = true
                                 },
                                 onCheckOutDeferTomorrow = {
-                                    vm.completeDailyCheckOut(
-                                        whatHappened = "",
-                                        deferTomorrow = true
-                                    )
+                                    pendingCheckOutDefer = true
+                                    pendingWhatHappened = ""
+                                    showCheckOutWhatHappened = true
                                 },
                                 destinationLaunchNote = vm.destinationLaunchNote,
                                 usageNote = vm.usageObservation?.note,
@@ -698,6 +750,16 @@ class MainActivity : ComponentActivity() {
                 showThoughtCapture = true
             }
         }
+    }
+
+    /** Commit Keep schedule / Defer after what-happened (+ optional thought triage). */
+    private fun finishEveningCheckOut() {
+        vm.completeDailyCheckOut(
+            whatHappened = pendingWhatHappened,
+            deferTomorrow = pendingCheckOutDefer
+        )
+        pendingWhatHappened = ""
+        pendingCheckOutDefer = false
     }
 
     private fun onConversationMicClick() {

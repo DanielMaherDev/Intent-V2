@@ -28,6 +28,8 @@ import com.intent.launcher.domain.BuilderDraft
 import com.intent.launcher.domain.BuilderPhase
 import com.intent.launcher.domain.ThoughtCapture
 import com.intent.launcher.domain.ThoughtCaptureStatus
+import com.intent.launcher.domain.ThoughtDisposition
+import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrashEntry
@@ -494,6 +496,8 @@ class IntentionFlowStore(
                     }
                 )
             }
+
+            is FlowCommand.ClassifyThought -> classifyThought(migrated, command)
 
             is FlowCommand.StartBuilderDraft -> {
                 val text = command.freeText.trim()
@@ -1010,6 +1014,7 @@ class IntentionFlowStore(
                     is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
                     is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
                     is FlowCommand.MarkThoughtStatus -> command.nowEpochMs
+                    is FlowCommand.ClassifyThought -> command.nowEpochMs
                     is FlowCommand.StartBuilderDraft -> command.nowEpochMs
                     is FlowCommand.SetBuilderShape -> command.nowEpochMs
                     is FlowCommand.AnswerBuilderPrompt -> command.nowEpochMs
@@ -1059,6 +1064,7 @@ class IntentionFlowStore(
             is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
             is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
             is FlowCommand.MarkThoughtStatus -> command.nowEpochMs
+            is FlowCommand.ClassifyThought -> command.nowEpochMs
             is FlowCommand.StartBuilderDraft -> command.nowEpochMs
             is FlowCommand.SetBuilderShape -> command.nowEpochMs
             is FlowCommand.AnswerBuilderPrompt -> command.nowEpochMs
@@ -1175,6 +1181,195 @@ class IntentionFlowStore(
             },
             intentions = touch(migrated.intentions, run.intentionId, nowEpochMs)
         )
+    }
+
+    /**
+     * OS-154 evening disposition — user-picked only. Thought text is reused as SAID;
+     * no LLM invent.
+     */
+    private fun classifyThought(
+        migrated: IntentionSnapshot,
+        command: FlowCommand.ClassifyThought
+    ): IntentionSnapshot {
+        val thought = migrated.thoughtCaptures.firstOrNull { it.id == command.thoughtId }
+            ?: return migrated
+        if (thought.status != ThoughtCaptureStatus.RAW || thought.disposition != null) {
+            return migrated
+        }
+        val text = thought.text.trim()
+        if (text.isEmpty()) return migrated
+
+        return when (command.disposition) {
+            ThoughtDisposition.KEEP -> migrated.copy(
+                thoughtCaptures = migrated.thoughtCaptures.map {
+                    if (it.id == thought.id) {
+                        it.copy(disposition = ThoughtDisposition.KEEP)
+                    } else it
+                }
+            )
+
+            ThoughtDisposition.DISCARD -> migrated.copy(
+                thoughtCaptures = migrated.thoughtCaptures.map {
+                    if (it.id == thought.id) {
+                        it.copy(
+                            status = ThoughtCaptureStatus.DISCARDED,
+                            disposition = ThoughtDisposition.DISCARD
+                        )
+                    } else it
+                }
+            )
+
+            ThoughtDisposition.REMINDER -> {
+                val parentId = thought.intentionId
+                    ?: migrated.activeIntentionId
+                    ?: migrated.intentions.firstOrNull()?.id
+                    ?: return migrated
+                val factId = command.factId ?: return migrated
+                val fact = Fact(
+                    id = factId,
+                    intentionId = parentId,
+                    text = "Reminder: $text",
+                    provenance = Provenance(
+                        ProvenanceKind.SAID,
+                        command.nowEpochMs,
+                        "evening_thought_reminder"
+                    )
+                )
+                migrated.copy(
+                    facts = migrated.facts.filterNot { it.id == fact.id } + fact,
+                    thoughtCaptures = migrated.thoughtCaptures.map {
+                        if (it.id == thought.id) {
+                            it.copy(
+                                status = ThoughtCaptureStatus.PROMOTED,
+                                disposition = ThoughtDisposition.REMINDER,
+                                intentionId = parentId
+                            )
+                        } else it
+                    },
+                    intentions = touch(migrated.intentions, parentId, command.nowEpochMs)
+                )
+            }
+
+            ThoughtDisposition.INTENTION -> {
+                val intentionId = command.newIntentionId ?: return migrated
+                val shape = IntentionBuilder.suggestShape(text)
+                val title = IntentionBuilder.titleFrom(text, shape)
+                val intention = Intention(
+                    id = intentionId,
+                    title = title,
+                    statement = text,
+                    phase = IntentionPhase.EXPLORING,
+                    createdAtEpochMs = command.nowEpochMs,
+                    updatedAtEpochMs = command.nowEpochMs,
+                    shapeTag = shape
+                )
+                val factId = command.factId ?: "fact-evening-$intentionId-seed"
+                val seedFact = Fact(
+                    id = factId,
+                    intentionId = intentionId,
+                    text = text,
+                    provenance = Provenance(
+                        ProvenanceKind.SAID,
+                        command.nowEpochMs,
+                        "evening_thought_intention"
+                    )
+                )
+                val existingIds = migrated.intentions.map { it.id }
+                val nextOrder = when {
+                    intention.id in migrated.intentionOrder -> migrated.intentionOrder
+                    migrated.intentionOrder.isEmpty() ->
+                        existingIds.filterNot { it == intention.id } + intention.id
+                    else -> migrated.intentionOrder.filterNot { it == intention.id } + intention.id
+                }
+                migrated.copy(
+                    intentions = migrated.intentions.filterNot { it.id == intention.id } + intention,
+                    facts = migrated.facts.filterNot { it.id == seedFact.id } + seedFact,
+                    thoughtCaptures = migrated.thoughtCaptures.map {
+                        if (it.id == thought.id) {
+                            it.copy(
+                                status = ThoughtCaptureStatus.PROMOTED,
+                                disposition = ThoughtDisposition.INTENTION,
+                                intentionId = intentionId
+                            )
+                        } else it
+                    },
+                    activeIntentionId = intentionId,
+                    intentionOrder = nextOrder
+                )
+            }
+
+            ThoughtDisposition.TASK -> {
+                // Lightweight todo/session stub until CASE-01 ErrandTodo lands on main.
+                val parentId = thought.intentionId
+                    ?: migrated.activeIntentionId
+                    ?: migrated.intentions.firstOrNull()?.id
+                var intentions = migrated.intentions
+                var intentionOrder = migrated.intentionOrder
+                var activeId = migrated.activeIntentionId
+                val resolvedParent = if (parentId != null) {
+                    parentId
+                } else {
+                    val newId = command.newIntentionId ?: return migrated
+                    val shape = IntentionBuilder.suggestShape(text)
+                    val intention = Intention(
+                        id = newId,
+                        title = IntentionBuilder.titleFrom(text, shape),
+                        statement = text,
+                        phase = IntentionPhase.ACTIVE,
+                        createdAtEpochMs = command.nowEpochMs,
+                        updatedAtEpochMs = command.nowEpochMs,
+                        shapeTag = shape
+                    )
+                    intentions = intentions.filterNot { it.id == intention.id } + intention
+                    intentionOrder = if (intentionOrder.isEmpty()) {
+                        listOf(intention.id)
+                    } else {
+                        intentionOrder.filterNot { it == intention.id } + intention.id
+                    }
+                    activeId = intention.id
+                    intention.id
+                }
+                val factId = command.factId ?: return migrated
+                val sessionId = command.sessionId ?: return migrated
+                val dayOfWeek = command.taskDayOfWeek ?: return migrated
+                val hour = command.taskHour ?: return migrated
+                val minute = command.taskMinute ?: 0
+                val fact = Fact(
+                    id = factId,
+                    intentionId = resolvedParent,
+                    text = "Task: $text",
+                    provenance = Provenance(
+                        ProvenanceKind.SAID,
+                        command.nowEpochMs,
+                        "evening_thought_task"
+                    )
+                )
+                val session = ScheduledSession(
+                    id = sessionId,
+                    intentionId = resolvedParent,
+                    title = text.take(64),
+                    dayOfWeek = dayOfWeek,
+                    hour = hour,
+                    minute = minute
+                )
+                migrated.copy(
+                    intentions = touch(intentions, resolvedParent, command.nowEpochMs),
+                    intentionOrder = intentionOrder,
+                    activeIntentionId = activeId ?: resolvedParent,
+                    facts = migrated.facts.filterNot { it.id == fact.id } + fact,
+                    sessions = migrated.sessions.filterNot { it.id == session.id } + session,
+                    thoughtCaptures = migrated.thoughtCaptures.map {
+                        if (it.id == thought.id) {
+                            it.copy(
+                                status = ThoughtCaptureStatus.PROMOTED,
+                                disposition = ThoughtDisposition.TASK,
+                                intentionId = resolvedParent
+                            )
+                        } else it
+                    }
+                )
+            }
+        }
     }
 
     fun migrate(snapshot: IntentionSnapshot): IntentionSnapshot {
@@ -1464,7 +1659,8 @@ class IntentionFlowStore(
         val provenance: WireProvenance = WireProvenance(),
         val capturedAtEpochMs: Long = 0L,
         val source: String = "home",
-        val status: String = ThoughtCaptureStatus.RAW.name
+        val status: String = ThoughtCaptureStatus.RAW.name,
+        val disposition: String? = null
     ) {
         fun toDomain() = ThoughtCapture(
             id = id,
@@ -1474,7 +1670,10 @@ class IntentionFlowStore(
             capturedAtEpochMs = capturedAtEpochMs,
             source = source,
             status = runCatching { ThoughtCaptureStatus.valueOf(status) }
-                .getOrDefault(ThoughtCaptureStatus.RAW)
+                .getOrDefault(ThoughtCaptureStatus.RAW),
+            disposition = disposition?.let {
+                runCatching { ThoughtDisposition.valueOf(it) }.getOrNull()
+            }
         )
         companion object {
             fun from(t: ThoughtCapture) = WireThoughtCapture(
@@ -1484,7 +1683,8 @@ class IntentionFlowStore(
                 provenance = WireProvenance.from(t.provenance),
                 capturedAtEpochMs = t.capturedAtEpochMs,
                 source = t.source,
-                status = t.status.name
+                status = t.status.name,
+                disposition = t.disposition?.name
             )
         }
     }
