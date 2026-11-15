@@ -1,6 +1,7 @@
 package com.intent.launcher
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -74,6 +75,18 @@ class MainActivity : ComponentActivity() {
                                 onGrantUsageAccess = {
                                     startActivity(
                                         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                },
+                                overlayNote = vm.overlayObservation?.note,
+                                showGrantOverlay = vm.overlayObservation?.canOpenSettings == true,
+                                onGrantOverlay = {
+                                    startActivity(
+                                        Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:$packageName")
+                                        ).apply {
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
                                     )

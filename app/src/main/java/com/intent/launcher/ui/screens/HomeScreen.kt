@@ -70,6 +70,9 @@ fun HomeScreen(
     usageNote: String? = null,
     showGrantUsageAccess: Boolean = false,
     onGrantUsageAccess: () -> Unit = {},
+    overlayNote: String? = null,
+    showGrantOverlay: Boolean = false,
+    onGrantOverlay: () -> Unit = {},
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -236,6 +239,22 @@ fun HomeScreen(
                             )
                         }
                     }
+                }
+            }
+
+            if (overlayNote != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                Text(
+                    text = overlayNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+                if (showGrantOverlay) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    IntentQuietButton(
+                        text = "Grant overlay permission",
+                        onClick = onGrantOverlay
+                    )
                 }
             }
 
