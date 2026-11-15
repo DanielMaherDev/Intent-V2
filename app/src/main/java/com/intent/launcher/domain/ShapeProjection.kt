@@ -148,7 +148,7 @@ object ShapeProjection {
             "research" ->
                 "No legal requirements have been invented. Confirm citizenship, arrangement, duration, and documents first — then a sourced checklist of research questions."
             else ->
-                "No tasks have been invented. This intention stays open while you decide on an approach."
+                "No tasks yet. This space is ready while you choose an approach."
         }
 
     private fun defaultFacts(shapeTag: String?): List<String> =
@@ -408,7 +408,7 @@ object ShapeProjection {
                     "research" ->
                         "Citizenship, arrangement, duration, and documents — SAID facts only. No invented legal requirements."
                     else ->
-                        "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
+                        "We can shape this around an app, a tutor, conversations with your agent, or a mix."
                 },
                 heroCta = "Work this out",
                 tone = "accent"
