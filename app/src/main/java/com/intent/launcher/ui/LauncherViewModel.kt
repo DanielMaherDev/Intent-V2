@@ -22,6 +22,7 @@ import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
+import com.intent.launcher.engine.DailyCycle
 import com.intent.launcher.engine.DeferralPreview
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.FloatingAgentState
@@ -757,5 +758,83 @@ class LauncherViewModel(
         destinationLaunchNote = null
         refresh()
         return true
+    }
+
+    /**
+     * Morning check-in — confirm today's focus (+ optional SAID adjustment note).
+     * Same intention snapshot; not a separate daily-task store.
+     */
+    fun confirmDailyCheckIn(adjustedFocusNote: String? = null): Boolean {
+        if (!capabilityRegistry.canDailyCheckIn()) return false
+        val intention = activeIntention() ?: return false
+        val now = System.currentTimeMillis()
+        val tz = TimeZone.getDefault()
+        val localDate = DailyCycle.localDateString(now, tz)
+        val note = adjustedFocusNote?.trim().orEmpty()
+        val summary = nextAction.detail.ifBlank {
+            DailyCycle.focusSummary(
+                intentionTitle = intention.title,
+                previewNextLabel = nextAction.label,
+                previewDetail = nextAction.detail
+            )
+        }
+        store.apply(
+            FlowCommand.ConfirmDailyCheckIn(
+                intentionId = intention.id,
+                localDate = localDate,
+                focusSummary = summary,
+                nowEpochMs = now,
+                adjustedFocusNote = note.takeIf { it.isNotEmpty() },
+                adjustedFactId = if (note.isNotEmpty()) "fact-checkin-$localDate-$now" else null,
+                adjustedHypothesisId = if (note.isNotEmpty()) {
+                    "hyp-checkin-$localDate-$now"
+                } else {
+                    null
+                }
+            )
+        )
+        refresh()
+        return snapshot.dayCycle.checkedInFor(localDate)
+    }
+
+    /**
+     * Evening check-out — SAID what-happened (+ optional SAID hypothesis), then keep
+     * schedule or defer tomorrow via the existing deferral field.
+     */
+    fun completeDailyCheckOut(
+        whatHappened: String,
+        deferTomorrow: Boolean,
+        hypothesisText: String? = null
+    ): Boolean {
+        if (!capabilityRegistry.canDailyCheckOut()) return false
+        val intention = activeIntention() ?: return false
+        val now = System.currentTimeMillis()
+        val tz = TimeZone.getDefault()
+        val localDate = DailyCycle.localDateString(now, tz)
+        val reported = whatHappened.trim().ifBlank {
+            DailyCycle.summarizeTodayRuns(snapshot, intention.id, now, tz)
+        }
+        val sessionId = nextAction.sessionId
+            ?: snapshot.sessions.firstOrNull { it.intentionId == intention.id }?.id
+        val hyp = hypothesisText?.trim().orEmpty()
+        store.apply(
+            FlowCommand.CompleteDailyCheckOut(
+                intentionId = intention.id,
+                localDate = localDate,
+                whatHappened = reported,
+                factId = "fact-checkout-$localDate-$now",
+                nowEpochMs = now,
+                hypothesisId = if (hyp.isNotEmpty()) "hyp-checkout-$localDate-$now" else null,
+                hypothesisText = hyp.takeIf { it.isNotEmpty() },
+                deferSessionId = if (deferTomorrow) sessionId else null,
+                deferUntilEpochMs = if (deferTomorrow) {
+                    DailyCycle.tomorrowMorningEpochMs(now, tz)
+                } else {
+                    null
+                }
+            )
+        )
+        refresh()
+        return snapshot.dayCycle.checkedOutFor(localDate)
     }
 }

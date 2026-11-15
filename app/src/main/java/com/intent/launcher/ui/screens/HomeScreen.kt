@@ -68,6 +68,9 @@ fun HomeScreen(
     onCompleteSession: () -> Unit = {},
     onAbandonSession: () -> Unit = {},
     onOpenDestination: () -> Unit = {},
+    onConfirmCheckIn: () -> Unit = {},
+    onCheckOutKeepSchedule: () -> Unit = {},
+    onCheckOutDeferTomorrow: () -> Unit = {},
     destinationLaunchNote: String? = null,
     usageNote: String? = null,
     showGrantUsageAccess: Boolean = false,
@@ -295,6 +298,44 @@ fun HomeScreen(
                         NextActionKind.DISCUSS -> {
                             IntentPrimaryButton(text = "Discuss", onClick = onDiscuss)
                         }
+                        NextActionKind.CHECK_IN -> {
+                            IntentPrimaryButton(
+                                text = nextAction.confirmLabel ?: "Confirm focus",
+                                onClick = onConfirmCheckIn
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            IntentSecondaryButton(
+                                text = nextAction.adjustLabel ?: nextAction.discussLabel
+                                    ?: "Adjust in Discuss",
+                                onClick = onDiscuss
+                            )
+                        }
+                        NextActionKind.CHECK_OUT -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                IntentPrimaryButton(
+                                    text = nextAction.confirmLabel ?: "Keep schedule",
+                                    onClick = onCheckOutKeepSchedule,
+                                    modifier = Modifier.weight(1.4f)
+                                )
+                                if (nextAction.adjustLabel != null || nextAction.deferLabel != null) {
+                                    IntentSecondaryButton(
+                                        text = nextAction.adjustLabel
+                                            ?: nextAction.deferLabel
+                                            ?: "Defer tomorrow",
+                                        onClick = onCheckOutDeferTomorrow,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            IntentQuietButton(
+                                text = nextAction.discussLabel ?: "Discuss",
+                                onClick = onDiscuss
+                            )
+                        }
                         else -> {
                             IntentPrimaryButton(
                                 text = "Open your intention",
@@ -450,6 +491,30 @@ private fun homeCopy(nextAction: NextAction, intentionTitle: String): HomeCopy =
             heroTone = HeroTone.Warm,
             smallLabel = "Upcoming",
             pills = listOf(intentionTitle.ifBlank { "Planned" } to PillTone.Warm)
+        )
+        NextActionKind.CHECK_IN -> HomeCopy(
+            headline = "Good morning.",
+            lede = nextAction.reason.ifBlank {
+                "Confirm today’s focus, or adjust it in Discuss."
+            },
+            heroTone = HeroTone.Accent,
+            smallLabel = "Morning check-in",
+            pills = listOf(
+                intentionTitle.ifBlank { "Today’s focus" } to PillTone.Accent,
+                "Confirm or adjust" to PillTone.Neutral
+            )
+        )
+        NextActionKind.CHECK_OUT -> HomeCopy(
+            headline = "How did today go?",
+            lede = nextAction.reason.ifBlank {
+                "Report what happened, then keep the schedule or defer tomorrow."
+            },
+            heroTone = HeroTone.Warm,
+            smallLabel = "Evening check-out",
+            pills = listOf(
+                intentionTitle.ifBlank { "Review" } to PillTone.Warm,
+                "User-reported" to PillTone.Neutral
+            )
         )
         else -> HomeCopy(
             headline = "Where would you like to begin?",

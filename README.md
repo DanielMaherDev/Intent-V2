@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.28**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.25**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.28**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.28.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.25.apk`
 
 ## Scope
 
@@ -38,6 +38,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.22:** Stage 6 notification listener probe — honest registry + SessionCard grant path (no silence / content inbox)
 - **v0.0.23:** Floater / Home quick thought capture — `FlowCommand.CaptureThought`, SAID provenance, no LLM summary
 - **v0.0.24:** Undo last reversible FlowCommand via transaction history; soft-delete intentions/sessions to recoverable trash with restore; honest irreversible notes for external opens / purge
+- **v0.0.25:** Daily check-in / check-out (worksheet §10) — morning focus confirm/adjust, evening SAID review + defer/keep; same Home model; SessionCard unchanged
 - **v0.0.27:** Stage 4 deferral deadline preview — Later shows window + siblings; confirm before defer
 - **v0.0.26:** OBSERVED provenance — UsageStats package foreground stored as `Evidence` distinct from SAID/INFERRED; SessionCard / check-out surface; never auto-Complete or lesson claims
 - **v0.0.28:** Quiet mode / DND honesty — SessionCard request never claims silence; deep link to system DND; `quiet_mode` stays `NOT_SUPPORTED`
@@ -102,6 +103,10 @@ When overlay is granted, `FloatingAgentService` shows a bubble for the **same** 
 
 Home offers **Undo** for the last reversible local commitment (approve / decline / defer / session / trash). Intention Space soft-deletes intentions and sessions into trash with **Restore** (kept until purge) or permanent **Purge**. Opening another app is logged as irreversible — INTENT cannot undo external actions.
 
+## Daily check-in / check-out (worksheet §10 / v0.0.25)
+
+Morning Home **check-in** surfaces today’s intention focus + next-action preview; **Confirm focus** or **Adjust in Discuss** via the command path (`ConfirmDailyCheckIn`). Active session continues Begin / Open / Complete / Abandon + SessionCard. Evening **check-out** records user-reported what-happened as **SAID** (optional SAID hypothesis), then **Keep schedule** or **Defer tomorrow** (local deferral only). Same intention snapshot — no separate daily-task store. No fake calendar/LLM.
+
 ## Deferral preview (v0.0.27)
 
 Home **Later** shows a one-line `DeferralPreview` (new clock window + sibling sessions on the same intention). Confirm dialog before `FlowCommand.DeferNextSession`. Local schedule only — no invented dependency graph or calendar write-back.
@@ -112,7 +117,7 @@ Active SessionCard offers **Request quiet for this session**. INTENT never claim
 
 ## Sideload packaging (v0.0.17–v0.0.28)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.28.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.25.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -120,6 +125,6 @@ Conversation mic uses platform speech recognition when `RECORD_AUDIO` is granted
 
 ## Download
 
-Sideload APK (v0.0.28, release): [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/quiet-mode-honesty-209e/artifacts/INTENT-v0.0.28.apk)
+Sideload APK (v0.0.25, release): [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/daily-checkin-checkout-d3de/artifacts/INTENT-v0.0.25.apk)
 
-(Prior: [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.24.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.24.apk) · [INTENT-v0.0.23.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.23.apk) · [INTENT-v0.0.22.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.22.apk))
+(Prior: [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk) · [INTENT-v0.0.24.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.24.apk) · [INTENT-v0.0.23.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.23.apk) · [INTENT-v0.0.22.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.22.apk))

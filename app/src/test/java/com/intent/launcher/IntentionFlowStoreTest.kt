@@ -180,9 +180,20 @@ class IntentionFlowStoreTest {
         assertEquals(1, snap.sessions.count { it.id == MarathonScenario.SESSION_ID })
         assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == MarathonScenario.INTENTION_ID }.phase)
 
-        // Marathon long-run is Sunday 09:00 — pin Sun 19 Nov 2023 09:00 UTC
+        // Marathon long-run is Sunday 09:00 — pin Sun 19 Nov 2023 09:00 UTC (morning check-in window).
         val sundayDue = 1_700_384_400_000L
-        val next = NextActionEngine.recommend(snap, sundayDue, tz)
+        val morning = NextActionEngine.recommend(snap, sundayDue, tz)
+        assertEquals(NextActionKind.CHECK_IN, morning.kind)
+        store.apply(
+            FlowCommand.ConfirmDailyCheckIn(
+                intentionId = MarathonScenario.INTENTION_ID,
+                localDate = com.intent.launcher.engine.DailyCycle.localDateString(sundayDue, tz),
+                focusSummary = morning.detail,
+                nowEpochMs = sundayDue
+            )
+        )
+        snap = store.snapshot()
+        val next = NextActionEngine.recommend(snap, sundayDue + 1, tz)
         assertEquals(NextActionKind.BEGIN, next.kind)
         assertTrue(next.reason.isNotBlank())
 
@@ -293,7 +304,7 @@ class IntentionFlowStoreTest {
         val f = tmp.newFile("old.json")
         f.writeText(raw)
         val s = IntentionFlowStore(f)
-        assertEquals(4, s.snapshot().schemaVersion)
+        assertEquals(5, s.snapshot().schemaVersion)
         assertTrue(s.snapshot().sessionRuns.isEmpty())
     }
 

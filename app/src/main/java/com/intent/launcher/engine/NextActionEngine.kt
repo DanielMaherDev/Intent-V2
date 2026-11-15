@@ -82,6 +82,32 @@ object NextActionEngine {
                 urgency(it.deferredUntilEpochMs, it.dayOfWeek, it.hour, it.minute, nowEpochMs, timeZone)
             }
 
+        // Worksheet §10 — evening check-out (after active session), then morning check-in.
+        if (session != null && intention.phase == IntentionPhase.ACTIVE) {
+            val checkOut = recommendCheckOutIfNeeded(
+                snapshot = snapshot,
+                intentionId = intentionId,
+                intentionTitle = intention.title,
+                session = session,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone,
+                registry = registry
+            )
+            if (checkOut != null) return checkOut
+
+            val checkIn = recommendCheckInIfNeeded(
+                snapshot = snapshot,
+                intentionId = intentionId,
+                intentionTitle = intention.title,
+                session = session,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone,
+                registry = registry,
+                destination = destination
+            )
+            if (checkIn != null) return checkIn
+        }
+
         if (session != null && intention.phase == IntentionPhase.ACTIVE) {
             return recommendForSession(session, intentionId, nowEpochMs, timeZone, registry, destination)
         }
@@ -144,6 +170,85 @@ object NextActionEngine {
                 intentionId = intentionId
             )
         }
+    }
+
+    private fun recommendCheckInIfNeeded(
+        snapshot: IntentionSnapshot,
+        intentionId: String,
+        intentionTitle: String,
+        session: ScheduledSession,
+        nowEpochMs: Long,
+        timeZone: TimeZone,
+        registry: CapabilityRegistry,
+        destination: DestinationApp?
+    ): NextAction? {
+        if (!DailyCycle.shouldOfferCheckIn(snapshot, intentionId, nowEpochMs, timeZone)) {
+            return null
+        }
+        if (!registry.canDailyCheckIn()) {
+            return null
+        }
+        val preview = recommendForSession(
+            session, intentionId, nowEpochMs, timeZone, registry, destination
+        )
+        val summary = DailyCycle.focusSummary(
+            intentionTitle = intentionTitle,
+            previewNextLabel = preview.label,
+            previewDetail = preview.detail
+        )
+        return NextAction(
+            kind = NextActionKind.CHECK_IN,
+            label = "Morning check-in",
+            detail = summary,
+            reason = "Confirm today’s focus and next action before you begin — " +
+                "same Home intention model, not a separate daily task list.",
+            intentionId = intentionId,
+            sessionId = session.id,
+            discussLabel = if (registry.canDiscuss()) "Adjust in Discuss" else null,
+            confirmLabel = "Confirm focus",
+            adjustLabel = if (registry.canDiscuss()) "Adjust in Discuss" else null,
+            beginLabel = preview.beginLabel,
+            deferLabel = preview.deferLabel,
+            destinationPackageName = preview.destinationPackageName,
+            destinationAppLabel = preview.destinationAppLabel,
+            openDestinationLabel = preview.openDestinationLabel
+        )
+    }
+
+    private fun recommendCheckOutIfNeeded(
+        snapshot: IntentionSnapshot,
+        intentionId: String,
+        intentionTitle: String,
+        session: ScheduledSession,
+        nowEpochMs: Long,
+        timeZone: TimeZone,
+        registry: CapabilityRegistry
+    ): NextAction? {
+        if (!DailyCycle.shouldOfferCheckOut(snapshot, intentionId, nowEpochMs, timeZone)) {
+            return null
+        }
+        if (!registry.canDailyCheckOut()) {
+            return null
+        }
+        val runsSummary = DailyCycle.summarizeTodayRuns(
+            snapshot, intentionId, nowEpochMs, timeZone
+        )
+        val focus = snapshot.dayCycle.focusSummary
+            ?.takeIf { snapshot.dayCycle.localDate == DailyCycle.localDateString(nowEpochMs, timeZone) }
+            ?: "Focus: ${intentionTitle.ifBlank { "Your intention" }}"
+        return NextAction(
+            kind = NextActionKind.CHECK_OUT,
+            label = "Evening check-out",
+            detail = "$focus · $runsSummary",
+            reason = "Brief evening review — what you report is stored with SAID provenance. " +
+                "Defer tomorrow locally or keep the schedule; no calendar/LLM verification.",
+            intentionId = intentionId,
+            sessionId = session.id,
+            discussLabel = if (registry.canDiscuss()) "Discuss" else null,
+            confirmLabel = "Keep schedule",
+            adjustLabel = if (registry.canRecommendDefer()) "Defer tomorrow" else null,
+            deferLabel = if (registry.canRecommendDefer()) "Defer tomorrow" else null
+        )
     }
 
     private fun recommendForActiveRun(
