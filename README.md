@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.137** (this branch) · main tip **v0.0.136** (#78 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.138** (this branch) · main tip **v0.0.137** (#80 merged).
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.137** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.137.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.138.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.138:** Conversation AMBIGUOUS CHOICE_SET cards — GatewayStatus.AMBIGUOUS renders first-class chips for approval/tracker clarification (§17 case 33/21); SCHEMA 10 unchanged
 - **v0.0.01:** Spanish scripted E2E (explore → fact → proposal → approve → defer → restart)
 - **v0.0.02:** Marathon second shape on the same model/screens (`Explore a marathon` on Home)
 - **v0.0.03:** Four-core visual redesign (Home, Intention, Conversation, Proposal/Approval) to match Project design targets
@@ -249,6 +250,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.137, release): [INTENT-v0.0.137.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-e-history-import-reports-24cc/artifacts/INTENT-v0.0.137.apk)
+Sideload APK (v0.0.138, release): [INTENT-v0.0.138.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-e-ambiguous-choiceset-a1f3/artifacts/INTENT-v0.0.138.apk)
 
-(Prior tip APK on main: [INTENT-v0.0.135.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.135.apk) — 0.0.136 was JVM-only on tip without a new artifacts APK.)
+(Prior tip APK on main: [INTENT-v0.0.137.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.137.apk).)

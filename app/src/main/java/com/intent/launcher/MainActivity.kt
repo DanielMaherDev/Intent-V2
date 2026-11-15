@@ -843,6 +843,9 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 },
+                                onAmbiguousChoice = { blockId, choiceIndex ->
+                                    vm.onAmbiguousChoice(blockId, choiceIndex)
+                                },
                                 onBack = { nav.popBackStack() },
                                 onOpenProposal = { nav.navigate("proposal") },
                                 hasPendingProposal = pending != null,
