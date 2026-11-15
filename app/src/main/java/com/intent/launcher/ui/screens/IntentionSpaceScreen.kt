@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.DestinationApp
@@ -31,12 +32,14 @@ import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.AppConnectionUsage
+import com.intent.launcher.engine.IntentionDetailCoherence
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.FactRow
 import com.intent.launcher.ui.components.HeroCard
@@ -50,6 +53,11 @@ import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
+/**
+ * Intention detail (OS-142): coherent next action → paths → plan → track → reports → resources.
+ * Exploring first viewport stays question-first (four-core Intention exploring). Honesty only —
+ * no invented partner data. Drawer / breadcrumb owned by sibling claims.
+ */
 @Composable
 fun IntentionSpaceScreen(
     intention: Intention?,
@@ -64,6 +72,8 @@ fun IntentionSpaceScreen(
     onReleaseHeldApp: (heldAppId: String) -> Unit = {},
     connectionUsages: List<AppConnectionUsage.ConnectionUsage> = emptyList(),
     onOpenConnections: (() -> Unit)? = null,
+    coherence: IntentionDetailCoherence.View? = null,
+    nextAction: NextAction? = null,
     onWorkThisOut: () -> Unit,
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
@@ -144,6 +154,10 @@ fun IntentionSpaceScreen(
                 spotColor = Color(0x125459C9)
             )
         ) {
+        // 1 — Next action (hero CTA + Home's NextAction reason when present)
+        SectionTitle("Next action")
+        Spacer(modifier = Modifier.height(9.dp))
+        HeroCard(tone = heroTone) {
             SmallLabel(text = projection.hero.heroLabel, color = labelColor)
             Spacer(modifier = Modifier.height(7.dp))
             Text(
@@ -158,6 +172,21 @@ fun IntentionSpaceScreen(
                 color = IntentColors.Muted,
                 lineHeight = 19.sp
             )
+            if (nextAction != null && nextAction.reason.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Recommended now · ${nextAction.label}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = nextAction.reason,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
             Spacer(modifier = Modifier.height(15.dp))
             IntentPrimaryButton(text = projection.hero.heroCta, onClick = onWorkThisOut)
             // Keep exploring first viewport to question + CTA only (mock); deeper links below.
@@ -174,6 +203,9 @@ fun IntentionSpaceScreen(
         }
 
         // Mock order: question → what we know → empty note, then secondary sections.
+        }
+
+        // Exploring mock order: knowledge + empty note before deeper sections.
         Spacer(modifier = Modifier.height(26.dp))
         SectionTitle(projection.knowledgeSectionTitle)
         Spacer(modifier = Modifier.height(9.dp))
@@ -205,11 +237,41 @@ fun IntentionSpaceScreen(
                             .height(1.dp)
                             .background(IntentColors.Line)
                     )
+            if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty() && evidence.isEmpty()) {
+                projection.defaultFacts.forEach { FactRow(text = it) }
+            } else {
+                facts.forEach { f ->
+                    FactRow(text = "Confirmed by you · ${f.text}")
+                }
+                hypotheses.forEach { h ->
+                    FactRow(text = "Inferred · ${h.text}")
+                }
+                evidence
+                    .filter {
+                        it.accuracy == EvidenceAccuracy.ACTIVE &&
+                            it.provenance.kind == ProvenanceKind.OBSERVED
+                    }
+                    .forEach { e ->
+                        FactRow(text = "Observed · ${e.summaryText}")
+                    }
+                sessions.forEach { s ->
+                    val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
+                    FactRow(text = "${s.title} · $whenLabel")
+                    if (onMoveSessionToTrash != null) {
+                        IntentQuietButton(
+                            text = "Move session to trash",
+                            onClick = { onMoveSessionToTrash(s.id) }
+                        )
+                    }
+                }
+                if (intention?.phase == IntentionPhase.PROPOSAL_PENDING) {
+                    FactRow(text = "Pending · add a weekly commitment", pending = true)
                 }
             }
         }
 
         if (projection.emptyNote != null) {
+        if (projection.emptyNote != null && exploringFirstViewport) {
             Spacer(modifier = Modifier.height(17.dp))
             EmptyNote(text = projection.emptyNote)
         }
@@ -218,8 +280,47 @@ fun IntentionSpaceScreen(
             Spacer(modifier = Modifier.height(26.dp))
             SectionTitle(projection.approachSectionTitle)
             Spacer(modifier = Modifier.height(9.dp))
+        // 2 — Active paths
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle(coherence?.activePathsTitle ?: "Active paths")
+        Spacer(modifier = Modifier.height(9.dp))
+        if (coherence == null || coherence.activePathLines.isEmpty()) {
+            EmptyNote(
+                text = coherence?.activePathsEmptyNote
+                    ?: "No child paths yet. This intention is the path — parent/child navigation is separate."
+            )
+        } else {
+            coherence.activePathLines.forEach { line ->
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                    Text(
+                        text = line.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = line.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
+        }
+
+        // 3 — Plan
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle(coherence?.planTitle ?: projection.approachSectionTitle ?: "Plan")
+        Spacer(modifier = Modifier.height(9.dp))
+        val planSteps = coherence?.planSteps ?: projection.approachSteps
+        if (planSteps.isEmpty()) {
+            EmptyNote(
+                text = coherence?.planEmptyNote
+                    ?: projection.emptyNote
+                    ?: "No plan committed yet. Exploring stays useful without invented tasks."
+            )
+        } else {
             Column(modifier = Modifier.fillMaxWidth().padding(start = 7.dp)) {
-                projection.approachSteps.forEach { step ->
+                planSteps.forEach { step ->
                     Column(modifier = Modifier.padding(start = 17.dp, bottom = 14.dp)) {
                         Text(
                             text = step.title,
@@ -237,21 +338,142 @@ fun IntentionSpaceScreen(
             }
         }
 
-        if (projection.resourceLine != null) {
-            Spacer(modifier = Modifier.height(14.dp))
+        // 4 — Track
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle(coherence?.trackTitle ?: "Track")
+        Spacer(modifier = Modifier.height(9.dp))
+        if (coherence != null && coherence.trackLines.isNotEmpty()) {
+            coherence.trackLines.forEach { line ->
+                Text(
+                    text = "${line.title} · ${line.activeEntryCount} entries",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        } else {
+            EmptyNote(
+                text = coherence?.trackEmptyNote
+                    ?: "No tracker modules for this shape yet."
+            )
+        }
+        Text(
+            text = coherence?.trackHonestyNote
+                ?: "Manual SAID entries only — not partner lesson completion.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        if (onOpenTracker != null && (coherence?.canOpenTracker != false)) {
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentSecondaryButton(text = "Open tracker", onClick = onOpenTracker)
+        }
+
+        // 5 — Reports
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle(coherence?.reportsTitle ?: "Reports")
+        Spacer(modifier = Modifier.height(9.dp))
+        if (coherence != null) {
             Text(
-                text = projection.resourceLine,
+                text = coherence.reportsSummaryLine,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = coherence.reportsProofLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Ink
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = coherence.reportsHonestyNote,
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
+        } else {
+            EmptyNote(text = "Path & progress reads the same intention store when available.")
+        }
+        if (onOpenReports != null && (coherence?.canOpenReports != false)) {
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentSecondaryButton(text = "Path & progress", onClick = onOpenReports)
         }
 
+        // 6 — Resources (destination + held apps + connections)
         Spacer(modifier = Modifier.height(26.dp))
-        SectionTitle("Apps you hold")
+        SectionTitle(coherence?.resourcesTitle ?: "Resources")
         Spacer(modifier = Modifier.height(9.dp))
         Text(
-            text = "Confirm packages for this intention (SAID). No UsageStats auto-ranking. " +
-                "Not a classic app grid — the system app drawer stays available.",
+            text = coherence?.resourcesHonestyNote
+                ?: "Opening an app is not lesson completion. Partner OAuth feeds are not supported.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        if (coherence != null && coherence.resourceLines.isNotEmpty()) {
+            coherence.resourceLines.forEach { line ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                        .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                        .background(IntentColors.Card, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = line.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = line.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
+        } else if (coherence?.resourcesEmptyNote != null) {
+            EmptyNote(text = coherence.resourcesEmptyNote)
+        } else if (connectionUsages.isNotEmpty()) {
+            connectionUsages.forEach { usage ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                        .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                        .background(IntentColors.Card, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = usage.connection.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = if (usage.connection.installed) {
+                            "Installed · ${usage.connection.accountStatus}"
+                        } else {
+                            "Not installed · ${usage.connection.accountStatus}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
+        }
+
+        // Held-app confirm / reorder stays interactive under Resources.
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Apps you hold",
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Ink,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Confirm packages for this intention (SAID). No UsageStats auto-ranking.",
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )
@@ -302,75 +524,8 @@ fun IntentionSpaceScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(26.dp))
-        SectionTitle("Connections")
-        Spacer(modifier = Modifier.height(9.dp))
-        Text(
-            text = "Which connections this intention uses, and what data would contribute. " +
-                "Partner feeds stay empty until OAuth is supported.",
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        if (connectionUsages.isEmpty()) {
-            EmptyNote(
-                text = "No installed connection candidates for this intention. " +
-                    "Partner feed unavailable — SAID / OBSERVED only."
-            )
-        } else {
-            connectionUsages.forEach { usage ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
-                        .background(IntentColors.Card, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = usage.connection.label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = IntentColors.Ink
-                    )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (usage.connection.installed) {
-                            "Installed · ${usage.connection.accountStatus}"
-                        } else {
-                            "Not installed · ${usage.connection.accountStatus}"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IntentColors.Muted
-                    )
-                    if (usage.intentions.isEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        EmptyNote(
-                            text = usage.emptyNote
-                                ?: "No SAID / OBSERVED contribution yet. Partner feed empty."
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        usage.intentions.forEach { use ->
-                            Text(
-                                text = use.detail,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = IntentColors.Ink
-                            )
-                        }
-                        usage.emptyNote?.let { note ->
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = note,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = IntentColors.Muted
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-        }
         if (onOpenConnections != null) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             IntentSecondaryButton(text = "All connections", onClick = onOpenConnections)
         }
 
