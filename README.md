@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.98** (this branch) · main baseline **v0.0.80**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.111**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.98** (this branch
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.98.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.111.apk`
 
 ## Scope
 
@@ -57,6 +57,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.65:** CASE-05 quit smoking shape — baseline cigarettes/day, evening check-in, honest SAID cessation tracker modules (`cessation`)
 - **v0.0.80:** CASE-06 app-use reduction fixture — Instagram/YouTube 45-min target, Shorts honesty on OBSERVED package evidence (no auto-Complete; reclaimed from 0.0.63 / 0.0.53 / 0.0.40)
 - **v0.0.98:** CASE-01 small errand / quick to-do inbox (OS-073) — “Buy milk tonight” as first action + reminder, not an exploring Intention (reclaimed from 0.0.79 / 0.0.62 / 0.0.52)
+- **v0.0.111:** Intention detail coherence (OS-142) — next action, active paths, plan, track, reports, and resources in one coherent Intention Space layout; existing registry/path model only (reclaimed from 0.0.96 / 0.0.78)
 
 ## Shapes
 
@@ -162,9 +163,9 @@ One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Op
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.17–v0.0.98)
+## Sideload packaging (v0.0.17–v0.0.111)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.98.apk` on this branch (main: `INTENT-v0.0.80.apk`). Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.111.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -184,6 +185,8 @@ Registry capability `live_llm` is **NOT_SUPPORTED** without a configured key, **
 
 ## Download
 
-Sideload APK (v0.0.98, release): [INTENT-v0.0.98.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/errand-todo-case01-v038-1e09/artifacts/INTENT-v0.0.98.apk)
+Sideload APK (v0.0.111, release): [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/intention-detail-coherence-78-9f87/artifacts/INTENT-v0.0.111.apk)
 
-(Prior: [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.65.apk) · [INTENT-v0.0.64.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.64.apk) · [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.61.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.60.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.59.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.49.apk) · [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.48.apk) · [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk))
+(Prior: [INTENT-v0.0.98.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.98.apk))
+
+(Prior: [INTENT-v0.0.80.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.80.apk) · [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.65.apk) · [INTENT-v0.0.64.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.64.apk) · [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.61.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.60.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.59.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.49.apk) · [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.48.apk) · [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk))

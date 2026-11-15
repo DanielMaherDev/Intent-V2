@@ -559,6 +559,8 @@ class MainActivity : ComponentActivity() {
                                 onReleaseHeldApp = { id -> vm.releaseHeldApp(id) },
                                 connectionUsages = vm.connectionUsagesForActive(),
                                 onOpenConnections = { nav.navigate("connections") },
+                                coherence = vm.intentionDetailCoherence(),
+                                nextAction = vm.nextAction,
                                 onWorkThisOut = {
                                     when (active?.phase) {
                                         IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
