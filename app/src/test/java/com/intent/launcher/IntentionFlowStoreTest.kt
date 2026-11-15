@@ -2,6 +2,7 @@ package com.intent.launcher
 
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
+import com.intent.launcher.domain.EuWorkSpainScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.EuWorkSpainScenario
