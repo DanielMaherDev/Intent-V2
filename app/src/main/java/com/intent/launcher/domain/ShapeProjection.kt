@@ -141,7 +141,7 @@ object ShapeProjection {
             "app_use" ->
                 "No blocking or auto-cap has been invented. Package time is a proxy — not Shorts or Reels identity."
             else ->
-                "No tasks have been invented. This intention stays open while you decide on an approach."
+                "No tasks yet. This space is ready while you choose an approach."
         }
 
     private fun defaultFacts(shapeTag: String?): List<String> =
@@ -376,7 +376,7 @@ object ShapeProjection {
                         "We can set a 45-minute daily target and review Instagram/YouTube package time — " +
                             "not Shorts or Reels identity."
                     else ->
-                        "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
+                        "We can shape this around an app, a tutor, conversations with your agent, or a mix."
                 },
                 heroCta = "Work this out",
                 tone = "accent"
