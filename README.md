@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.98** (this branch) · main baseline **v0.0.80**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.117**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.98** (this branch
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.98.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.117.apk`
 
 ## Scope
 
@@ -57,6 +57,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.65:** CASE-05 quit smoking shape — baseline cigarettes/day, evening check-in, honest SAID cessation tracker modules (`cessation`)
 - **v0.0.80:** CASE-06 app-use reduction fixture — Instagram/YouTube 45-min target, Shorts honesty on OBSERVED package evidence (no auto-Complete; reclaimed from 0.0.63 / 0.0.53 / 0.0.40)
 - **v0.0.98:** CASE-01 small errand / quick to-do inbox (OS-073) — “Buy milk tonight” as first action + reminder, not an exploring Intention (reclaimed from 0.0.79 / 0.0.62 / 0.0.52)
+- **v0.0.117:** Floater system UI OS-156 — overlay yields to recents, gesture nav, permission dialogs, and IME (reclaimed from 0.0.85; additive with Gate D #53 / 0.0.109)
 
 ## Shapes
 
@@ -105,6 +106,10 @@ When UsageStats is granted, package foreground for the active session is persist
 ## Floating companion (Stage 6 / v0.0.16)
 
 When overlay is granted, `FloatingAgentService` shows a bubble for the **same** agent as Conversation (`idle` / `attention_needed` / `active_session`; stub labels for capture/think/reply). **Tap** opens Ask (Discuss → Conversation); **long-press** opens the **Ask / Today / Capture** drawer. When overlay is denied, there is **no** fake bubble — use Home **Companion menu**, Discuss, or **Capture thought**.
+
+## Floater system UI clearance (OS-156 / v0.0.117)
+
+`FloaterSystemUiPolicy` clamps the overlay to status / gesture / nav / IME insets and uses `FLAG_NOT_FOCUSABLE|FLAG_NOT_TOUCH_MODAL` so the keyboard and system permission dialogs keep focus and outside touches. When the IME leaves no safe band, the bubble hides instead of covering the keyboard. No system-gesture exclusion rects — recents and edge back stay free. Additive with Gate D sticky / overlay-denied honesty (PR #53 / reclaim 0.0.109).
 
 ## Notification summaries (Stage 6 / v0.0.22)
 
@@ -162,9 +167,9 @@ One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Op
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.17–v0.0.98)
+## Sideload packaging (v0.0.17–v0.0.117)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.98.apk` on this branch (main: `INTENT-v0.0.80.apk`). Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.117.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -184,6 +189,6 @@ Registry capability `live_llm` is **NOT_SUPPORTED** without a configured key, **
 
 ## Download
 
-Sideload APK (v0.0.98, release): [INTENT-v0.0.98.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/errand-todo-case01-v038-1e09/artifacts/INTENT-v0.0.98.apk)
+Sideload APK (v0.0.117, release): [INTENT-v0.0.117.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/floater-system-ui-os156-03d4/artifacts/INTENT-v0.0.117.apk)
 
-(Prior: [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.65.apk) · [INTENT-v0.0.64.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.64.apk) · [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.61.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.60.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.59.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.49.apk) · [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.48.apk) · [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk))
+(Prior: [INTENT-v0.0.98.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.98.apk) · [INTENT-v0.0.80.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.80.apk) · [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.65.apk) · [INTENT-v0.0.64.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.64.apk) · [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.61.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.60.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.59.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.49.apk) · [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.48.apk) · [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk))
