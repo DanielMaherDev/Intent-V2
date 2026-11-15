@@ -11,8 +11,8 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 133
-        versionName = "0.0.133"
+        versionCode = 134
+        versionName = "0.0.134"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Live OpenAI key wiring — never commit secrets or print values.
         // Canonical Cursor / CI secret name: OPENAPI_GENERAL

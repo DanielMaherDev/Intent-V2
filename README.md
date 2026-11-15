@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.133** (this branch) · stacks on D2 **v0.0.132** / D1 **v0.0.131** · main tip **v0.0.130** (#71 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.134** (this branch) · main tip **v0.0.133** (#75 merged).
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.133** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.133.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.134.apk`
 
 ## Scope
 
@@ -78,6 +78,10 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.118:** Home attention OS-135 — today's recommendation, due work, next deadline, and agent attention without clutter; additive to four-core Home visual reclaim (#52 / 0.0.104); reclaimed from 0.0.100 after tip 0.0.101
 - **v0.0.119:** CASE-07 chess rating — manual SAID baseline (900→1200) + practice/review log; Chess.com auto-sync `NOT_SUPPORTED` (reclaim; was 0.0.102 / 0.0.67); coexists with CASE-03 research + OS-154 evening triage
 - **v0.0.130:** Gate C frontend — Home MIDDAY Keep plan / Defer later → `recordMiddayCheck`; Tracker Correct entry → `CorrectTrackerEntry` (honest `user_correction` source); IntentionFlowStore unchanged
+- **v0.0.131:** Gate D1 — triggers / cooldowns / typed CAPABILITY_GAP (SCHEMA 10)
+- **v0.0.132:** Gate D2 — OBSERVED vs INFERRED on intervention UI
+- **v0.0.133:** Gate D3 — overlay/service interrupt → saved work + notification
+- **v0.0.134:** Gate C dedicated Today view — planned · completed · deferred from day cycle / occurrences / sessions; Floater Today + Home link → `TodayScreen` (not Home-only)
 
 ## Shapes
 
@@ -242,6 +246,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.133, release): [INTENT-v0.0.133.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-d-overlay-interrupt-proof/artifacts/INTENT-v0.0.133.apk)
+Sideload APK (v0.0.134, release): [INTENT-v0.0.134.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-c-today-view-4797/artifacts/INTENT-v0.0.134.apk)
 
-(Prior D2: [INTENT-v0.0.132.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-d-observed-inferred-labels/artifacts/INTENT-v0.0.132.apk) · D1: [INTENT-v0.0.131.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-d-triggers-cooldowns-gaps-6920/artifacts/INTENT-v0.0.131.apk) · tip: [INTENT-v0.0.130.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.130.apk))
+(Prior tip: [INTENT-v0.0.133.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.133.apk); earlier [INTENT-v0.0.132.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.132.apk))

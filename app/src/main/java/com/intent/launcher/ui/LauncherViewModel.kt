@@ -64,6 +64,7 @@ import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.InterventionProvenance
+import com.intent.launcher.engine.TodayView
 import com.intent.launcher.engine.HomeRoleAccess
 import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.HomeChromePrefs
@@ -654,7 +655,7 @@ class LauncherViewModel(
         return result.navigateTo
     }
 
-    /** Floater drawer Today — Home next-action focus note. */
+    /** Floater drawer / Home Today — dedicated Today route + focus note. */
     fun openTodayFromDrawer(): String {
         val result = FloaterActionDrawer.openToday(nextAction)
         floaterTodayNote = result.focusNote
@@ -662,6 +663,10 @@ class LauncherViewModel(
         refresh()
         return result.navigateTo
     }
+
+    /** Planned · completed · deferred from day cycle / occurrences / sessions. */
+    fun todayModel(nowEpochMs: Long = System.currentTimeMillis()): TodayView.Model =
+        TodayView.project(snapshot, nowEpochMs, TimeZone.getDefault())
 
     fun clearFloaterTodayNote() {
         floaterTodayNote = null

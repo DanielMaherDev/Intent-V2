@@ -34,7 +34,7 @@ object FloaterActionDrawer {
 
     data class OpenTodayResult(
         val navigateTo: String,
-        /** One-liner pointing at the Home next-action strip. */
+        /** One-liner for the dedicated Today screen (not a second agent). */
         val focusNote: String
     )
 
@@ -47,7 +47,7 @@ object FloaterActionDrawer {
         Item(
             action = FloaterDrawerAction.TODAY,
             label = "Today",
-            detail = "Jump to Home and the next-action strip."
+            detail = "Open Today — planned, completed, and deferred from the day cycle."
         ),
         Item(
             action = FloaterDrawerAction.CAPTURE,
@@ -86,10 +86,11 @@ object FloaterActionDrawer {
     fun openToday(nextAction: NextAction): OpenTodayResult {
         val label = nextAction.label.trim().ifEmpty { "next action" }
         return OpenTodayResult(
-            navigateTo = HOME_ROUTE,
-            focusNote = "Today — focus: $label. Same Home next-action strip; not a second agent."
+            navigateTo = TODAY_ROUTE,
+            focusNote = "Today — focus: $label. Planned · completed · deferred from your day cycle — not chat prose."
         )
     }
 
     const val HOME_ROUTE = "home"
+    const val TODAY_ROUTE = "today"
 }

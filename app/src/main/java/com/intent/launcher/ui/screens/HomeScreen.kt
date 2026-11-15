@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Spa
+import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -100,6 +101,8 @@ fun HomeScreen(
     onContinueExploring: () -> Unit,
     onOpenIntention: () -> Unit,
     onOpenIntentionDrawer: () -> Unit = onOpenIntention,
+    /** Dedicated Today — planned · completed · deferred. */
+    onOpenToday: (() -> Unit)? = null,
     onReviewProposal: () -> Unit,
     onBegin: () -> Unit,
     onDefer: () -> Unit,
@@ -528,6 +531,15 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(26.dp))
             SectionTitle("Your space")
             Spacer(modifier = Modifier.height(9.dp))
+            if (onOpenToday != null) {
+                LineRow(
+                    title = "Today",
+                    subtitle = "Planned · completed · deferred",
+                    onClick = onOpenToday,
+                    glyphIcon = Icons.Outlined.Today,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
             LineRow(
                 title = intentionTitle.ifBlank { "Your intention" },
                 subtitle = intentionHint.ifBlank { "Open your intention" },
