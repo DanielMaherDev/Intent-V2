@@ -6,7 +6,7 @@ import com.intent.launcher.capability.CapabilityStatus
 
 /**
  * Stage 6 — floating overlay permission probe.
- * Honest: even when granted, the floating companion is not shipped in this build.
+ * When granted, the floating companion surface may show; when denied, use Home/Agent → Conversation.
  */
 object OverlayPermissionProbe {
 
@@ -29,13 +29,14 @@ object OverlayPermissionProbe {
             else if (granted) {
                 entry.copy(
                     status = CapabilityStatus.AVAILABLE,
-                    limitNote = "Overlay permission granted, but the floating agent is not shipped in this build. " +
-                        "Home and SessionCard remain the surfaces."
+                    limitNote = "Floating companion overlay available — same agent as Conversation. " +
+                        "No live voice/LLM capture in this build."
                 )
             } else {
                 entry.copy(
                     status = CapabilityStatus.PERMISSION_NEEDED,
-                    limitNote = "Requires overlay permission; floating agent not shipped in this build."
+                    limitNote = "Requires overlay permission for the floating companion. " +
+                        "Use Home’s Agent tab or Discuss to open Conversation without it."
                 )
             }
         }
@@ -47,15 +48,15 @@ object OverlayPermissionProbe {
         return if (granted) {
             Observation(
                 permissionGranted = true,
-                note = "Overlay permission is on. The floating agent is not shipped in this build — " +
-                    "use Home and SessionCard instead.",
+                note = "Floating companion can appear over other apps — same agent as Conversation. " +
+                    "Tap it to open Discuss.",
                 canOpenSettings = false
             )
         } else {
             Observation(
                 permissionGranted = false,
-                note = "Overlay permission not granted. The floating agent is not shipped yet; " +
-                    "granting it prepares a future companion and does not change completion rules.",
+                note = "Overlay permission not granted — no floating bubble. " +
+                    "Use Home’s Agent tab or Discuss for the same Conversation.",
                 canOpenSettings = true
             )
         }

@@ -201,7 +201,8 @@ class CapabilityRegistry(
                 id = ID_FLOATING_OVERLAY,
                 title = "Floating agent overlay",
                 status = CapabilityStatus.PERMISSION_NEEDED,
-                limitNote = "Requires overlay permission; not shipped in this build."
+                limitNote = "Requires overlay permission for the floating companion. " +
+                    "Use Home’s Agent tab or Discuss without it."
             )
         )
 

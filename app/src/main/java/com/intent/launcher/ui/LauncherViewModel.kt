@@ -17,6 +17,8 @@ import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.DiscussFromHome
+import com.intent.launcher.engine.FloatingAgentState
+import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.NextActionEngine
@@ -56,14 +58,25 @@ class LauncherViewModel(
     var usageObservation by mutableStateOf<UsageStatsProbe.Observation?>(null)
         private set
 
-    /** Overlay permission honesty — floating agent not shipped even when granted. */
+    /** Overlay permission honesty — floating companion when granted. */
     var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(
         OverlayPermissionProbe.observe(overlayPermissionAccess)
     )
         private set
 
+    /** Same-agent floating companion presence (null state = no bubble). */
+    var floatingPresence by mutableStateOf(
+        FloatingCompanion.presence(
+            nextAction = nextAction,
+            overlayGranted = overlayPermissionAccess.canDrawOverlays(),
+            registry = capabilityRegistry
+        )
+    )
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
+        floatingPresence = resolveFloatingPresence()
     }
 
     fun refresh() {
@@ -73,6 +86,31 @@ class LauncherViewModel(
         nextAction = recommend()
         usageObservation = observeUsageIfActive()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
+        floatingPresence = resolveFloatingPresence()
+    }
+
+    private fun resolveFloatingPresence(): FloatingCompanion.Presence =
+        FloatingCompanion.presence(
+            nextAction = nextAction,
+            overlayGranted = overlayPermissionAccess.canDrawOverlays(),
+            registry = capabilityRegistry
+        )
+
+    /** Overlay bubble state when allowed; null means do not show fake floating UI. */
+    fun floatingBubbleState(): FloatingAgentState? = floatingPresence.state
+
+    /**
+     * Companion press / notification — same Discuss → Conversation path as Home.
+     */
+    fun openFromFloatingCompanion(): String? {
+        val result = FloatingCompanion.onPress(
+            store = store,
+            nextAction = nextAction,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        refresh()
+        return result.navigateTo
     }
 
     private fun recommend(): NextAction =
