@@ -8,6 +8,7 @@ import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.FlowCommand
+import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
@@ -85,9 +86,16 @@ class IntentionFlowStore(
                     updatedAtEpochMs = command.nowEpochMs,
                     shapeTag = command.shapeTag
                 )
+                val existingIds = migrated.intentions.map { it.id }
+                val nextOrder = when {
+                    intention.id in migrated.intentionOrder -> migrated.intentionOrder
+                    migrated.intentionOrder.isEmpty() -> existingIds.filterNot { it == intention.id } + intention.id
+                    else -> migrated.intentionOrder.filterNot { it == intention.id } + intention.id
+                }
                 migrated.copy(
                     intentions = migrated.intentions.filterNot { it.id == intention.id } + intention,
-                    activeIntentionId = command.intentionId
+                    activeIntentionId = command.intentionId,
+                    intentionOrder = nextOrder
                 )
             }
 
@@ -657,6 +665,95 @@ is FlowCommand.MarkThoughtStatus -> {
                 migrated.copy(trash = migrated.trash.filterNot { it.id == command.trashId })
             }
 
+
+            is FlowCommand.ReorderIntentions -> {
+                val known = migrated.intentions.map { it.id }.toSet()
+                val ordered = command.orderedIntentionIds.filter { it in known }.distinct()
+                val remainder = migrated.intentions.map { it.id }.filterNot { it in ordered }
+                migrated.copy(intentionOrder = ordered + remainder)
+            }
+
+            is FlowCommand.HoldAppForIntention -> {
+                if (migrated.intentions.none { it.id == command.intentionId }) return migrated
+                val existingForIntention = migrated.heldApps.filter {
+                    it.intentionId == command.intentionId
+                }
+                val already = existingForIntention.firstOrNull {
+                    it.packageName == command.packageName
+                }
+                if (already != null) {
+                    return migrated.copy(
+                        heldApps = migrated.heldApps.map {
+                            if (it.id == already.id) {
+                                it.copy(
+                                    label = command.label,
+                                    provenance = Provenance(
+                                        ProvenanceKind.SAID,
+                                        command.nowEpochMs,
+                                        "user-hold"
+                                    )
+                                )
+                            } else it
+                        },
+                        intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                    )
+                }
+                val held = HeldApp(
+                    id = command.heldAppId,
+                    intentionId = command.intentionId,
+                    packageName = command.packageName,
+                    label = command.label,
+                    sortOrder = existingForIntention.size,
+                    provenance = Provenance(
+                        ProvenanceKind.SAID,
+                        command.nowEpochMs,
+                        "user-hold"
+                    )
+                )
+                migrated.copy(
+                    heldApps = migrated.heldApps.filterNot { it.id == held.id } + held,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.ReorderHeldApps -> {
+                val forIntention = migrated.heldApps.filter { it.intentionId == command.intentionId }
+                if (forIntention.isEmpty()) return migrated
+                val known = forIntention.map { it.id }.toSet()
+                val orderedIds = command.orderedHeldAppIds.filter { it in known }.distinct()
+                val remainder = forIntention.map { it.id }.filterNot { it in orderedIds }
+                val newOrder = orderedIds + remainder
+                migrated.copy(
+                    heldApps = migrated.heldApps.map { held ->
+                        if (held.intentionId != command.intentionId) {
+                            held
+                        } else {
+                            val index = newOrder.indexOf(held.id)
+                            held.copy(sortOrder = if (index >= 0) index else held.sortOrder)
+                        }
+                    },
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.ReleaseHeldApp -> {
+                val target = migrated.heldApps.firstOrNull { it.id == command.heldAppId }
+                    ?: return migrated
+                val remaining = migrated.heldApps.filterNot { it.id == command.heldAppId }
+                val peers = remaining
+                    .filter { it.intentionId == target.intentionId }
+                    .sortedBy { it.sortOrder }
+                val peerOrder = peers.mapIndexed { index, held -> held.id to index }.toMap()
+                val reindexed = remaining.map { held ->
+                    val newOrder = peerOrder[held.id]
+                    if (newOrder != null) held.copy(sortOrder = newOrder) else held
+                }
+                migrated.copy(
+                    heldApps = reindexed,
+                    intentions = touch(migrated.intentions, target.intentionId, command.nowEpochMs)
+                )
+            }
+
             is FlowCommand.RecordExternalAction -> migrated
 
             is FlowCommand.UndoLastReversible -> migrated
@@ -860,6 +957,10 @@ is FlowCommand.MarkThoughtStatus -> {
                     is FlowCommand.ConfirmTriageItem -> command.nowEpochMs
                     is FlowCommand.RejectTriageItem -> command.nowEpochMs
                     is FlowCommand.ClearTriageBatch -> command.nowEpochMs
+                    is FlowCommand.ReorderIntentions -> command.nowEpochMs
+                    is FlowCommand.HoldAppForIntention -> command.nowEpochMs
+                    is FlowCommand.ReorderHeldApps -> command.nowEpochMs
+                    is FlowCommand.ReleaseHeldApp -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -900,6 +1001,10 @@ is FlowCommand.MarkThoughtStatus -> {
             is FlowCommand.ConfirmTriageItem -> command.nowEpochMs
             is FlowCommand.RejectTriageItem -> command.nowEpochMs
             is FlowCommand.ClearTriageBatch -> command.nowEpochMs
+            is FlowCommand.ReorderIntentions -> command.nowEpochMs
+            is FlowCommand.HoldAppForIntention -> command.nowEpochMs
+            is FlowCommand.ReorderHeldApps -> command.nowEpochMs
+            is FlowCommand.ReleaseHeldApp -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -1445,6 +1550,34 @@ is FlowCommand.MarkThoughtStatus -> {
         }
     }
 
+    data class WireHeldApp(
+        val id: String = "",
+        val intentionId: String = "",
+        val packageName: String = "",
+        val label: String = "",
+        val sortOrder: Int = 0,
+        val provenance: WireProvenance = WireProvenance()
+    ) {
+        fun toDomain() = HeldApp(
+            id = id,
+            intentionId = intentionId,
+            packageName = packageName,
+            label = label,
+            sortOrder = sortOrder,
+            provenance = provenance.toDomain()
+        )
+        companion object {
+            fun from(h: HeldApp) = WireHeldApp(
+                id = h.id,
+                intentionId = h.intentionId,
+                packageName = h.packageName,
+                label = h.label,
+                sortOrder = h.sortOrder,
+                provenance = WireProvenance.from(h.provenance)
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -1462,7 +1595,9 @@ is FlowCommand.MarkThoughtStatus -> {
         val activeIntentionId: String? = null,
         val dayCycle: WireDayCycle = WireDayCycle(),
         val transactions: List<WireTransaction> = emptyList(),
-        val trash: List<WireTrashEntry> = emptyList()
+        val trash: List<WireTrashEntry> = emptyList(),
+        val intentionOrder: List<String> = emptyList(),
+        val heldApps: List<WireHeldApp> = emptyList()
     ) {
         fun toDomain() = IntentionSnapshot(
             schemaVersion = schemaVersion,
@@ -1481,7 +1616,9 @@ is FlowCommand.MarkThoughtStatus -> {
             activeIntentionId = activeIntentionId,
             dayCycle = dayCycle.toDomain(),
             transactions = transactions.map { it.toDomain() },
-            trash = trash.map { it.toDomain() }
+            trash = trash.map { it.toDomain() },
+            intentionOrder = intentionOrder,
+            heldApps = heldApps.map { it.toDomain() }
         )
 
         companion object {
@@ -1502,7 +1639,9 @@ is FlowCommand.MarkThoughtStatus -> {
                 activeIntentionId = s.activeIntentionId,
                 dayCycle = WireDayCycle.from(s.dayCycle),
                 transactions = s.transactions.map(WireTransaction::from),
-                trash = s.trash.map(WireTrashEntry::from)
+                trash = s.trash.map(WireTrashEntry::from),
+                intentionOrder = s.intentionOrder,
+                heldApps = s.heldApps.map(WireHeldApp::from)
             )
         }
     }

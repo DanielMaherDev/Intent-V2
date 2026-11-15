@@ -7,10 +7,15 @@ import androidx.lifecycle.ViewModel
 import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.BusinessScenario
+import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
+import com.intent.launcher.domain.HeldApp
+import com.intent.launcher.domain.HeldApps
+import com.intent.launcher.domain.HoldableApps
 import com.intent.launcher.domain.Intention
+import com.intent.launcher.domain.IntentionOrdering
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.NextAction
@@ -526,8 +531,11 @@ class LauncherViewModel(
 
     private fun observeUsageIfActive(): UsageStatsProbe.Observation? {
         if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
-        val destination = LaunchDestinationApp.resolve(activeIntention(), nextAction)
-            ?: SessionDestinations.forIntention(activeIntention())
+        val destination = LaunchDestinationApp.resolve(
+            intention = activeIntention(),
+            nextAction = nextAction,
+            snapshot = snapshot
+        ) ?: SessionDestinations.forIntention(activeIntention())
         return UsageStatsProbe.observeSessionForeground(
             access = usageStatsAccess,
             destination = destination,
@@ -609,6 +617,77 @@ class LauncherViewModel(
         val snap = snapshot
         val id = snap.activeIntentionId
         return snap.intentions.firstOrNull { it.id == id } ?: snap.intentions.firstOrNull()
+    }
+
+    /** Drawer list — explicit order, then any remainder. */
+    fun orderedIntentions(): List<Intention> = IntentionOrdering.ordered(snapshot)
+
+    fun heldAppsForActive(): List<HeldApp> =
+        HeldApps.forIntention(snapshot, activeIntention()?.id)
+
+    fun holdSuggestionsForActive(): List<DestinationApp> =
+        HoldableApps.suggestions(activeIntention(), snapshot)
+
+    fun openIntentionFromDrawer(intentionId: String) {
+        store.apply(
+            FlowCommand.SetActiveIntention(
+                intentionId = intentionId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+    }
+
+    fun moveIntentionInDrawer(intentionId: String, direction: Int) {
+        val ordered = IntentionOrdering.ordered(snapshot).map { it.id }
+        val next = IntentionOrdering.move(ordered, intentionId, direction)
+        if (next == ordered) return
+        store.apply(
+            FlowCommand.ReorderIntentions(
+                orderedIntentionIds = next,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+    }
+
+    fun confirmHoldApp(packageName: String, label: String) {
+        val intentionId = activeIntention()?.id ?: return
+        store.apply(
+            FlowCommand.HoldAppForIntention(
+                heldAppId = "held-$intentionId-$packageName",
+                intentionId = intentionId,
+                packageName = packageName,
+                label = label,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+    }
+
+    fun moveHeldApp(heldAppId: String, direction: Int) {
+        val intentionId = activeIntention()?.id ?: return
+        val held = HeldApps.forIntention(snapshot, intentionId)
+        val next = HeldApps.move(held, heldAppId, direction)
+        if (next == held.map { it.id }) return
+        store.apply(
+            FlowCommand.ReorderHeldApps(
+                intentionId = intentionId,
+                orderedHeldAppIds = next,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+    }
+
+    fun releaseHeldApp(heldAppId: String) {
+        store.apply(
+            FlowCommand.ReleaseHeldApp(
+                heldAppId = heldAppId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
     }
 
     fun conversationChips(): List<String> =
@@ -839,7 +918,8 @@ class LauncherViewModel(
     fun launchDestinationApp(): LaunchDestinationApp.Result {
         val destination = LaunchDestinationApp.resolve(
             intention = activeIntention(),
-            nextAction = nextAction
+            nextAction = nextAction,
+            snapshot = snapshot
         )
         val result = LaunchDestinationApp.attempt(
             destination = destination,

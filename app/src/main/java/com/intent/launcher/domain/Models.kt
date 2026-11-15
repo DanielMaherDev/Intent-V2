@@ -291,6 +291,20 @@ data class TrashEntry(
     val payloadJson: String
 )
 
+
+/**
+ * User-confirmed app affinity for an intention (SAID).
+ * Not UsageStats auto-ranking; OBSERVED evidence stays separate.
+ */
+data class HeldApp(
+    val id: String,
+    val intentionId: String,
+    val packageName: String,
+    val label: String,
+    val sortOrder: Int,
+    val provenance: Provenance
+)
+
 data class IntentionSnapshot(
     val schemaVersion: Int = SCHEMA_VERSION,
     val intentions: List<Intention> = emptyList(),
@@ -308,7 +322,11 @@ data class IntentionSnapshot(
     val activeIntentionId: String? = null,
     val dayCycle: DayCycleState = DayCycleState(),
     val transactions: List<FlowTransaction> = emptyList(),
-    val trash: List<TrashEntry> = emptyList()
+    val trash: List<TrashEntry> = emptyList(),
+    /** Drawer display order (intention ids). Missing ids append after. */
+    val intentionOrder: List<String> = emptyList(),
+    /** User-confirmed hold-for-apps bindings (SAID). */
+    val heldApps: List<HeldApp> = emptyList()
 )
 
 sealed class FlowCommand {
@@ -596,7 +614,38 @@ sealed class FlowCommand {
         val irreversibleReason: String,
         val nowEpochMs: Long
     ) : FlowCommand()
+
+    /**
+     * Persist intention drawer order. Reversible when undo is LIVE.
+     */
+    data class ReorderIntentions(
+        val orderedIntentionIds: List<String>,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * User-confirmed SAID hold of a package for an intention (not UsageStats ranking).
+     */
+    data class HoldAppForIntention(
+        val heldAppId: String,
+        val intentionId: String,
+        val packageName: String,
+        val label: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class ReorderHeldApps(
+        val intentionId: String,
+        val orderedHeldAppIds: List<String>,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class ReleaseHeldApp(
+        val heldAppId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
 }
+
 
 data class NextAction(
     val kind: NextActionKind,

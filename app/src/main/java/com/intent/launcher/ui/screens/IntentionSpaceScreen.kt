@@ -2,7 +2,9 @@ package com.intent.launcher.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,9 +18,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
+import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
@@ -47,6 +51,11 @@ fun IntentionSpaceScreen(
     hypotheses: List<Hypothesis>,
     sessions: List<ScheduledSession>,
     evidence: List<Evidence> = emptyList(),
+    heldApps: List<HeldApp> = emptyList(),
+    holdSuggestions: List<DestinationApp> = emptyList(),
+    onConfirmHold: (packageName: String, label: String) -> Unit = { _, _ -> },
+    onMoveHeldApp: (heldAppId: String, direction: Int) -> Unit = { _, _ -> },
+    onReleaseHeldApp: (heldAppId: String) -> Unit = {},
     onWorkThisOut: () -> Unit,
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
@@ -156,6 +165,62 @@ fun IntentionSpaceScreen(
         }
 
         Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle("Apps you hold")
+        Spacer(modifier = Modifier.height(9.dp))
+        Text(
+            text = "Confirm packages for this intention (SAID). No UsageStats auto-ranking. " +
+                "Not a classic app grid — the system app drawer stays available.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        if (heldApps.isEmpty() && holdSuggestions.isEmpty()) {
+            EmptyNote(
+                text = "No held apps yet. When a shape suggests a destination, confirm it here before treating it as affinity."
+            )
+        } else {
+            heldApps.forEachIndexed { index, held ->
+                HeldAppRow(
+                    label = held.label,
+                    packageName = held.packageName,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < heldApps.lastIndex,
+                    onMoveUp = { onMoveHeldApp(held.id, -1) },
+                    onMoveDown = { onMoveHeldApp(held.id, 1) },
+                    onRelease = { onReleaseHeldApp(held.id) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            holdSuggestions.forEach { suggestion ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                        .background(IntentColors.Card, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = suggestion.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "Suggested · confirm to hold (SAID) · ${suggestion.packageName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    IntentSecondaryButton(
+                        text = "Hold ${suggestion.label}",
+                        onClick = { onConfirmHold(suggestion.packageName, suggestion.label) }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(26.dp))
         SectionTitle(projection.knowledgeSectionTitle)
         Spacer(modifier = Modifier.height(9.dp))
         Column(
@@ -262,6 +327,50 @@ fun IntentionSpaceScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Warm
             )
+        }
+    }
+}
+
+@Composable
+private fun HeldAppRow(
+    label: String,
+    packageName: String,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onRelease: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+            .background(IntentColors.Card, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Ink
+        )
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = "Held · SAID · $packageName",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (canMoveUp) {
+                IntentQuietButton(text = "Move up", onClick = onMoveUp)
+            }
+            if (canMoveDown) {
+                IntentQuietButton(text = "Move down", onClick = onMoveDown)
+            }
+            IntentQuietButton(text = "Release", onClick = onRelease)
         }
     }
 }

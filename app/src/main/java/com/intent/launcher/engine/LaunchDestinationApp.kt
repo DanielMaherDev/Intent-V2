@@ -2,13 +2,16 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.DestinationApp
+import com.intent.launcher.domain.HeldApps
 import com.intent.launcher.domain.Intention
+import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.SessionDestinations
 
 /**
  * Validated command path for opening a session's destination installed app.
  * Consults [CapabilityRegistry] honesty — opening ≠ lesson completion.
+ * Prefers user-confirmed held apps (SAID) when present.
  */
 object LaunchDestinationApp {
 
@@ -31,11 +34,15 @@ object LaunchDestinationApp {
 
     fun resolve(
         intention: Intention?,
-        nextAction: NextAction? = null
+        nextAction: NextAction? = null,
+        snapshot: IntentionSnapshot? = null
     ): DestinationApp? {
         nextAction?.destinationPackageName?.let { pkg ->
             val label = nextAction.destinationAppLabel ?: pkg
             return DestinationApp(packageName = pkg, label = label)
+        }
+        if (snapshot != null) {
+            return HeldApps.primaryDestination(snapshot, intention)
         }
         return SessionDestinations.forIntention(intention)
     }
