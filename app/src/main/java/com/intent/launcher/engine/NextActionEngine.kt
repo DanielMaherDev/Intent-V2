@@ -1,12 +1,14 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ScheduledSession
+import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
 import java.util.Calendar
@@ -64,12 +66,14 @@ object NextActionEngine {
             )
         }
 
+        val destination = SessionDestinations.forIntention(intention)
+
         // An in-progress run outranks scheduling recommendations for this intention.
         val activeRun = snapshot.sessionRuns.firstOrNull {
             it.intentionId == intentionId && it.status == SessionRunStatus.IN_PROGRESS
         }
         if (activeRun != null) {
-            return recommendForActiveRun(activeRun, registry)
+            return recommendForActiveRun(activeRun, registry, destination)
         }
 
         val session = snapshot.sessions
@@ -79,7 +83,7 @@ object NextActionEngine {
             }
 
         if (session != null && intention.phase == IntentionPhase.ACTIVE) {
-            return recommendForSession(session, intentionId, nowEpochMs, timeZone, registry)
+            return recommendForSession(session, intentionId, nowEpochMs, timeZone, registry, destination)
         }
 
         return when (intention.phase) {
@@ -144,10 +148,12 @@ object NextActionEngine {
 
     private fun recommendForActiveRun(
         run: SessionRun,
-        registry: CapabilityRegistry
+        registry: CapabilityRegistry,
+        destination: DestinationApp?
     ): NextAction {
         val canComplete = registry.canCompleteSession()
         val canAbandon = registry.canAbandonSession()
+        val openLabel = openDestinationLabel(destination, registry)
         if (!canComplete && !canAbandon) {
             val note = registry.get(CapabilityRegistry.ID_COMPLETE_SESSION)?.limitNote
                 ?: "Session completion controls are not available in this build."
@@ -160,21 +166,28 @@ object NextActionEngine {
                 sessionId = run.sessionId,
                 sessionRunId = run.id,
                 startedAtEpochMs = run.startedAtEpochMs,
-                discussLabel = if (registry.canDiscuss()) "Discuss" else null
+                discussLabel = if (registry.canDiscuss()) "Discuss" else null,
+                destinationPackageName = destination?.packageName,
+                destinationAppLabel = destination?.label,
+                openDestinationLabel = openLabel
             )
         }
         return NextAction(
             kind = NextActionKind.ACTIVE_SESSION,
             label = run.title,
             detail = "Session in progress",
-            reason = "You started this session — mark it complete when finished, or abandon if you stop. Completion is user-reported, not verified by calendar or an LLM.",
+            reason = "You started this session — mark it complete when finished, or abandon if you stop. " +
+                "Completion is user-reported, not verified by calendar, an LLM, or opening an app.",
             intentionId = run.intentionId,
             sessionId = run.sessionId,
             sessionRunId = run.id,
             startedAtEpochMs = run.startedAtEpochMs,
             completeLabel = if (canComplete) "Complete" else null,
             abandonLabel = if (canAbandon) "Abandon" else null,
-            discussLabel = if (registry.canDiscuss()) "Discuss" else null
+            discussLabel = if (registry.canDiscuss()) "Discuss" else null,
+            destinationPackageName = destination?.packageName,
+            destinationAppLabel = destination?.label,
+            openDestinationLabel = openLabel
         )
     }
 
@@ -183,7 +196,8 @@ object NextActionEngine {
         intentionId: String,
         nowEpochMs: Long,
         timeZone: TimeZone,
-        registry: CapabilityRegistry
+        registry: CapabilityRegistry,
+        destination: DestinationApp?
     ): NextAction {
         val timing = classifySessionTiming(session, nowEpochMs, timeZone)
         val whenLabel = formatSessionWhen(
@@ -210,6 +224,8 @@ object NextActionEngine {
                 "Next session is $clock — not due today. Discuss if you want to change the plan."
         }
 
+        val openLabel = openDestinationLabel(destination, registry)
+
         // Far-future day: prefer Discuss unless Begin is the only honest path users expect mid-flow.
         if (timing == SessionTiming.FUTURE_DAY) {
             if (registry.canDiscuss()) {
@@ -222,16 +238,19 @@ object NextActionEngine {
                     sessionId = session.id,
                     discussLabel = "Discuss",
                     beginLabel = if (registry.canRecommendBegin()) "Begin" else null,
-                    deferLabel = if (registry.canRecommendDefer()) "Later" else null
+                    deferLabel = if (registry.canRecommendDefer()) "Later" else null,
+                    destinationPackageName = destination?.packageName,
+                    destinationAppLabel = destination?.label,
+                    openDestinationLabel = openLabel
                 )
             }
             if (!registry.canRecommendBegin()) {
-                return capabilityBlockedSession(session, intentionId, whenLabel, registry)
+                return capabilityBlockedSession(session, intentionId, whenLabel, registry, destination)
             }
         }
 
         if (!registry.canRecommendBegin()) {
-            return capabilityBlockedSession(session, intentionId, whenLabel, registry)
+            return capabilityBlockedSession(session, intentionId, whenLabel, registry, destination)
         }
 
         return NextAction(
@@ -243,7 +262,10 @@ object NextActionEngine {
             sessionId = session.id,
             beginLabel = "Begin",
             deferLabel = if (registry.canRecommendDefer()) "Later" else null,
-            discussLabel = if (registry.canDiscuss()) "Discuss" else null
+            discussLabel = if (registry.canDiscuss()) "Discuss" else null,
+            destinationPackageName = destination?.packageName,
+            destinationAppLabel = destination?.label,
+            openDestinationLabel = openLabel
         )
     }
 
@@ -251,10 +273,12 @@ object NextActionEngine {
         session: ScheduledSession,
         intentionId: String,
         whenLabel: String,
-        registry: CapabilityRegistry
+        registry: CapabilityRegistry,
+        destination: DestinationApp?
     ): NextAction {
         val note = registry.get(CapabilityRegistry.ID_BEGIN_SESSION)?.limitNote
             ?: "Beginning a session is not available in this build."
+        val openLabel = openDestinationLabel(destination, registry)
         return if (registry.canDiscuss()) {
             NextAction(
                 kind = NextActionKind.DISCUSS,
@@ -263,7 +287,10 @@ object NextActionEngine {
                 reason = note,
                 intentionId = intentionId,
                 sessionId = session.id,
-                discussLabel = "Discuss"
+                discussLabel = "Discuss",
+                destinationPackageName = destination?.packageName,
+                destinationAppLabel = destination?.label,
+                openDestinationLabel = openLabel
             )
         } else {
             NextAction(
@@ -272,9 +299,21 @@ object NextActionEngine {
                 detail = whenLabel,
                 reason = note,
                 intentionId = intentionId,
-                sessionId = session.id
+                sessionId = session.id,
+                destinationPackageName = destination?.packageName,
+                destinationAppLabel = destination?.label,
+                openDestinationLabel = openLabel
             )
         }
+    }
+
+    /** Open control when a destination exists and launch_installed_app is actionable. */
+    fun openDestinationLabel(
+        destination: DestinationApp?,
+        registry: CapabilityRegistry
+    ): String? {
+        if (destination == null || !registry.canLaunchInstalledApp()) return null
+        return "Open ${destination.label}"
     }
 
     /**

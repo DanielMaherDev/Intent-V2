@@ -65,6 +65,8 @@ fun HomeScreen(
     onDiscuss: () -> Unit,
     onCompleteSession: () -> Unit = {},
     onAbandonSession: () -> Unit = {},
+    onOpenDestination: () -> Unit = {},
+    destinationLaunchNote: String? = null,
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -105,7 +107,9 @@ fun HomeScreen(
                     intentionTitle = intentionTitle,
                     onCompleteSession = onCompleteSession,
                     onAbandonSession = onAbandonSession,
-                    onDiscuss = onDiscuss
+                    onDiscuss = onDiscuss,
+                    onOpenDestination = onOpenDestination,
+                    destinationLaunchNote = destinationLaunchNote
                 )
             } else {
                 val cardTitle = when (nextAction.kind) {
@@ -192,6 +196,22 @@ fun HomeScreen(
                                     text = nextAction.deferLabel ?: "Later",
                                     onClick = onDefer,
                                     modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (nextAction.openDestinationLabel != null) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Begin also opens ${nextAction.destinationAppLabel ?: "the destination app"} when installed — opening an app is not lesson completion.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = IntentColors.Muted
+                                )
+                            }
+                            if (destinationLaunchNote != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = destinationLaunchNote,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = IntentColors.Warm
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
@@ -320,7 +340,9 @@ private fun ActiveSessionCard(
     intentionTitle: String,
     onCompleteSession: () -> Unit,
     onAbandonSession: () -> Unit,
-    onDiscuss: () -> Unit
+    onDiscuss: () -> Unit,
+    onOpenDestination: () -> Unit = {},
+    destinationLaunchNote: String? = null
 ) {
     val startedAt = nextAction.startedAtEpochMs
     var nowEpochMs by remember(startedAt) {
@@ -386,7 +408,36 @@ private fun ActiveSessionCard(
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )
+        if (nextAction.destinationAppLabel != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Destination · ${nextAction.destinationAppLabel}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Opening an app is not lesson completion.",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+        if (destinationLaunchNote != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = destinationLaunchNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Warm
+            )
+        }
         Spacer(modifier = Modifier.height(15.dp))
+        if (nextAction.openDestinationLabel != null) {
+            IntentSecondaryButton(
+                text = nextAction.openDestinationLabel,
+                onClick = onOpenDestination
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)

@@ -15,18 +15,28 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.DiscussFromHome
+import com.intent.launcher.engine.InstalledAppLauncher
+import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
 
 class LauncherViewModel(
     private val store: IntentionFlowStore = IntentApp.instance.store,
-    private val capabilityRegistry: CapabilityRegistry = CapabilityRegistry.default
+    private val capabilityRegistry: CapabilityRegistry = CapabilityRegistry.default,
+    private val appLauncher: InstalledAppLauncher = IntentApp.instance.appLauncher
 ) : ViewModel() {
 
     var snapshot by mutableStateOf(store.snapshot())
         private set
 
     var nextAction by mutableStateOf(recommend())
+        private set
+
+    /**
+     * Honest note from the last destination-app launch attempt
+     * (missing app / blocked / failed / opened). Cleared on refresh when unused.
+     */
+    var destinationLaunchNote by mutableStateOf<String?>(null)
         private set
 
     fun refresh() {
@@ -164,8 +174,9 @@ class LauncherViewModel(
     }
 
     /**
-     * Begin the recommended (or given) scheduled session via the command path.
-     * No-op when begin_session is locked or the session is already in progress.
+     * Begin the recommended (or given) scheduled session via the command path,
+     * then attempt destination-app launch when the shape declares one.
+     * Launch outcome never marks the session complete.
      */
     fun beginSession(sessionId: String? = nextAction.sessionId): Boolean {
         if (!capabilityRegistry.canRecommendBegin()) return false
@@ -186,9 +197,36 @@ class LauncherViewModel(
             )
         )
         refresh()
-        return snapshot.sessionRuns.any {
+        val started = snapshot.sessionRuns.any {
             it.sessionId == id && it.status == SessionRunStatus.IN_PROGRESS
         }
+        if (started) {
+            launchDestinationApp()
+        }
+        return started
+    }
+
+    /**
+     * Open / re-open the destination package for the current next-action intention.
+     * Registry-gated; missing/blocked/failed surfaces [destinationLaunchNote].
+     * Never completes or abandons the active run.
+     */
+    fun launchDestinationApp(): LaunchDestinationApp.Result {
+        val destination = LaunchDestinationApp.resolve(
+            intention = activeIntention(),
+            nextAction = nextAction
+        )
+        val result = LaunchDestinationApp.attempt(
+            destination = destination,
+            launcher = appLauncher,
+            registry = capabilityRegistry
+        )
+        destinationLaunchNote = result.note
+        return result
+    }
+
+    fun clearDestinationLaunchNote() {
+        destinationLaunchNote = null
     }
 
     fun completeActiveSession(): Boolean {
@@ -204,6 +242,7 @@ class LauncherViewModel(
                 nowEpochMs = System.currentTimeMillis()
             )
         )
+        destinationLaunchNote = null
         refresh()
         return true
     }
@@ -221,6 +260,7 @@ class LauncherViewModel(
                 nowEpochMs = System.currentTimeMillis()
             )
         )
+        destinationLaunchNote = null
         refresh()
         return true
     }

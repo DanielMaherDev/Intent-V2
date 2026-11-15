@@ -246,5 +246,10 @@ data class NextAction(
     val deferLabel: String? = null,
     val discussLabel: String? = null,
     val completeLabel: String? = null,
-    val abandonLabel: String? = null
+    val abandonLabel: String? = null,
+    /** Destination package when this shape declares one (e.g. Duolingo for Spanish). */
+    val destinationPackageName: String? = null,
+    val destinationAppLabel: String? = null,
+    /** Open / launch control on Begin chrome or active SessionCard; null when none. */
+    val openDestinationLabel: String? = null
 )

@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onCompleteSession = { vm.completeActiveSession() },
                                 onAbandonSession = { vm.abandonActiveSession() },
+                                onOpenDestination = { vm.launchDestinationApp() },
+                                destinationLaunchNote = vm.destinationLaunchNote,
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
                                         vm.startMarathonExploration()
