@@ -123,6 +123,7 @@ fun HomeScreen(
     onStartBuilder: (() -> Unit)? = null,
     onOpenTriage: (() -> Unit)? = null,
     rawThoughtCount: Int = 0,
+    onSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
@@ -163,7 +164,7 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
-            HomeBrandRow()
+            HomeBrandRow(onSettings = onSettings)
             Spacer(modifier = Modifier.height(22.dp))
             DateLabel(dateLabel)
             Spacer(modifier = Modifier.height(14.dp))

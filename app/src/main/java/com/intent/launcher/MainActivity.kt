@@ -33,6 +33,7 @@ import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
+import com.intent.launcher.ui.screens.ConnectionsScreen
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
@@ -391,6 +392,32 @@ class MainActivity : ComponentActivity() {
                                 onStartBuilder = { nav.navigate("builder") },
                                 onOpenTriage = { nav.navigate("triage") },
                                 rawThoughtCount = vm.rawThoughtCount(),
+                                onSettings = { nav.navigate("connections") },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("connections") {
+                            ConnectionsScreen(
+                                usages = vm.connectionUsages(),
+                                unlinkNote = vm.connectionUnlinkNote,
+                                onUnlink = { id -> vm.unlinkConnection(id) },
+                                onOpenPlayStore = { pkg, label ->
+                                    val offer = vm.playStoreOffer(pkg, label)
+                                    val market = Intent(Intent.ACTION_VIEW, Uri.parse(offer.marketUri))
+                                        .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                    try {
+                                        startActivity(market)
+                                    } catch (_: Exception) {
+                                        startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(offer.httpsUri))
+                                                .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                        )
+                                    }
+                                },
+                                onBack = {
+                                    vm.clearConnectionUnlinkNote()
+                                    nav.popBackStack()
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -477,6 +504,8 @@ class MainActivity : ComponentActivity() {
                                 onConfirmHold = { pkg, label -> vm.confirmHoldApp(pkg, label) },
                                 onMoveHeldApp = { id, direction -> vm.moveHeldApp(id, direction) },
                                 onReleaseHeldApp = { id -> vm.releaseHeldApp(id) },
+                                connectionUsages = vm.connectionUsagesForActive(),
+                                onOpenConnections = { nav.navigate("connections") },
                                 onWorkThisOut = {
                                     when (active?.phase) {
                                         IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
