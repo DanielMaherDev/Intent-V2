@@ -11,9 +11,27 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 60
-        versionName = "0.0.60"
+        versionCode = 61
+        versionName = "0.0.61"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Presence flag only — never put the raw LLM API key in the APK.
+        // Set -Pllm.api.key.configured=true or gradle.properties when a secret is bound.
+        // local.properties is also checked (SDK path file; do not commit secrets there).
+        val localPropsFile = rootProject.file("local.properties")
+        val localKeyFlag = if (localPropsFile.exists()) {
+            localPropsFile.readLines()
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("llm.api.key.configured=") }
+                ?.substringAfter("=")
+                ?.trim()
+        } else {
+            null
+        }
+        val llmKeyConfigured =
+            (project.findProperty("llm.api.key.configured") as? String)
+                ?.equals("true", ignoreCase = true) == true ||
+                localKeyFlag?.equals("true", ignoreCase = true) == true
+        buildConfigField("boolean", "LLM_API_KEY_CONFIGURED", llmKeyConfigured.toString())
     }
 
     // Stable sideload key so GitHub/raw artifacts update via native Package Installer.
@@ -64,6 +82,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"

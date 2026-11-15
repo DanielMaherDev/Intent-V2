@@ -12,6 +12,7 @@ import com.intent.launcher.store.IntentionFlowStore
 /**
  * Shared conversation command path for text chips and voice transcripts (tech-arch §8).
  * Voice does not invent LLM interpretation — chip match or honest text fallback only.
+ * When [CapabilityRegistry.ID_LIVE_LLM] is not LIVE, chips are labeled local heuristics.
  */
 object ConversationCoordinator {
 
@@ -26,7 +27,9 @@ object ConversationCoordinator {
         val appliedChip: String?,
         /** Raw transcript stored when no chip matched. */
         val storedTranscript: String?,
-        val honestyNote: String?
+        val honestyNote: String?,
+        /** Discuss source label: local heuristics vs model suggestion. */
+        val sourceLabel: String = LiveLlmProbe.LOCAL_HEURISTIC_LABEL
     )
 
     fun submitChip(
@@ -37,11 +40,18 @@ object ConversationCoordinator {
         registry: CapabilityRegistry = CapabilityRegistry.default
     ): SubmitResult {
         dispatchChip(store, intention, chip, nowEpochMs, registry)
+        val live = registry.canUseLiveLlm()
         return SubmitResult(
             channel = Channel.TEXT_CHIP,
             appliedChip = chip,
             storedTranscript = null,
-            honestyNote = null
+            honestyNote = if (live) {
+                null
+            } else {
+                registry.get(CapabilityRegistry.ID_LIVE_LLM)?.limitNote
+                    ?: "Local heuristics — not a live model."
+            },
+            sourceLabel = LiveLlmProbe.discussSourceLabel(registry)
         )
     }
 
@@ -57,13 +67,15 @@ object ConversationCoordinator {
         nowEpochMs: Long,
         registry: CapabilityRegistry = CapabilityRegistry.default
     ): SubmitResult {
+        val sourceLabel = LiveLlmProbe.discussSourceLabel(registry)
         if (!registry.canUseVoiceInput()) {
             return SubmitResult(
                 channel = Channel.VOICE_TRANSCRIPT,
                 appliedChip = null,
                 storedTranscript = null,
                 honestyNote = registry.get(CapabilityRegistry.ID_VOICE_INPUT)?.limitNote
-                    ?: "Voice input is not available — use the chips above."
+                    ?: "Voice input is not available — use the chips above.",
+                sourceLabel = sourceLabel
             )
         }
         val trimmed = transcript.trim()
@@ -72,7 +84,8 @@ object ConversationCoordinator {
                 channel = Channel.VOICE_TRANSCRIPT,
                 appliedChip = null,
                 storedTranscript = null,
-                honestyNote = "No speech recognized — try again or tap a chip."
+                honestyNote = "No speech recognized — try again or tap a chip.",
+                sourceLabel = sourceLabel
             )
         }
         val matched = matchChip(trimmed, availableChips)
@@ -83,7 +96,8 @@ object ConversationCoordinator {
                 appliedChip = matched,
                 storedTranscript = trimmed,
                 honestyNote = "Matched your spoken choice to a chip — same path as tapping it. " +
-                    "No live LLM interpretation in this build."
+                    "Local heuristics — no live LLM interpretation.",
+                sourceLabel = sourceLabel
             )
         }
         val intentionId = intention?.id
@@ -92,7 +106,8 @@ object ConversationCoordinator {
                 channel = Channel.VOICE_TRANSCRIPT,
                 appliedChip = null,
                 storedTranscript = trimmed,
-                honestyNote = "No active intention — open Conversation from Home first."
+                honestyNote = "No active intention — open Conversation from Home first.",
+                sourceLabel = sourceLabel
             )
         store.apply(
             FlowCommand.AddConversationTurn(
@@ -109,7 +124,8 @@ object ConversationCoordinator {
                 intentionId = intentionId,
                 role = "agent",
                 text = "I stored that as text from platform speech recognition. " +
-                    "This build has no live LLM — choose a chip above to change your intention.",
+                    "Discuss is on local heuristics — no live LLM. Choose a chip above " +
+                    "to change your intention.",
                 nowEpochMs = nowEpochMs + 1
             )
         )
@@ -117,7 +133,9 @@ object ConversationCoordinator {
             channel = Channel.VOICE_TRANSCRIPT,
             appliedChip = null,
             storedTranscript = trimmed,
-            honestyNote = "Transcript stored as text only — no LLM. Use chips for scripted actions."
+            honestyNote = "Transcript stored as text only — local heuristics, no LLM. " +
+                "Use chips for scripted actions.",
+            sourceLabel = sourceLabel
         )
     }
 

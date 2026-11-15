@@ -72,5 +72,7 @@ class VoiceInputProbeTest {
         assertTrue(registry.canUseFloatingOverlay())
         assertTrue(registry.canUseVoiceInput())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_LIVE_LLM))
+        assertFalse(registry.canUseLiveLlm())
     }
 }
