@@ -124,6 +124,13 @@ class CapabilityRegistry(
     fun canUndoExternalAction(): Boolean =
         isActionable(ID_EXTERNAL_ACTION_UNDO)
 
+    /**
+     * True only when quiet_mode is actionable.
+     * Default build keeps it [CapabilityStatus.NOT_SUPPORTED] — no fake silence.
+     */
+    fun canApplyQuietMode(): Boolean =
+        isActionable(ID_QUIET_MODE)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -269,8 +276,9 @@ class CapabilityRegistry(
                 id = ID_QUIET_MODE,
                 title = "Quiet mode / DND",
                 status = CapabilityStatus.NOT_SUPPORTED,
-                limitNote = "User-initiated quiet mode is not shipped. " +
-                    "INTENT does not claim device-wide notification silence."
+                limitNote = "User-initiated quiet mode is not shipped as an INTENT filter. " +
+                    "INTENT cannot silence all apps — open system Do Not Disturb if you " +
+                    "want device quiet. OEM variance applies; emergency alerts remain."
             ),
             CapabilityEntry(
                 id = ID_SCREEN_CAPTURE,

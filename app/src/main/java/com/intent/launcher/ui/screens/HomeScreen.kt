@@ -82,6 +82,11 @@ fun HomeScreen(
     notificationNote: String? = null,
     showGrantNotificationAccess: Boolean = false,
     onGrantNotificationAccess: () -> Unit = {},
+    quietNote: String? = null,
+    showRequestQuiet: Boolean = false,
+    onRequestQuiet: () -> Unit = {},
+    showOpenDndSettings: Boolean = false,
+    onOpenDndSettings: () -> Unit = {},
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
@@ -163,7 +168,12 @@ fun HomeScreen(
                     onDismissObserved = onDismissObserved,
                     notificationNote = notificationNote,
                     showGrantNotificationAccess = showGrantNotificationAccess,
-                    onGrantNotificationAccess = onGrantNotificationAccess
+                    onGrantNotificationAccess = onGrantNotificationAccess,
+                    quietNote = quietNote,
+                    showRequestQuiet = showRequestQuiet,
+                    onRequestQuiet = onRequestQuiet,
+                    showOpenDndSettings = showOpenDndSettings,
+                    onOpenDndSettings = onOpenDndSettings
                 )
             } else {
                 val cardTitle = when (nextAction.kind) {
@@ -471,7 +481,12 @@ private fun ActiveSessionCard(
     onDismissObserved: () -> Unit = {},
     notificationNote: String? = null,
     showGrantNotificationAccess: Boolean = false,
-    onGrantNotificationAccess: () -> Unit = {}
+    onGrantNotificationAccess: () -> Unit = {},
+    quietNote: String? = null,
+    showRequestQuiet: Boolean = false,
+    onRequestQuiet: () -> Unit = {},
+    showOpenDndSettings: Boolean = false,
+    onOpenDndSettings: () -> Unit = {}
 ) {
     val startedAt = nextAction.startedAtEpochMs
     var nowEpochMs by remember(startedAt) {
@@ -602,6 +617,28 @@ private fun ActiveSessionCard(
             IntentQuietButton(
                 text = "Grant notification access",
                 onClick = onGrantNotificationAccess
+            )
+        }
+        if (showRequestQuiet) {
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentQuietButton(
+                text = "Request quiet for this session",
+                onClick = onRequestQuiet
+            )
+        }
+        if (quietNote != null && quietNote.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = quietNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Warm
+            )
+        }
+        if (showOpenDndSettings) {
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentQuietButton(
+                text = "Open system Do Not Disturb",
+                onClick = onOpenDndSettings
             )
         }
         Spacer(modifier = Modifier.height(15.dp))

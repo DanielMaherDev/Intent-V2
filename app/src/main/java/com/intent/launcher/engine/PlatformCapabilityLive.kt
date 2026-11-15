@@ -9,7 +9,8 @@ object PlatformCapabilityLive {
         overlay: OverlayPermissionAccess,
         voicePermission: VoicePermissionAccess = FakeVoicePermissionAccess(granted = false),
         speech: SpeechToTextAccess = FakeSpeechToTextAccess(available = false),
-        notifications: NotificationListenerAccess = FakeNotificationListenerAccess(granted = false)
+        notifications: NotificationListenerAccess = FakeNotificationListenerAccess(granted = false),
+        quietMode: QuietModeAccess = FakeQuietModeAccess(policyAccessGranted = false)
     ): CapabilityRegistry {
         val withUsage = UsageStatsProbe.liveRegistry(usage)
         val withOverlay = OverlayPermissionProbe.liveRegistry(overlay, base = withUsage.all())
@@ -18,9 +19,13 @@ object PlatformCapabilityLive {
             speech = speech,
             base = withOverlay.all()
         )
-        return NotificationListenerProbe.liveRegistry(
+        val withNotifications = NotificationListenerProbe.liveRegistry(
             access = notifications,
             base = withVoice.all()
+        )
+        return QuietModeProbe.liveRegistry(
+            access = quietMode,
+            base = withNotifications.all()
         )
     }
 }

@@ -35,6 +35,8 @@ import com.intent.launcher.engine.ObservedProvenance
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PlatformCapabilityLive
+import com.intent.launcher.engine.QuietModeAccess
+import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.UsageStatsProbe
@@ -55,6 +57,8 @@ class LauncherViewModel(
         IntentApp.instance.speechToTextAccess,
     private val notificationListenerAccess: NotificationListenerAccess =
         IntentApp.instance.notificationListenerAccess,
+    private val quietModeAccess: QuietModeAccess =
+        IntentApp.instance.quietModeAccess,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
@@ -65,8 +69,12 @@ class LauncherViewModel(
                 overlayPermissionAccess,
                 voicePermissionAccess,
                 speechToTextAccess,
-                notificationListenerAccess
+                notificationListenerAccess,
+                quietModeAccess
             )
+
+    /** Local UI flag — user asked for quiet; never implies silence applied. */
+    private var quietRequestedForActiveSession: Boolean = false
 
     var snapshot by mutableStateOf(store.snapshot())
         private set
@@ -139,6 +147,10 @@ class LauncherViewModel(
     var deferConfirmPending by mutableStateOf(false)
         private set
 
+    /** Quiet / DND honesty after SessionCard request (never claims silence applied). */
+    var quietObservation by mutableStateOf<QuietModeProbe.Observation?>(null)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
@@ -146,6 +158,7 @@ class LauncherViewModel(
         observedEvidence = resolveObservedEvidence()
         floatingPresence = resolveFloatingPresence()
         deferPreview = resolveDeferPreview()
+        quietObservation = observeQuietIfActive()
     }
 
     fun lastUndoableTransaction(): FlowTransaction? =
@@ -163,10 +176,14 @@ class LauncherViewModel(
                 overlayPermissionAccess,
                 voicePermissionAccess,
                 speechToTextAccess,
-                notificationListenerAccess
+                notificationListenerAccess,
+                quietModeAccess
             )
         snapshot = store.snapshot()
         nextAction = recommend()
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) {
+            quietRequestedForActiveSession = false
+        }
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
         maybeRecordObservedEvidence(usageObservation)
@@ -177,6 +194,39 @@ class LauncherViewModel(
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
         deferPreview = resolveDeferPreview()
         if (deferPreview == null) deferConfirmPending = false
+        quietObservation = observeQuietIfActive()
+    }
+
+    /**
+     * User-initiated quiet request on SessionCard.
+     * Does not mute apps or change DND — surfaces honesty + optional system deep link.
+     */
+    fun requestSessionQuiet() {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return
+        quietRequestedForActiveSession = true
+        quietObservation = QuietModeProbe.observeAfterRequest(
+            access = quietModeAccess,
+            quietRequested = true,
+            registry = capabilityRegistry
+        )
+    }
+
+    private fun observeQuietIfActive(): QuietModeProbe.Observation? {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
+        if (!quietRequestedForActiveSession) {
+            return QuietModeProbe.Observation(
+                quietRequested = false,
+                policyAccessGranted = quietModeAccess.hasNotificationPolicyAccess(),
+                silenceApplied = false,
+                note = "",
+                canOpenDndSettings = false
+            )
+        }
+        return QuietModeProbe.observeAfterRequest(
+            access = quietModeAccess,
+            quietRequested = true,
+            registry = capabilityRegistry
+        )
     }
 
     /** True when mic may start platform speech recognition. */
