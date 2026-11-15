@@ -420,6 +420,7 @@ class MainActivity : ComponentActivity() {
                                 nextAction = vm.nextAction,
                                 intentionHint = intentionHint,
                                 intentionTitle = intention?.title.orEmpty(),
+                                homeAttention = vm.homeAttention(),
                                 onContinueExploring = {
                                     nav.navigate("intention")
                                 },
