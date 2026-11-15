@@ -43,6 +43,7 @@ import com.intent.launcher.domain.HomeAttention
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.SessionElapsed
+import com.intent.launcher.engine.InterventionProvenance
 import com.intent.launcher.ui.components.Callout
 import com.intent.launcher.engine.TalkBackLabels
 import com.intent.launcher.domain.ScreenTimeBar
@@ -161,6 +162,13 @@ fun HomeScreen(
     floatingCompanionLabel: String? = null,
     /** Honest manual route when overlay is denied — no fake floating UI. */
     floatingManualRouteNote: String? = null,
+    /**
+     * Gate D2 — active usage intervention with explicit OBSERVED / INFERRED label.
+     * Never silent mix; omit when none queued/shown.
+     */
+    interventionPrompt: InterventionProvenance.PromptView? = null,
+    onOpenIntervention: () -> Unit = onDiscuss,
+    onDismissIntervention: () -> Unit = {},
     /** Floater Today focus note for the next-action strip. */
     floaterTodayNote: String? = null,
     onCaptureThought: () -> Unit = {},
@@ -341,6 +349,42 @@ fun HomeScreen(
                 )
             }
 
+            // Gate D2 — intervention prompt always shows OBSERVED vs INFERRED.
+            if (interventionPrompt != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Callout(
+                    title = InterventionProvenance.homeTitle(interventionPrompt),
+                    text = buildString {
+                        append(interventionPrompt.promptText)
+                        append("\n")
+                        append(interventionPrompt.sourceDetail)
+                        append(" — ")
+                        append(interventionPrompt.honestyNote)
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription =
+                            "${interventionPrompt.provenanceLabel} intervention. " +
+                                interventionPrompt.promptText
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IntentPrimaryButton(
+                        text = "Review",
+                        onClick = onOpenIntervention,
+                        modifier = Modifier.weight(1.4f)
+                    )
+                    IntentQuietButton(
+                        text = "Dismiss",
+                        onClick = onDismissIntervention,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
             // OS-135 — quiet hierarchy under the recommendation strip (omit empties).
             if (homeAttention.nextDeadlineLine != null) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -405,6 +449,7 @@ fun HomeScreen(
                 onSetAsHome = onSetAsHome,
                 floatingCompanionLabel = floatingCompanionLabel,
                 floatingManualRouteNote = floatingManualRouteNote,
+                floatingInterventionProvenance = interventionPrompt?.provenanceLabel,
                 floaterTodayNote = floaterTodayNote,
                 onOpenFloaterDrawer = onOpenFloaterDrawer,
                 onCaptureThought = onCaptureThought,
@@ -1564,6 +1609,8 @@ private fun QuietGrantStrip(
     onSetAsHome: () -> Unit,
     floatingCompanionLabel: String?,
     floatingManualRouteNote: String?,
+    /** OBSERVED | INFERRED when floater attention is an intervention (Gate D2). */
+    floatingInterventionProvenance: String? = null,
     floaterTodayNote: String?,
     onOpenFloaterDrawer: () -> Unit,
     onCaptureThought: () -> Unit,
@@ -1640,9 +1687,13 @@ private fun QuietGrantStrip(
     }
     if (floatingCompanionLabel != null) {
         Spacer(modifier = Modifier.height(10.dp))
+        val provenanceNote = floatingInterventionProvenance
+            ?.let { " Provenance $it — never silent mix." }
+            .orEmpty()
         Text(
-            text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. " +
-                "Tap to Ask · long-press for Ask / Today / Capture.",
+            text = "Floating companion: $floatingCompanionLabel — same agent as Conversation." +
+                provenanceNote +
+                " Tap to Ask · long-press for Ask / Today / Capture.",
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )

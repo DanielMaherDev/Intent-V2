@@ -5,8 +5,6 @@ import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.QueuedIntervention
-import com.intent.launcher.domain.ResponseBlock
-import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.store.IntentionFlowStore
 import java.util.TimeZone
@@ -78,12 +76,13 @@ object UsageInterventionTrigger {
         val prompt =
             "Instagram and YouTube packages have been in the foreground for about $minutes min today " +
                 "(combined package time — not Shorts/Reels identity). Want to review, or leave you alone?"
-        val block = ResponseBlock(
+        val provenanceKind = ProvenanceKind.OBSERVED
+        val block = InterventionProvenance.labeledQuestionBlock(
             blockId = "block-usage-q-$nowEpochMs",
-            type = ResponseBlockType.QUESTION,
             title = "Usage check-in",
             body = prompt,
-            sourceLabel = "OBSERVED · usage_stats",
+            provenanceKind = provenanceKind,
+            sourceHint = "usage_stats",
             linkedObjectIds = listOf(intentionId),
             actions = listOf("review", "leave_me_alone", "dismiss")
         )
@@ -97,7 +96,7 @@ object UsageInterventionTrigger {
                 promptText = prompt,
                 nowEpochMs = nowEpochMs,
                 evidenceId = null,
-                provenanceKind = ProvenanceKind.OBSERVED,
+                provenanceKind = provenanceKind,
                 agentTurnText = prompt,
                 agentTurnBlocks = listOf(block)
             )

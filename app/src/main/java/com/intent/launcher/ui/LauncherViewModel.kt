@@ -63,6 +63,7 @@ import com.intent.launcher.engine.ErrandCapture
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
+import com.intent.launcher.engine.InterventionProvenance
 import com.intent.launcher.engine.HomeRoleAccess
 import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.HomeChromePrefs
@@ -601,6 +602,13 @@ class LauncherViewModel(
 
     /** Overlay bubble state when allowed; null means do not show fake floating UI. */
     fun floatingBubbleState(): FloatingAgentState? = floatingPresence.state
+
+    /**
+     * Gate D2 — active intervention prompt with explicit OBSERVED / INFERRED label.
+     * Null when none queued/shown.
+     */
+    fun activeInterventionPrompt(): InterventionProvenance.PromptView? =
+        InterventionProvenance.activePrompt(snapshot)
 
     /**
      * Companion press / notification — same Discuss → Conversation path as Home.

@@ -54,6 +54,8 @@ class FloatingAgentService : Service() {
         val requested = intent?.getStringExtra(EXTRA_STATE)?.let { name ->
             runCatching { FloatingAgentState.valueOf(name) }.getOrNull()
         }
+        val provenanceLabel = intent?.getStringExtra(EXTRA_PROVENANCE_LABEL)
+        val attentionLabel = intent?.getStringExtra(EXTRA_ATTENTION_LABEL)
         // Sticky restart delivers a null intent — policy defaults to IDLE when overlay OK.
         val decision = FloatingAgentRestartPolicy.decide(
             overlayGranted = overlayGranted,
@@ -67,7 +69,11 @@ class FloatingAgentService : Service() {
         val state = decision.resolvedState ?: FloatingAgentState.IDLE
         ensureForeground()
         ensureBubble()
-        updateBubble(state)
+        updateBubble(
+            state = state,
+            attentionLabel = attentionLabel,
+            provenanceLabel = provenanceLabel
+        )
         return START_STICKY
     }
 
@@ -254,9 +260,19 @@ class FloatingAgentService : Service() {
         }
     }
 
-    private fun updateBubble(state: FloatingAgentState) {
-        labelView?.text = FloatingCompanion.labelFor(state)
-        bubble?.contentDescription = TalkBackLabels.floaterBubble(state)
+    private fun updateBubble(
+        state: FloatingAgentState,
+        attentionLabel: String? = null,
+        provenanceLabel: String? = null
+    ) {
+        val spoken = attentionLabel?.takeIf { it.isNotBlank() }
+            ?: FloatingCompanion.labelFor(state)
+        labelView?.text = spoken
+        bubble?.contentDescription = TalkBackLabels.floaterBubble(
+            state = state,
+            spokenLabel = spoken,
+            interventionProvenanceLabel = provenanceLabel
+        )
         val color = when (state) {
             FloatingAgentState.ACTIVE_SESSION -> 0xFF2D786A.toInt()
             FloatingAgentState.ATTENTION_NEEDED -> 0xFFA76531.toInt()
@@ -288,19 +304,33 @@ class FloatingAgentService : Service() {
         /** Drawer Capture (or direct) → thought sheet. */
         const val ACTION_CAPTURE_THOUGHT = "com.intent.launcher.CAPTURE_THOUGHT"
         const val EXTRA_STATE = "floating_state"
+        const val EXTRA_PROVENANCE_LABEL = "intervention_provenance"
+        const val EXTRA_ATTENTION_LABEL = "intervention_attention"
         private const val NOTIFICATION_ID = 1601
 
         /**
          * Sync overlay bubble to [state].
          * Null / overlay denied → stop service (no invented bubble); Home fallback applies.
          */
-        fun sync(context: Context, state: FloatingAgentState?) {
+        fun sync(
+            context: Context,
+            state: FloatingAgentState?,
+            /** OBSERVED | INFERRED when an intervention prompt is active (Gate D2). */
+            provenanceLabel: String? = null,
+            attentionLabel: String? = null
+        ) {
             if (state == null || !Settings.canDrawOverlays(context)) {
                 context.stopService(Intent(context, FloatingAgentService::class.java))
                 return
             }
             val intent = Intent(context, FloatingAgentService::class.java).apply {
                 putExtra(EXTRA_STATE, state.name)
+                if (!provenanceLabel.isNullOrBlank()) {
+                    putExtra(EXTRA_PROVENANCE_LABEL, provenanceLabel)
+                }
+                if (!attentionLabel.isNullOrBlank()) {
+                    putExtra(EXTRA_ATTENTION_LABEL, attentionLabel)
+                }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
