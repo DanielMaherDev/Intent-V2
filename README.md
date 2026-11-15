@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.111**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.112**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.111**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.111.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.112.apk`
 
 ## Scope
 
@@ -50,6 +50,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.47:** Guided intention builder + multi-thought triage — heuristic shape/split (no LLM); SAID facts only on confirm; rejected triage keeps RAW evidence (reclaimed; was staged as 0.0.32)
 - **v0.0.48:** Home clutter-free attention strip — one next-action strip + optional elapsed/OBSERVED line; quiet grants; no first-viewport clutter
 - **v0.0.49:** Intention drawer + hold-for-apps reorder — accessible intention list, SAID app affinity, not a classic app grid (reclaim; was planned as 0.0.36)
+- **v0.0.110:** RoleManager (reclaimed from 0.0.95 / 0.0.75) / HOME restore — Set as HOME (RoleManager + Settings), singleTask/clearTaskOnLaunch, Compose HOME restore after unlock/recents (OS-133–134)
 - **v0.0.59:** App connection honesty — PackageManager inventory of Duolingo/Chess/Spotify/Strava candidates; AppConnection DISCONNECTED/NOT_SUPPORTED; intention usage SAID/OBSERVED only; partner_* caps stay NOT_SUPPORTED; Play Store deep link when missing
 - **v0.0.60:** App-linked session soft-pause — when UsageStats shows foreground ≠ destination affinity for >15s, freeze elapsed (“Away from app”); Resume / Complete / Abandon; never auto-Complete
 - **v0.0.61:** Live LLM Discuss honesty path — `live_llm` stays NOT_SUPPORTED/DENIED without key+opt-in+client; Discuss labels local heuristics; optional key presence wiring without claiming LIVE (reclaimed from 0.0.51)
@@ -169,13 +170,13 @@ One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Op
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.111–v0.0.111)
+## RoleManager / HOME restore (v0.0.112)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.111.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+INTENT declares MAIN + HOME + DEFAULT + LAUNCHER. When not default Home, Home shows a quiet **Set as HOME** control (RoleManager ROLE_HOME when available, else Settings → Home app). `singleTask` + `clearTaskOnLaunch` + MAIN/HOME `onNewIntent` restore the Compose Home route after unlock, app switch, and recents. Process-death survival reuses Stage 7 store evidence. Holding HOME is not an OEM privilege and does not claim PackageInstaller or partner OAuth.
 
-## Gate D accessibility + floater sticky (v0.0.111)
+## Sideload packaging (v0.0.112–v0.0.112)
 
-TalkBack `contentDescription` on the Home next-action / SessionCard container and the floater bubble `FrameLayout` (button text labels unchanged). Overlay denied or service stopped → honest Home Companion menu / Discuss / Agent path — no invented bubble. `FloatingAgentService` returns `START_STICKY` only while overlay is granted; sticky restart re-checks overlay and defaults to IDLE.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.112.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -199,6 +200,6 @@ Home restores the four-core brand-first composition: ✦ INTENT brand, date, gre
 
 ## Download
 
-Sideload APK (v0.0.111, release): [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-d-a11y-floater-93b3/artifacts/INTENT-v0.0.111.apk)
+Sideload APK (v0.0.112, release): [INTENT-v0.0.112.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/rolemanager-home-reliability-v075-81a2/artifacts/INTENT-v0.0.112.apk)
 
-(Prior: [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk) · [INTENT-v0.0.111.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.111.apk))
+(Prior: [INTENT-v0.0.112.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.112.apk) · [INTENT-v0.0.112.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.112.apk) · [INTENT-v0.0.112.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.112.apk) · [INTENT-v0.0.112.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.112.apk) · [INTENT-v0.0.112.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.112.apk))

@@ -12,14 +12,16 @@ object PlatformCapabilityLive {
         notifications: NotificationListenerAccess = FakeNotificationListenerAccess(granted = false),
         quietMode: QuietModeAccess = FakeQuietModeAccess(policyAccessGranted = false),
         screenCapture: ScreenCaptureAccess = FakeScreenCaptureAccess(),
+        homeRole: HomeRoleAccess = FakeHomeRoleAccess(isDefault = false),
         liveLlm: LiveLlmAccess = FakeLiveLlmAccess()
     ): CapabilityRegistry {
         val withUsage = UsageStatsProbe.liveRegistry(usage)
         val withOverlay = OverlayPermissionProbe.liveRegistry(overlay, base = withUsage.all())
+        val withHome = HomeRoleProbe.liveRegistry(homeRole, base = withOverlay.all())
         val withVoice = VoiceInputProbe.liveRegistry(
             permission = voicePermission,
             speech = speech,
-            base = withOverlay.all()
+            base = withHome.all()
         )
         val withReview = SessionNotificationReviewProbe.liveRegistry(
             access = notifications,
