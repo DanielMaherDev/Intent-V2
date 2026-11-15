@@ -79,7 +79,7 @@ class FloaterActionDrawerTest {
     }
 
     @Test
-    fun openToday_focusesHomeNextAction() {
+    fun openToday_opensDedicatedTodayRoute() {
         val next = NextAction(
             kind = NextActionKind.BEGIN,
             label = "Begin Spanish session",
@@ -87,9 +87,9 @@ class FloaterActionDrawerTest {
             intentionId = "i1"
         )
         val today = FloaterActionDrawer.openToday(next)
-        assertEquals(FloaterActionDrawer.HOME_ROUTE, today.navigateTo)
+        assertEquals(FloaterActionDrawer.TODAY_ROUTE, today.navigateTo)
         assertTrue(today.focusNote.contains("Begin Spanish session"))
-        assertTrue(today.focusNote.contains("Home", ignoreCase = true))
-        assertTrue(today.focusNote.contains("not a second agent", ignoreCase = true))
+        assertTrue(today.focusNote.contains("Planned", ignoreCase = true))
+        assertTrue(today.focusNote.contains("not chat prose", ignoreCase = true))
     }
 }

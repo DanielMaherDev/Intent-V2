@@ -53,6 +53,7 @@ import com.intent.launcher.ui.screens.CheckOutWhatHappenedDialog
 import com.intent.launcher.ui.screens.EveningThoughtTriageSheet
 import com.intent.launcher.ui.screens.SettingsScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
+import com.intent.launcher.ui.screens.TodayScreen
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
 import com.intent.launcher.ui.theme.IntentTheme
@@ -199,7 +200,6 @@ class MainActivity : ComponentActivity() {
                         if (openTodayFromDrawerRequest > 0) {
                             val route = vm.openTodayFromDrawer()
                             nav.navigate(route) {
-                                popUpTo("home") { inclusive = true }
                                 launchSingleTop = true
                             }
                         }
@@ -302,6 +302,17 @@ class MainActivity : ComponentActivity() {
                     }
 
                     NavHost(navController = nav, startDestination = "home") {
+                        composable("today") {
+                            TodayScreen(
+                                model = vm.todayModel(),
+                                focusNote = vm.floaterTodayNote,
+                                onBack = {
+                                    vm.clearFloaterTodayNote()
+                                    nav.popBackStack()
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         composable("home") {
                             var showErrandDialog by remember { mutableStateOf(false) }
                             if (showErrandDialog) {
@@ -322,6 +333,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenIntention = { nav.navigate("intention") },
                                 onOpenIntentionDrawer = { nav.navigate("drawer") },
+                                onOpenToday = {
+                                    val route = vm.openTodayFromDrawer()
+                                    nav.navigate(route) { launchSingleTop = true }
+                                },
                                 onReviewProposal = { nav.navigate("proposal") },
                                 onBegin = { vm.beginSession() },
                                 onDefer = { vm.requestDefer() },
