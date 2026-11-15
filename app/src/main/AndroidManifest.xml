@@ -60,6 +60,7 @@
             android:launchMode="singleTask"
             android:clearTaskOnLaunch="true"
             android:stateNotNeeded="true"
+            android:enableOnBackInvokedCallback="true"
             android:theme="@style/Theme.IntentLauncher">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
