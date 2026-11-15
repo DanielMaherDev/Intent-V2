@@ -1,6 +1,6 @@
 # Artifacts
 
-Latest on this branch: [`INTENT-v0.0.33.apk`](./INTENT-v0.0.33.apk) (`assembleRelease`, floater Ask / Today / Capture drawer).
+Latest on this branch: [`INTENT-v0.0.46.apk`](./INTENT-v0.0.46.apk) (`assembleRelease`, floater Ask / Today / Capture drawer · reclaimed from 0.0.33).
 
 Do not overwrite lower version APKs. On main today: [`INTENT-v0.0.44.apk`](./INTENT-v0.0.44.apk) · [`INTENT-v0.0.31.apk`](./INTENT-v0.0.31.apk) · [`INTENT-v0.0.30.apk`](./INTENT-v0.0.30.apk) · [`INTENT-v0.0.29.apk`](./INTENT-v0.0.29.apk) · [`INTENT-v0.0.25.apk`](./INTENT-v0.0.25.apk) · [`INTENT-v0.0.28.apk`](./INTENT-v0.0.28.apk) · [`INTENT-v0.0.26.apk`](./INTENT-v0.0.26.apk) · [`INTENT-v0.0.27.apk`](./INTENT-v0.0.27.apk) · [`INTENT-v0.0.24.apk`](./INTENT-v0.0.24.apk).
 
