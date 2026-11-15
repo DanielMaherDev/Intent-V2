@@ -35,9 +35,14 @@ class OpenAiDiscussClient(
 
     /**
      * Posts one user message (+ short system honesty prompt) to Chat Completions.
-     * [apiKey] must be non-blank; never pass it to logs.
+     * When [contextPack] is non-blank, it is appended to the system message
+     * (contracts v1 ContextAssembler). [apiKey] must be non-blank; never pass it to logs.
      */
-    fun complete(apiKey: String, userMessage: String): Outcome {
+    fun complete(
+        apiKey: String,
+        userMessage: String,
+        contextPack: String? = null
+    ): Outcome {
         val trimmedKey = apiKey.trim()
         if (trimmedKey.isEmpty()) {
             return Outcome.Failure(
@@ -54,6 +59,13 @@ class OpenAiDiscussClient(
             )
         }
 
+        val pack = contextPack?.trim().orEmpty()
+        val systemContent = if (pack.isNotEmpty()) {
+            "$SYSTEM_PROMPT\n\n$pack"
+        } else {
+            SYSTEM_PROMPT
+        }
+
         val body = JSONObject()
             .put("model", model)
             .put(
@@ -62,7 +74,7 @@ class OpenAiDiscussClient(
                     .put(
                         JSONObject()
                             .put("role", "system")
-                            .put("content", SYSTEM_PROMPT)
+                            .put("content", systemContent)
                     )
                     .put(
                         JSONObject()

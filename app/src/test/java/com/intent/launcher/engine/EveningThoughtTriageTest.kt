@@ -209,7 +209,7 @@ class EveningThoughtTriageTest {
         val thought = reloaded.snapshot().thoughtCaptures.single { it.id == "thought-evening-1" }
         assertEquals(ThoughtDisposition.TASK, thought.disposition)
         assertEquals(SCHEMA_VERSION, reloaded.snapshot().schemaVersion)
-        assertEquals(7, SCHEMA_VERSION)
+        assertEquals(8, SCHEMA_VERSION)
     }
 
     @Test

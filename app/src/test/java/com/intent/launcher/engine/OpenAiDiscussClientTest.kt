@@ -74,4 +74,31 @@ class OpenAiDiscussClientTest {
         assertTrue(failure.honestMessage.contains("401"))
         assertTrue(failure.honestMessage.contains("did not invent", ignoreCase = true))
     }
+
+    @Test
+    fun contextPack_appendedToSystemPrompt() {
+        var sawBody: String? = null
+        val client = OpenAiDiscussClient(
+            transporter = OpenAiHttpTransporter { _, _, body ->
+                sawBody = body
+                OpenAiHttpResponse(
+                    200,
+                    """{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"""
+                )
+            }
+        )
+        val pack =
+            "## Intention context (local; not model memory)\n" +
+                "title=Learn Spanish\n" +
+                "Rules: Suggest only; do not claim OBSERVED evidence."
+        val outcome = client.complete(
+            apiKey = "sk-test-not-real",
+            userMessage = "What next?",
+            contextPack = pack
+        )
+        assertTrue(outcome is OpenAiDiscussClient.Outcome.Success)
+        assertTrue(sawBody!!.contains("Learn Spanish"))
+        assertTrue(sawBody!!.contains("Suggest only"))
+        assertTrue(sawBody!!.contains("What next?"))
+    }
 }

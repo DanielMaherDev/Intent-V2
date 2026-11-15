@@ -98,6 +98,85 @@ class IntentionFlowStoreTest {
         assertEquals(ProvenanceKind.SAID, again.facts.first().provenance.kind)
     }
 
+    /**
+     * Gate B ordered slice: discovery → persist/restart → then tutor fact →
+     * weekly proposal → approve → Home next action → defer → restart.
+     * Mid-slice restart (before tutor) is required — post-defer alone is insufficient.
+     */
+    @Test
+    fun spanishFlow_discoveryRestartThenTutor_approveDeferPersist() {
+        val file = File(tmp.root, "flow.json")
+        SpanishScenario.seed(store, now)
+        var snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first().phase)
+        assertEquals(SpanishScenario.TITLE, snap.intentions.first().title)
+        assertTrue(snap.facts.none { it.id == SpanishScenario.FACT_TUTOR_ID })
+        assertTrue(snap.proposals.isEmpty())
+
+        // Mid-slice restart while still in discovery — before tutor fact.
+        val afterDiscovery = IntentionFlowStore(file)
+        snap = afterDiscovery.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first().phase)
+        assertEquals(SpanishScenario.INTENTION_ID, snap.intentions.first().id)
+        assertTrue(snap.facts.none { it.id == SpanishScenario.FACT_TUTOR_ID })
+        assertTrue(snap.proposals.isEmpty())
+        assertTrue(
+            snap.turns.any {
+                it.role == "agent" && it.text.contains("Spanish practice", ignoreCase = true)
+            }
+        )
+
+        // Continue after reopen: tutor SAID + exact weekly proposal.
+        SpanishScenario.onChip(
+            afterDiscovery,
+            "I meet a tutor on Thursdays at six",
+            now + 100
+        )
+        snap = afterDiscovery.snapshot()
+        val fact = snap.facts.first { it.id == SpanishScenario.FACT_TUTOR_ID }
+        assertEquals(ProvenanceKind.SAID, fact.provenance.kind)
+        assertEquals("I meet a Spanish tutor on Thursdays at 18:00", fact.text)
+        val proposal = snap.proposals.first { it.id == SpanishScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertEquals(4, proposal.proposedDayOfWeek)
+        assertEquals(18, proposal.proposedHour)
+        assertEquals(0, proposal.proposedMinute)
+        assertTrue(proposal.basedOnFactIds.contains(SpanishScenario.FACT_TUTOR_ID))
+        assertEquals(IntentionPhase.PROPOSAL_PENDING, snap.intentions.first().phase)
+
+        val review = NextActionEngine.recommend(snap, now + 110, tz)
+        assertEquals(NextActionKind.REVIEW_PROPOSAL, review.kind)
+
+        SpanishScenario.approve(afterDiscovery, now + 120)
+        snap = afterDiscovery.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first().status)
+        assertEquals(SpanishScenario.SESSION_ID, snap.sessions.first().id)
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first().phase)
+
+        val dueNow = 1_700_159_400_000L // Thu 16 Nov 2023 18:30 UTC
+        val home = NextActionEngine.recommend(snap, dueNow, tz)
+        assertEquals(NextActionKind.BEGIN, home.kind)
+        assertEquals("Later", home.deferLabel)
+        assertTrue(home.reason.isNotBlank())
+
+        val deferUntil = dueNow + 3_600_000L
+        SpanishScenario.deferSession(afterDiscovery, deferUntil, dueNow + 10)
+        snap = afterDiscovery.snapshot()
+        assertEquals(deferUntil, snap.sessions.first().deferredUntilEpochMs)
+
+        // Final restart verifies deferred ACTIVE state + SAID fact.
+        val finalRestart = IntentionFlowStore(file)
+        val again = finalRestart.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first().phase)
+        assertEquals(deferUntil, again.sessions.first().deferredUntilEpochMs)
+        assertEquals(
+            ProvenanceKind.SAID,
+            again.facts.first { it.id == SpanishScenario.FACT_TUTOR_ID }.provenance.kind
+        )
+        assertEquals(ProposalStatus.APPROVED, again.proposals.first().status)
+        assertEquals(8, again.schemaVersion)
+    }
+
     @Test
     fun declineProposal_returnsToClarifying() {
         SpanishScenario.seed(store, now)

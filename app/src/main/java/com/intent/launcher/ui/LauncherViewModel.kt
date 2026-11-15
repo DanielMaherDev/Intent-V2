@@ -1018,7 +1018,8 @@ class LauncherViewModel(
                         nowEpochMs = System.currentTimeMillis(),
                         registry = capabilityRegistry,
                         access = liveLlmAccess,
-                        client = openAiDiscussClient
+                        client = openAiDiscussClient,
+                        availableChips = conversationChips()
                     )
                 }
                 voicePathNote = result.honestyNote

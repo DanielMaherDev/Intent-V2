@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 7
+const val SCHEMA_VERSION: Int = 8
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -169,7 +169,12 @@ data class ConversationTurn(
     val intentionId: String,
     val role: String, // user | agent
     val text: String,
-    val atEpochMs: Long
+    val atEpochMs: Long,
+    /**
+     * Input modality that produced this turn when known
+     * (`TEXT_CHIP` | `VOICE_TRANSCRIPT` | `FREE_TEXT` | null for legacy/seed).
+     */
+    val modality: String? = null
 )
 
 /**
@@ -430,7 +435,9 @@ sealed class FlowCommand {
         val intentionId: String,
         val role: String,
         val text: String,
-        val nowEpochMs: Long
+        val nowEpochMs: Long,
+        /** Optional modality tag — see [ConversationTurn.modality]. */
+        val modality: String? = null
     ) : FlowCommand()
 
     data class ProposeRecurringSession(
