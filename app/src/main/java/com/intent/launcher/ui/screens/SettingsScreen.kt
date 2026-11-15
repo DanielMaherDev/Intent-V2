@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.engine.ThemePreference
 import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
@@ -35,7 +36,8 @@ import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings — snapshot export/import + History + live OpenAI Discuss opt-in (key never shown in full).
+ * Settings — appearance theme + snapshot export/import + History + live OpenAI Discuss
+ * (key never shown in full). Theme prefs are SharedPreferences only — not store/SCHEMA.
  */
 @Composable
 fun SettingsScreen(
@@ -46,6 +48,8 @@ fun SettingsScreen(
     snapshotImportNote: String? = null,
     onOpenHistory: () -> Unit = {},
     onOpenConnections: () -> Unit = {},
+    themePreference: ThemePreference = ThemePreference.SYSTEM,
+    onThemePreferenceChange: (ThemePreference) -> Unit = {},
     liveLlmKeyPresent: Boolean = false,
     liveLlmOptedIn: Boolean = false,
     liveLlmStatusLabel: String = "Local heuristics",
@@ -79,6 +83,42 @@ fun SettingsScreen(
                 "Live OpenAI stays off until you opt in with a key on this device."
         )
         Spacer(modifier = Modifier.height(22.dp))
+
+        SectionTitle("Appearance")
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = "Follow system, or lock light / dark. Dark tokens invert Intent’s " +
+                "warm paper + indigo language — not a separate brand.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ThemePreference.entries.forEach { option ->
+            val selected = themePreference == option
+            val label = when (option) {
+                ThemePreference.SYSTEM -> "System (follow device)"
+                ThemePreference.LIGHT -> "Light"
+                ThemePreference.DARK -> "Dark"
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (selected) {
+                IntentPrimaryButton(
+                    text = label,
+                    onClick = { onThemePreferenceChange(option) }
+                )
+            } else {
+                IntentSecondaryButton(
+                    text = label,
+                    onClick = { onThemePreferenceChange(option) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        SmallLabel(
+            text = "Stored on device only · does not change schema or snapshot data",
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(28.dp))
 
         SectionTitle("Local history")
         Spacer(modifier = Modifier.height(10.dp))

@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -166,8 +167,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         consumeCompanionIntent(intent)
         setContent {
-            IntentTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            IntentTheme(themePreference = vm.themePref) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     val nav = rememberNavController()
                     val snap = vm.snapshot
                     val intention = vm.activeIntention()
@@ -629,6 +633,8 @@ class MainActivity : ComponentActivity() {
                                     nav.navigate("history")
                                 },
                                 onOpenConnections = { nav.navigate("connections") },
+                                themePreference = vm.themePref,
+                                onThemePreferenceChange = { vm.setThemePreference(it) },
                                 liveLlmKeyPresent = vm.liveLlmObservation.keyConfigured,
                                 liveLlmOptedIn = vm.liveLlmObservation.userOptedIn,
                                 liveLlmStatusLabel = vm.discussSourceLabel(),

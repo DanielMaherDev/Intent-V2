@@ -1,67 +1,226 @@
 package com.intent.launcher.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.intent.launcher.engine.ThemePreference
 
-/** Warm paper + restrained indigo — matches docs/design/intent-four-core-screens.html */
+/**
+ * Intent palette tokens (warm paper + restrained indigo).
+ * Light matches `docs/design/intent-four-core-screens.html`; dark inverts the same language
+ * (warm charcoal paper, lifted indigo accent) — not a generic purple AI dark theme.
+ */
+@Immutable
+data class IntentColorTokens(
+    val Paper: Color,
+    val Card: Color,
+    val Ink: Color,
+    val Muted: Color,
+    val Line: Color,
+    val Accent: Color,
+    val AccentDark: Color,
+    val AccentSoft: Color,
+    val Success: Color,
+    val SuccessSoft: Color,
+    val Warm: Color,
+    val WarmSoft: Color,
+    val NavBar: Color,
+    val Pill: Color,
+    val PillText: Color,
+    val EmptyBorder: Color,
+    val ComposerHint: Color,
+    val Lede: Color,
+    val Section: Color,
+    val FactText: Color,
+    val NavIdle: Color,
+    val Arrow: Color,
+    val GridCell: Color,
+    val CalloutText: Color,
+    val ComposerBorder: Color,
+    val EmptyFill: Color,
+    val UserBubble: Color
+)
+
+val LightIntentColors = IntentColorTokens(
+    Paper = Color(0xFFF4F2EC),
+    Card = Color(0xFFFFFEFA),
+    Ink = Color(0xFF202522),
+    Muted = Color(0xFF68716C),
+    Line = Color(0xFFDEDFD6),
+    Accent = Color(0xFF5459C9),
+    AccentDark = Color(0xFF4146AE),
+    AccentSoft = Color(0xFFE9E9FA),
+    Success = Color(0xFF2D786A),
+    SuccessSoft = Color(0xFFE5F1EC),
+    Warm = Color(0xFFA76531),
+    WarmSoft = Color(0xFFF8EEE2),
+    NavBar = Color(0xFFFAF9F5),
+    Pill = Color(0xFFEFF0EB),
+    PillText = Color(0xFF536058),
+    EmptyBorder = Color(0xFFC9CFC5),
+    ComposerHint = Color(0xFF7A847C),
+    Lede = Color(0xFF4E5952),
+    Section = Color(0xFF59645C),
+    FactText = Color(0xFF4C5851),
+    NavIdle = Color(0xFF6D766E),
+    Arrow = Color(0xFF8E9891),
+    GridCell = Color(0xFFF2F2EC),
+    CalloutText = Color(0xFF444A84),
+    ComposerBorder = Color(0xFFCDD1C9),
+    EmptyFill = Color(0xFFFBFAF6),
+    UserBubble = Color(0xFFF3EDE3)
+)
+
+/** Warm charcoal + lifted indigo — same roles as [LightIntentColors], not pure black. */
+val DarkIntentColors = IntentColorTokens(
+    Paper = Color(0xFF161815),
+    Card = Color(0xFF1E211E),
+    Ink = Color(0xFFE6E4DC),
+    Muted = Color(0xFF9AA39B),
+    Line = Color(0xFF2F342F),
+    Accent = Color(0xFF8B90E0),
+    AccentDark = Color(0xFFB4B8F0),
+    AccentSoft = Color(0xFF2A2D4A),
+    Success = Color(0xFF5AA894),
+    SuccessSoft = Color(0xFF1C2E28),
+    Warm = Color(0xFFC4874A),
+    WarmSoft = Color(0xFF2E2418),
+    NavBar = Color(0xFF1A1D1A),
+    Pill = Color(0xFF2A2E2A),
+    PillText = Color(0xFFB0B8B2),
+    EmptyBorder = Color(0xFF3F463F),
+    ComposerHint = Color(0xFF8A938B),
+    Lede = Color(0xFFB5BDB6),
+    Section = Color(0xFFA8B1AA),
+    FactText = Color(0xFFB0B8B2),
+    NavIdle = Color(0xFF8E9891),
+    Arrow = Color(0xFF7A847C),
+    GridCell = Color(0xFF222622),
+    CalloutText = Color(0xFFC5C8EE),
+    ComposerBorder = Color(0xFF3A403A),
+    EmptyFill = Color(0xFF1A1D1A),
+    UserBubble = Color(0xFF2A261F)
+)
+
+val LocalIntentColors = staticCompositionLocalOf { LightIntentColors }
+
+/**
+ * Theme-aware Intent palette. Properties resolve from [LocalIntentColors] —
+ * call from composition only (all existing screen/chrome sites).
+ */
 object IntentColors {
-    val Paper = Color(0xFFF4F2EC)
-    val Card = Color(0xFFFFFEFA)
-    val Ink = Color(0xFF202522)
-    val Muted = Color(0xFF68716C)
-    val Line = Color(0xFFDEDFD6)
-    val Accent = Color(0xFF5459C9)
-    val AccentDark = Color(0xFF4146AE)
-    val AccentSoft = Color(0xFFE9E9FA)
-    val Success = Color(0xFF2D786A)
-    val SuccessSoft = Color(0xFFE5F1EC)
-    val Warm = Color(0xFFA76531)
-    val WarmSoft = Color(0xFFF8EEE2)
-    val NavBar = Color(0xFFFAF9F5)
-    val Pill = Color(0xFFEFF0EB)
-    val PillText = Color(0xFF536058)
-    val EmptyBorder = Color(0xFFC9CFC5)
-    val ComposerHint = Color(0xFF7A847C)
-    val Lede = Color(0xFF4E5952)
-    val Section = Color(0xFF59645C)
-    val FactText = Color(0xFF4C5851)
-    val NavIdle = Color(0xFF6D766E)
-    val Arrow = Color(0xFF8E9891)
-    val GridCell = Color(0xFFF2F2EC)
-    val CalloutText = Color(0xFF444A84)
-    val ComposerBorder = Color(0xFFCDD1C9)
-    val EmptyFill = Color(0xFFFBFAF6)
-    val UserBubble = Color(0xFFF3EDE3)
+    val Paper: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Paper
+    val Card: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Card
+    val Ink: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Ink
+    val Muted: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Muted
+    val Line: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Line
+    val Accent: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Accent
+    val AccentDark: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.AccentDark
+    val AccentSoft: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.AccentSoft
+    val Success: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Success
+    val SuccessSoft: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.SuccessSoft
+    val Warm: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Warm
+    val WarmSoft: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.WarmSoft
+    val NavBar: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.NavBar
+    val Pill: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Pill
+    val PillText: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.PillText
+    val EmptyBorder: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.EmptyBorder
+    val ComposerHint: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.ComposerHint
+    val Lede: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Lede
+    val Section: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Section
+    val FactText: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.FactText
+    val NavIdle: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.NavIdle
+    val Arrow: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.Arrow
+    val GridCell: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.GridCell
+    val CalloutText: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.CalloutText
+    val ComposerBorder: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.ComposerBorder
+    val EmptyFill: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.EmptyFill
+    val UserBubble: Color
+        @Composable @ReadOnlyComposable get() = LocalIntentColors.current.UserBubble
 }
 
-private val Scheme = lightColorScheme(
-    primary = IntentColors.Accent,
+private fun intentLightScheme(c: IntentColorTokens) = lightColorScheme(
+    primary = c.Accent,
     onPrimary = Color.White,
-    primaryContainer = IntentColors.AccentSoft,
-    onPrimaryContainer = IntentColors.AccentDark,
-    secondary = IntentColors.Warm,
+    primaryContainer = c.AccentSoft,
+    onPrimaryContainer = c.AccentDark,
+    secondary = c.Warm,
     onSecondary = Color.White,
-    secondaryContainer = IntentColors.WarmSoft,
-    onSecondaryContainer = IntentColors.Warm,
-    tertiary = IntentColors.Success,
+    secondaryContainer = c.WarmSoft,
+    onSecondaryContainer = c.Warm,
+    tertiary = c.Success,
     onTertiary = Color.White,
-    tertiaryContainer = IntentColors.SuccessSoft,
-    onTertiaryContainer = IntentColors.Success,
-    background = IntentColors.Paper,
-    onBackground = IntentColors.Ink,
-    surface = IntentColors.Card,
-    onSurface = IntentColors.Ink,
-    surfaceVariant = IntentColors.NavBar,
-    onSurfaceVariant = IntentColors.Muted,
-    outline = IntentColors.Line,
-    outlineVariant = IntentColors.Line
+    tertiaryContainer = c.SuccessSoft,
+    onTertiaryContainer = c.Success,
+    background = c.Paper,
+    onBackground = c.Ink,
+    surface = c.Card,
+    onSurface = c.Ink,
+    surfaceVariant = c.NavBar,
+    onSurfaceVariant = c.Muted,
+    outline = c.Line,
+    outlineVariant = c.Line
+)
+
+private fun intentDarkScheme(c: IntentColorTokens) = darkColorScheme(
+    primary = c.Accent,
+    onPrimary = Color(0xFF161815),
+    primaryContainer = c.AccentSoft,
+    onPrimaryContainer = c.AccentDark,
+    secondary = c.Warm,
+    onSecondary = Color(0xFF161815),
+    secondaryContainer = c.WarmSoft,
+    onSecondaryContainer = c.Warm,
+    tertiary = c.Success,
+    onTertiary = Color(0xFF161815),
+    tertiaryContainer = c.SuccessSoft,
+    onTertiaryContainer = c.Success,
+    background = c.Paper,
+    onBackground = c.Ink,
+    surface = c.Card,
+    onSurface = c.Ink,
+    surfaceVariant = c.NavBar,
+    onSurfaceVariant = c.Muted,
+    outline = c.Line,
+    outlineVariant = c.Line
 )
 
 /**
@@ -157,10 +316,18 @@ private val IntentTypography = Typography(
 )
 
 @Composable
-fun IntentTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = Scheme,
-        typography = IntentTypography,
-        content = content
-    )
+fun IntentTheme(
+    themePreference: ThemePreference = ThemePreference.SYSTEM,
+    darkTheme: Boolean = themePreference.resolvesToDark(isSystemInDarkTheme()),
+    content: @Composable () -> Unit
+) {
+    val tokens = if (darkTheme) DarkIntentColors else LightIntentColors
+    val scheme = if (darkTheme) intentDarkScheme(tokens) else intentLightScheme(tokens)
+    CompositionLocalProvider(LocalIntentColors provides tokens) {
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = IntentTypography,
+            content = content
+        )
+    }
 }

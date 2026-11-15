@@ -73,6 +73,7 @@ import com.intent.launcher.engine.TodayView
 import com.intent.launcher.engine.HomeRoleAccess
 import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.HomeChromePrefs
+import com.intent.launcher.engine.ThemePreference
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.LiveLlmAccess
@@ -184,6 +185,10 @@ class LauncherViewModel(
 
     /** Settings chrome toggle — mirrors [HomeChromePrefs.isScreenTimeBarVisible]. */
     var screenTimeBarPrefVisible by mutableStateOf(homeChromePrefs.isScreenTimeBarVisible())
+        private set
+
+    /** Appearance theme — SharedPreferences only; does not touch IntentionFlowStore / SCHEMA. */
+    var themePref by mutableStateOf(homeChromePrefs.themePreference())
         private set
 
     /** Notification listener honesty for the active SessionCard (never silence / completion). */
@@ -558,6 +563,11 @@ class LauncherViewModel(
         homeChromePrefs.setScreenTimeBarVisible(visible)
         screenTimeBarPrefVisible = visible
         screenTimeBarObservation = observeScreenTimeBar()
+    }
+
+    fun setThemePreference(preference: ThemePreference) {
+        homeChromePrefs.setThemePreference(preference)
+        themePref = preference
     }
 
     /**

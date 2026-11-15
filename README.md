@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.138** (this branch) · main tip **v0.0.137** (#80 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.139** (this branch) · main tip **v0.0.138** (#81 merged).
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.138** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.138.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.139.apk`
 
 ## Scope
 
@@ -83,6 +83,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.132:** Gate D2 — OBSERVED vs INFERRED on intervention UI
 - **v0.0.133:** Gate D3 — overlay/service interrupt → saved work + notification
 - **v0.0.134:** Gate C dedicated Today view — planned · completed · deferred from day cycle / occurrences / sessions; Floater Today + Home link → `TodayScreen` (not Home-only)
+- **v0.0.139:** Dark theme design tokens — `DarkIntentColors` + Material `darkColorScheme`, Settings System/Light/Dark (SharedPreferences; SCHEMA stays 10 / migrate stamp-only). Rebased onto 0.0.138 tip after #81; AMBIGUOUS ChoiceSet already on main.
 - **v0.0.137:** Gate E frontend leftovers — History NavHost route (Settings / Companion / overflow), local snapshot import UI (same export JSON; stamp migrate only), ParentRollup child-contributions section on Reports
 - **v0.0.136:** Gate E §17 remaining gaps — vague health, physical constraint, guided practice, spoken approval ambiguity, interrupted voice; tighten Duolingo approach / cross-intention link / tutor day change / 15-min app-duration
 - **v0.0.135:** Gate E breadth + migration — scenario suite (ambiguous / legal research / stale connected data / parent rollups / cancel / retry / process death), real legacy export migrate fixture, deliverable pack
@@ -250,6 +251,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.138, release): [INTENT-v0.0.138.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-e-ambiguous-choiceset-a1f3/artifacts/INTENT-v0.0.138.apk)
+Sideload APK (v0.0.139, release): [INTENT-v0.0.139.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-e-dark-theme-5e8f/artifacts/INTENT-v0.0.139.apk)
 
-(Prior tip APK on main: [INTENT-v0.0.137.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.137.apk).)
+(Prior tip APK on main: [INTENT-v0.0.138.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.138.apk) when published; else [INTENT-v0.0.137.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.137.apk).)
