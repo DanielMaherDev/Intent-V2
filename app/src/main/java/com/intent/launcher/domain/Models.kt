@@ -1,7 +1,13 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 3
+const val SCHEMA_VERSION: Int = 4
+
+/** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
+enum class TrashKind {
+    INTENTION,
+    SESSION
+}
 
 enum class ProvenanceKind {
     SAID,
@@ -140,6 +146,40 @@ data class Intention(
     val shapeTag: String // language | marathon | business | other
 )
 
+/**
+ * One applied FlowCommand in the durable event/transaction log.
+ * Undo restores [beforeJson] for the last reversible, non-undone entry.
+ */
+data class FlowTransaction(
+    val id: String,
+    val commandKind: String,
+    val summary: String,
+    val occurredAtEpochMs: Long,
+    val reversible: Boolean,
+    val irreversibleReason: String? = null,
+    /** Encoded domain snapshot before this command (omit history/trash noise handled by store). */
+    val beforeJson: String? = null,
+    val undone: Boolean = false,
+    val undoOfTransactionId: String? = null
+)
+
+/**
+ * Soft-deleted intention or session (task) with recoverable child context.
+ * [expiresAtEpochMs] null means keep until an explicit purge command.
+ */
+data class TrashEntry(
+    val id: String,
+    val kind: TrashKind,
+    val entityId: String,
+    val title: String,
+    val deletedAtEpochMs: Long,
+    val expiresAtEpochMs: Long? = null,
+    val parentIntentionId: String? = null,
+    /** Former parent / path label for restore UI (OS-077). */
+    val pathLabel: String,
+    val payloadJson: String
+)
+
 data class IntentionSnapshot(
     val schemaVersion: Int = SCHEMA_VERSION,
     val intentions: List<Intention> = emptyList(),
@@ -150,7 +190,9 @@ data class IntentionSnapshot(
     val sessionRuns: List<SessionRun> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
     val thoughtCaptures: List<ThoughtCapture> = emptyList(),
-    val activeIntentionId: String? = null
+    val activeIntentionId: String? = null,
+    val transactions: List<FlowTransaction> = emptyList(),
+    val trash: List<TrashEntry> = emptyList()
 )
 
 sealed class FlowCommand {
@@ -260,6 +302,54 @@ sealed class FlowCommand {
         val intentionId: String?,
         val text: String,
         val source: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Undo the last reversible commitment via transaction history. */
+    data class UndoLastReversible(
+        val transactionId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Soft-delete an intention into recoverable trash (facts / proposals / sessions
+     * preserved in the trash payload).
+     */
+    data class SoftDeleteIntention(
+        val trashId: String,
+        val intentionId: String,
+        val nowEpochMs: Long,
+        /** null = infinite retention until [PurgeTrashItem]. */
+        val expiresAtEpochMs: Long? = null
+    ) : FlowCommand()
+
+    /** Soft-delete a scheduled session (task) into trash with parent path. */
+    data class SoftDeleteSession(
+        val trashId: String,
+        val sessionId: String,
+        val nowEpochMs: Long,
+        val expiresAtEpochMs: Long? = null
+    ) : FlowCommand()
+
+    data class RestoreTrashItem(
+        val trashId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Permanent delete from trash — not reversible. */
+    data class PurgeTrashItem(
+        val trashId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Honest log of an external side effect that INTENT cannot reverse
+     * (e.g. opening another app). Does not mutate domain entities.
+     */
+    data class RecordExternalAction(
+        val transactionId: String,
+        val summary: String,
+        val irreversibleReason: String,
         val nowEpochMs: Long
     ) : FlowCommand()
 }

@@ -246,6 +246,11 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     null
                                 },
+                                undoLabel = vm.lastUndoableTransaction()?.let {
+                                    "Undo: ${it.summary}"
+                                },
+                                onUndo = vm.lastUndoableTransaction()?.let { { vm.undoLast() } },
+                                undoTrashNote = vm.undoTrashNote,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -263,6 +268,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 onBack = { nav.popBackStack() },
+                                onMoveIntentionToTrash = { vm.softDeleteActiveIntention() },
+                                onMoveSessionToTrash = { sessionId -> vm.softDeleteSession(sessionId) },
+                                trashItems = vm.recoverableTrash(),
+                                onRestoreTrash = { trashId -> vm.restoreTrashItem(trashId) },
+                                onPurgeTrash = { trashId -> vm.purgeTrashItem(trashId) },
+                                undoTrashNote = vm.undoTrashNote,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

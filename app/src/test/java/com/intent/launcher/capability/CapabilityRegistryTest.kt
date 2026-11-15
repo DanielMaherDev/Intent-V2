@@ -55,6 +55,18 @@ class CapabilityRegistryTest {
     }
 
     @Test
+    fun registry_marksUndoTrashAvailable_andExternalUndoUnsupported() {
+        assertTrue(registry.canUndoLast())
+        assertTrue(registry.canSoftDelete())
+        assertTrue(registry.canRestoreTrash())
+        assertFalse(registry.canUndoExternalAction())
+        assertEquals(
+            CapabilityStatus.NOT_SUPPORTED,
+            registry.get(CapabilityRegistry.ID_EXTERNAL_ACTION_UNDO)!!.status
+        )
+    }
+
+    @Test
     fun registry_marksUsageStatsPermissionNeeded_andCalendarUnsupported() {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_USAGE_STATS))
         assertFalse(registry.isActionable(CapabilityRegistry.ID_USAGE_STATS))

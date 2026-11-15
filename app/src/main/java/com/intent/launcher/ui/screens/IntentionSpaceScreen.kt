@@ -23,11 +23,14 @@ import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.FactRow
 import com.intent.launcher.ui.components.HeroCard
 import com.intent.launcher.ui.components.HeroTone
 import com.intent.launcher.ui.components.IntentPrimaryButton
+import com.intent.launcher.ui.components.IntentQuietButton
+import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SectionTitle
@@ -42,6 +45,12 @@ fun IntentionSpaceScreen(
     sessions: List<ScheduledSession>,
     onWorkThisOut: () -> Unit,
     onBack: () -> Unit,
+    onMoveIntentionToTrash: (() -> Unit)? = null,
+    onMoveSessionToTrash: ((String) -> Unit)? = null,
+    trashItems: List<TrashEntry> = emptyList(),
+    onRestoreTrash: ((String) -> Unit)? = null,
+    onPurgeTrash: ((String) -> Unit)? = null,
+    undoTrashNote: String? = null,
     modifier: Modifier = Modifier
 ) {
     val projection = ShapeProjection.project(
@@ -154,6 +163,12 @@ fun IntentionSpaceScreen(
                 sessions.forEach { s ->
                     val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
                     FactRow(text = "${s.title} · $whenLabel")
+                    if (onMoveSessionToTrash != null) {
+                        IntentQuietButton(
+                            text = "Move session to trash",
+                            onClick = { onMoveSessionToTrash(s.id) }
+                        )
+                    }
                 }
                 if (intention?.phase == IntentionPhase.PROPOSAL_PENDING) {
                     FactRow(text = "Pending · add a weekly commitment", pending = true)
@@ -164,6 +179,67 @@ fun IntentionSpaceScreen(
         if (projection.emptyNote != null) {
             Spacer(modifier = Modifier.height(17.dp))
             EmptyNote(text = projection.emptyNote)
+        }
+
+        if (onMoveIntentionToTrash != null && intention != null) {
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Control")
+            Spacer(modifier = Modifier.height(9.dp))
+            IntentSecondaryButton(
+                text = "Move intention to trash",
+                onClick = onMoveIntentionToTrash
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Soft-delete keeps child facts, proposals, and sessions recoverable until you purge.",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+
+        if (trashItems.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Trash")
+            Spacer(modifier = Modifier.height(9.dp))
+            trashItems.forEach { item ->
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "${item.kind.name.lowercase()} · ${item.pathLabel}" +
+                            if (item.expiresAtEpochMs == null) " · until purge" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    if (onRestoreTrash != null) {
+                        IntentSecondaryButton(
+                            text = "Restore",
+                            onClick = { onRestoreTrash(item.id) }
+                        )
+                    }
+                    if (onPurgeTrash != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        IntentQuietButton(
+                            text = "Purge permanently",
+                            onClick = { onPurgeTrash(item.id) }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (undoTrashNote != null) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = undoTrashNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Warm
+            )
         }
     }
 }
