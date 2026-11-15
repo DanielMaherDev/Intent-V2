@@ -86,13 +86,26 @@ class DailyCheckInCheckoutTest {
         val hyp = snap.hypotheses.first { it.id == "hyp-checkin-1" }
         assertEquals(ProvenanceKind.SAID, hyp.provenance.kind)
 
-        // Mid-afternoon (not morning): Begin, not another check-in.
-        val mid = NextActionEngine.recommend(snap, thu1830 - 3 * 3_600_000L, tz, registry)
-        assertEquals(NextActionKind.BEGIN, mid.kind)
+        // Mid-afternoon (Gate C): midday drift check outranks Begin until completed.
+        val midAfternoon = thu1830 - 3 * 3_600_000L
+        val mid = NextActionEngine.recommend(snap, midAfternoon, tz, registry)
+        assertEquals(NextActionKind.MIDDAY, mid.kind)
 
-        // Due evening without checkout yet but without morning-only gate: Begin still works
-        // until checkout eligibility (checked-in → evening offers CHECK_OUT).
-        val evening = NextActionEngine.recommend(snap, thu1830, tz, registry)
+        store.apply(
+            FlowCommand.RecordMiddayCheck(
+                occurrenceId = "occ-midday-daily-test",
+                contextId = "dctx-midday-daily-test",
+                intentionId = SpanishScenario.INTENTION_ID,
+                localDate = localDate,
+                summary = "Still on plan",
+                nowEpochMs = midAfternoon
+            )
+        )
+        val afterMidday = NextActionEngine.recommend(store.snapshot(), midAfternoon + 60_000L, tz, registry)
+        assertEquals(NextActionKind.BEGIN, afterMidday.kind)
+
+        // Checked-in → evening offers CHECK_OUT.
+        val evening = NextActionEngine.recommend(store.snapshot(), thu1830, tz, registry)
         assertEquals(NextActionKind.CHECK_OUT, evening.kind)
     }
 
