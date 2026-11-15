@@ -43,8 +43,8 @@ object FloatingCompanion {
             return Presence(
                 state = null,
                 label = "Use Agent on Home",
-                manualRouteNote = "Overlay permission needed for the floating companion. " +
-                    "Use Home’s Agent / Discuss (Ask), next-action strip (Today), or Capture thought."
+                // Honest launcher fallback — never invents a bubble or overlay grant (OS-155).
+                manualRouteNote = TalkBackLabels.overlayDeniedFallbackNote()
             )
         }
         val state = resolveState(nextAction)

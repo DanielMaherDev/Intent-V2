@@ -13,18 +13,25 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import com.intent.launcher.MainActivity
 import com.intent.launcher.R
+import com.intent.launcher.engine.FloatingAgentRestartPolicy
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
+import com.intent.launcher.engine.TalkBackLabels
 
 /**
  * Overlay bubble for the floating companion — same agent as Conversation.
  * Only runs when [Settings.canDrawOverlays] is true; otherwise stay stopped.
+ *
+ * Sticky honesty (OS-155): [START_STICKY] only while overlay is granted.
+ * Sticky restart re-checks overlay and never invents a grant; Home / Companion
+ * menu / notification remain the Conversation path when denied or stopped.
  */
 class FloatingAgentService : Service() {
 
@@ -35,13 +42,21 @@ class FloatingAgentService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!Settings.canDrawOverlays(this)) {
+        val overlayGranted = Settings.canDrawOverlays(this)
+        val requested = intent?.getStringExtra(EXTRA_STATE)?.let { name ->
+            runCatching { FloatingAgentState.valueOf(name) }.getOrNull()
+        }
+        // Sticky restart delivers a null intent — policy defaults to IDLE when overlay OK.
+        val decision = FloatingAgentRestartPolicy.decide(
+            overlayGranted = overlayGranted,
+            requestedState = requested
+        )
+        if (decision.mode == FloatingAgentRestartPolicy.StartMode.STOP_NOT_STICKY) {
+            removeBubble()
             stopSelf()
             return START_NOT_STICKY
         }
-        val stateName = intent?.getStringExtra(EXTRA_STATE) ?: FloatingAgentState.IDLE.name
-        val state = runCatching { FloatingAgentState.valueOf(stateName) }
-            .getOrDefault(FloatingAgentState.IDLE)
+        val state = decision.resolvedState ?: FloatingAgentState.IDLE
         ensureForeground()
         ensureBubble()
         updateBubble(state)
@@ -76,7 +91,10 @@ class FloatingAgentService : Service() {
         )
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("INTENT companion")
-            .setContentText("Same agent as Conversation — tap the bubble or this notice.")
+            .setContentText(
+                "Same agent as Conversation — tap the bubble or this notice. " +
+                    "If the bubble is gone, open Home’s Companion menu."
+            )
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(open)
             .setOngoing(true)
@@ -103,12 +121,16 @@ class FloatingAgentService : Service() {
             setBackgroundColor(0xFF5459C9.toInt())
             setPadding(pad, pad, pad, pad)
             elevation = 12f * density
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            contentDescription = TalkBackLabels.floaterBubble(FloatingAgentState.IDLE)
         }
         val tv = TextView(this).apply {
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 11f
             gravity = Gravity.CENTER
             text = FloatingCompanion.labelFor(FloatingAgentState.IDLE)
+            // Parent FrameLayout owns the spoken label (OS-201).
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         frame.addView(
             tv,
@@ -154,6 +176,7 @@ class FloatingAgentService : Service() {
 
     private fun updateBubble(state: FloatingAgentState) {
         labelView?.text = FloatingCompanion.labelFor(state)
+        bubble?.contentDescription = TalkBackLabels.floaterBubble(state)
         val color = when (state) {
             FloatingAgentState.ACTIVE_SESSION -> 0xFF2D786A.toInt()
             FloatingAgentState.ATTENTION_NEEDED -> 0xFFA76531.toInt()
@@ -185,6 +208,10 @@ class FloatingAgentService : Service() {
         const val EXTRA_STATE = "floating_state"
         private const val NOTIFICATION_ID = 1601
 
+        /**
+         * Sync overlay bubble to [state].
+         * Null / overlay denied → stop service (no invented bubble); Home fallback applies.
+         */
         fun sync(context: Context, state: FloatingAgentState?) {
             if (state == null || !Settings.canDrawOverlays(context)) {
                 context.stopService(Intent(context, FloatingAgentService::class.java))
