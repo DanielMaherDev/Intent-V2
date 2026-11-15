@@ -43,8 +43,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.ui.theme.IntentColors
@@ -417,6 +420,8 @@ fun FactRow(
     pending: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val parts = text.split(" · ", limit = 2)
+    val labeled = parts.size == 2
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -449,11 +454,30 @@ fun FactRow(
             }
         }
         Spacer(modifier = Modifier.width(9.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.FactText
-        )
+        if (labeled) {
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(
+                        SpanStyle(
+                            fontWeight = FontWeight.Bold,
+                            color = IntentColors.Ink
+                        )
+                    ) {
+                        append(parts[0])
+                    }
+                    append(" · ")
+                    append(parts[1])
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.FactText
+            )
+        } else {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.FactText
+            )
+        }
     }
 }
 

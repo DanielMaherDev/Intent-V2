@@ -36,7 +36,8 @@ class ShapeProjectionTest {
             store.snapshot().intentions.first { it.id == SpanishScenario.INTENTION_ID }
         )
         assertEquals("How will you practise?", spanish.hero.heroTitle)
-        assertTrue(spanish.emptyNote!!.contains("No tasks have been invented"))
+        assertTrue(spanish.emptyNote!!.contains("No tasks yet"))
+        assertTrue(spanish.hero.heroBody.contains("shape this around"))
         assertEquals("Open your intention", spanish.homeSpaceSubtitle)
         assertEquals("A conversation about your goal", spanish.conversationEyebrow)
 

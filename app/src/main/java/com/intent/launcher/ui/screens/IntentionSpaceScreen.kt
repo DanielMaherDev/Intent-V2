@@ -3,6 +3,7 @@ package com.intent.launcher.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
@@ -86,30 +91,59 @@ fun IntentionSpaceScreen(
     val labelColor = when (heroTone) {
         HeroTone.Warm -> IntentColors.Warm
         HeroTone.Success -> IntentColors.Success
-        HeroTone.Accent -> IntentColors.Section
+        HeroTone.Accent -> IntentColors.Accent
     }
+    val exploringFirstViewport =
+        intention?.phase == IntentionPhase.EXPLORING ||
+            intention?.phase == IntentionPhase.CLARIFYING ||
+            intention == null
+    val paperWash = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFFF7F5EF),
+            IntentColors.Paper,
+            Color(0xFFF1EEE6)
+        )
+    )
+    val knowledgeItems = buildKnowledgeRows(
+        intention = intention,
+        facts = facts,
+        hypotheses = hypotheses,
+        sessions = sessions,
+        evidence = evidence,
+        defaultFacts = projection.defaultFacts,
+        onMoveSessionToTrash = onMoveSessionToTrash
+    )
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(IntentColors.Paper)
+            .background(paperWash)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 19.dp, vertical = 15.dp)
     ) {
         ScreenTopBar(contextLabel = "Intention", onBack = onBack)
         Spacer(modifier = Modifier.height(23.dp))
         SmallLabel(text = projection.hero.phaseLabel, color = labelColor)
-        Spacer(modifier = Modifier.height(7.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = intention?.title ?: "Intention",
-            style = MaterialTheme.typography.headlineLarge,
-            color = IntentColors.Ink
+            style = MaterialTheme.typography.displayLarge,
+            color = IntentColors.Ink,
+            lineHeight = 38.sp
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Lede(intention?.statement ?: "")
         Spacer(modifier = Modifier.height(26.dp))
 
-        HeroCard(tone = heroTone) {
+        HeroCard(
+            tone = heroTone,
+            modifier = Modifier.shadow(
+                elevation = 10.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = Color(0x125459C9),
+                spotColor = Color(0x125459C9)
+            )
+        ) {
             SmallLabel(text = projection.hero.heroLabel, color = labelColor)
             Spacer(modifier = Modifier.height(7.dp))
             Text(
@@ -121,18 +155,63 @@ fun IntentionSpaceScreen(
             Text(
                 text = projection.hero.heroBody,
                 style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Muted
+                color = IntentColors.Muted,
+                lineHeight = 19.sp
             )
             Spacer(modifier = Modifier.height(15.dp))
             IntentPrimaryButton(text = projection.hero.heroCta, onClick = onWorkThisOut)
-            if (onOpenTracker != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                IntentSecondaryButton(text = "Open tracker", onClick = onOpenTracker)
+            // Keep exploring first viewport to question + CTA only (mock); deeper links below.
+            if (!exploringFirstViewport) {
+                if (onOpenTracker != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    IntentSecondaryButton(text = "Open tracker", onClick = onOpenTracker)
+                }
+                if (onOpenReports != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    IntentSecondaryButton(text = "Path & progress", onClick = onOpenReports)
+                }
             }
-            if (onOpenReports != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                IntentSecondaryButton(text = "Path & progress", onClick = onOpenReports)
+        }
+
+        // Mock order: question → what we know → empty note, then secondary sections.
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle(projection.knowledgeSectionTitle)
+        Spacer(modifier = Modifier.height(9.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 2.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    ambientColor = Color(0x0A000000),
+                    spotColor = Color(0x0A000000)
+                )
+                .border(1.dp, IntentColors.Line, RoundedCornerShape(20.dp))
+                .background(IntentColors.Card, RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 4.dp)
+        ) {
+            knowledgeItems.forEachIndexed { index, item ->
+                FactRow(text = item.text, pending = item.pending)
+                if (item.onMoveSessionToTrash != null) {
+                    IntentQuietButton(
+                        text = "Move session to trash",
+                        onClick = item.onMoveSessionToTrash
+                    )
+                }
+                if (index < knowledgeItems.lastIndex) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(IntentColors.Line)
+                    )
+                }
             }
+        }
+
+        if (projection.emptyNote != null) {
+            Spacer(modifier = Modifier.height(17.dp))
+            EmptyNote(text = projection.emptyNote)
         }
 
         if (projection.approachSectionTitle != null && projection.approachSteps.isNotEmpty()) {
@@ -295,52 +374,17 @@ fun IntentionSpaceScreen(
             IntentSecondaryButton(text = "All connections", onClick = onOpenConnections)
         }
 
-        Spacer(modifier = Modifier.height(26.dp))
-        SectionTitle(projection.knowledgeSectionTitle)
-        Spacer(modifier = Modifier.height(9.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, IntentColors.Line, RoundedCornerShape(20.dp))
-                .background(IntentColors.Card, RoundedCornerShape(20.dp))
-                .padding(horizontal = 14.dp, vertical = 4.dp)
-        ) {
-            if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty() && evidence.isEmpty()) {
-                projection.defaultFacts.forEach { FactRow(text = it) }
-            } else {
-                facts.forEach { f ->
-                    FactRow(text = "Confirmed by you · ${f.text}")
-                }
-                hypotheses.forEach { h ->
-                    FactRow(text = "Inferred · ${h.text}")
-                }
-                evidence
-                    .filter {
-                        it.accuracy == EvidenceAccuracy.ACTIVE &&
-                            it.provenance.kind == ProvenanceKind.OBSERVED
-                    }
-                    .forEach { e ->
-                        FactRow(text = "Observed · ${e.summaryText}")
-                    }
-                sessions.forEach { s ->
-                    val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
-                    FactRow(text = "${s.title} · $whenLabel")
-                    if (onMoveSessionToTrash != null) {
-                        IntentQuietButton(
-                            text = "Move session to trash",
-                            onClick = { onMoveSessionToTrash(s.id) }
-                        )
-                    }
-                }
-                if (intention?.phase == IntentionPhase.PROPOSAL_PENDING) {
-                    FactRow(text = "Pending · add a weekly commitment", pending = true)
-                }
+        if (exploringFirstViewport && (onOpenTracker != null || onOpenReports != null)) {
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Path")
+            Spacer(modifier = Modifier.height(9.dp))
+            if (onOpenTracker != null) {
+                IntentSecondaryButton(text = "Open tracker", onClick = onOpenTracker)
             }
-        }
-
-        if (projection.emptyNote != null) {
-            Spacer(modifier = Modifier.height(17.dp))
-            EmptyNote(text = projection.emptyNote)
+            if (onOpenReports != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                IntentSecondaryButton(text = "Path & progress", onClick = onOpenReports)
+            }
         }
 
         if (onMoveIntentionToTrash != null && intention != null) {
@@ -404,6 +448,52 @@ fun IntentionSpaceScreen(
             )
         }
     }
+}
+
+private data class KnowledgeRow(
+    val text: String,
+    val pending: Boolean = false,
+    val onMoveSessionToTrash: (() -> Unit)? = null
+)
+
+private fun buildKnowledgeRows(
+    intention: Intention?,
+    facts: List<Fact>,
+    hypotheses: List<Hypothesis>,
+    sessions: List<ScheduledSession>,
+    evidence: List<Evidence>,
+    defaultFacts: List<String>,
+    onMoveSessionToTrash: ((String) -> Unit)?
+): List<KnowledgeRow> {
+    if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty() && evidence.isEmpty()) {
+        return defaultFacts.map { KnowledgeRow(text = it) }
+    }
+    val rows = mutableListOf<KnowledgeRow>()
+    facts.forEach { f ->
+        rows += KnowledgeRow(text = "Confirmed by you · ${f.text}")
+    }
+    hypotheses.forEach { h ->
+        rows += KnowledgeRow(text = "Inferred · ${h.text}")
+    }
+    evidence
+        .filter {
+            it.accuracy == EvidenceAccuracy.ACTIVE &&
+                it.provenance.kind == ProvenanceKind.OBSERVED
+        }
+        .forEach { e ->
+            rows += KnowledgeRow(text = "Observed · ${e.summaryText}")
+        }
+    sessions.forEach { s ->
+        val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
+        rows += KnowledgeRow(
+            text = "${s.title} · $whenLabel",
+            onMoveSessionToTrash = onMoveSessionToTrash?.let { cb -> { cb(s.id) } }
+        )
+    }
+    if (intention?.phase == IntentionPhase.PROPOSAL_PENDING) {
+        rows += KnowledgeRow(text = "Pending · add a weekly commitment", pending = true)
+    }
+    return rows
 }
 
 @Composable
