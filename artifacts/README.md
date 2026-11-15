@@ -1,6 +1,6 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.98.apk`](./INTENT-v0.0.98.apk) — CASE-01 quick to-do / errand inbox (reclaimed from 0.0.79 / 0.0.62 / 0.0.52).
+Latest sideload APK: [`INTENT-v0.0.109.apk`](./INTENT-v0.0.109.apk) (`assembleRelease` · Gate D TalkBack labels + floater sticky/overlay-denial honesty · reclaim from 0.0.94 / 0.0.74 · sideload keystore · non-debuggable · no `QUERY_ALL_PACKAGES` · keeps `SYSTEM_ALERT_WINDOW`).
 
 Main tip: [`INTENT-v0.0.80.apk`](./INTENT-v0.0.80.apk) (app-use reduction CASE-06).
 

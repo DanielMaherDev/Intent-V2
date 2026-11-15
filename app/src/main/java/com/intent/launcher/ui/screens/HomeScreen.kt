@@ -36,6 +36,7 @@ import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.engine.TalkBackLabels
 import com.intent.launcher.ui.components.DateLabel
 import com.intent.launcher.ui.components.GlyphTone
 import com.intent.launcher.ui.components.HeroCard
@@ -566,7 +567,17 @@ private fun AttentionStripCard(
         HeroTone.Accent -> IntentColors.Accent
     }
 
-    HeroCard(tone = meta.heroTone) {
+    val stripDescription = TalkBackLabels.attentionStripContainer(
+        nextAction = nextAction,
+        smallLabel = meta.smallLabel,
+        title = meta.title,
+        support = meta.support,
+        softPaused = sessionSoftPaused
+    )
+    HeroCard(
+        tone = meta.heroTone,
+        modifier = Modifier.semantics { contentDescription = stripDescription }
+    ) {
         SmallLabel(text = meta.smallLabel, color = labelColor)
         Spacer(modifier = Modifier.height(7.dp))
         Text(
@@ -1024,6 +1035,9 @@ private fun QuietGrantStrip(
         Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = floatingManualRouteNote,
+            modifier = Modifier.semantics {
+                contentDescription = floatingManualRouteNote
+            },
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )
