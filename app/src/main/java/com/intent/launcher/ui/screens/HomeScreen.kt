@@ -296,6 +296,7 @@ fun HomeScreen(
                 AttentionStripCard(
                     nextAction = nextAction,
                     meta = stripMeta,
+                    pills = greeting.pills,
                     secondary = secondary,
                     deferPreviewLine = deferPreviewLine,
                     onContinueExploring = onContinueExploring,
@@ -335,48 +336,6 @@ fun HomeScreen(
                     onResumeSession = onResumeSession
                 )
             }
-            AttentionStripCard(
-                nextAction = nextAction,
-                meta = stripMeta,
-                pills = greeting.pills,
-                secondary = secondary,
-                deferPreviewLine = deferPreviewLine,
-                onContinueExploring = onContinueExploring,
-                onOpenIntention = onOpenIntention,
-                onReviewProposal = onReviewProposal,
-                onBegin = onBegin,
-                onDefer = onDefer,
-                onDiscuss = onDiscuss,
-                onCompleteSession = onCompleteSession,
-                onAbandonSession = onAbandonSession,
-                onOpenDestination = onOpenDestination,
-                onConfirmCheckIn = onConfirmCheckIn,
-                onCheckOutKeepSchedule = onCheckOutKeepSchedule,
-                onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
-                destinationLaunchNote = destinationLaunchNote,
-                showGrantUsageAccess = showGrantUsageAccess,
-                onGrantUsageAccess = onGrantUsageAccess,
-                observedEvidenceNote = observedEvidenceNote,
-                showDismissObserved = showDismissObserved,
-                onDismissObserved = onDismissObserved,
-                notificationNote = notificationNote,
-                showGrantNotificationAccess = showGrantNotificationAccess,
-                onGrantNotificationAccess = onGrantNotificationAccess,
-                quietNote = quietNote,
-                showRequestQuiet = showRequestQuiet,
-                onRequestQuiet = onRequestQuiet,
-                showOpenDndSettings = showOpenDndSettings,
-                onOpenDndSettings = onOpenDndSettings,
-                screenCaptureNote = screenCaptureNote,
-                showCaptureScreen = showCaptureScreen,
-                onCaptureScreen = onCaptureScreen,
-                sessionNotificationRows = sessionNotificationRows,
-                onDismissNotificationRow = onDismissNotificationRow,
-                sessionSoftPaused = sessionSoftPaused,
-                sessionPauseNote = sessionPauseNote,
-                showResumeSession = showResumeSession,
-                onResumeSession = onResumeSession
-            )
 
             // OS-135 — quiet hierarchy under the recommendation strip (omit empties).
             if (homeAttention.nextDeadlineLine != null) {

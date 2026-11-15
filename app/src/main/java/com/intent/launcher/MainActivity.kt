@@ -588,6 +588,7 @@ class MainActivity : ComponentActivity() {
                         composable("drawer") {
                             IntentionDrawerScreen(
                                 intentions = vm.orderedIntentions(),
+                                layouts = vm.drawerCardLayouts(),
                                 activeIntentionId = vm.snapshot.activeIntentionId,
                                 onOpenIntention = { id ->
                                     vm.openIntentionFromDrawer(id)
@@ -597,6 +598,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onMoveIntention = { id, direction ->
                                     vm.moveIntentionInDrawer(id, direction)
+                                },
+                                onUpdateCardLayout = { id, span, priority ->
+                                    vm.updateDrawerCardLayout(id, span, priority)
                                 },
                                 onBackHome = {
                                     nav.navigate("home") {
