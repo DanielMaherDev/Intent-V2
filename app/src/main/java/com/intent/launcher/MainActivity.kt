@@ -824,13 +824,22 @@ class MainActivity : ComponentActivity() {
             attentionLabel = vm.floatingPresence.interventionAttentionLine
                 ?: vm.floatingPresence.label.takeIf {
                     vm.floatingPresence.interventionProvenanceLabel != null
-                }
+                },
+            interventionJobId = vm.floatingPresence.interventionJobId,
+            interventionTurnId = vm.floatingPresence.interventionTurnId
         )
     }
 
     private fun consumeCompanionIntent(intent: Intent?) {
         when (intent?.action) {
-            FloatingAgentService.ACTION_OPEN_CONVERSATION -> openConversationRequest++
+            FloatingAgentService.ACTION_OPEN_CONVERSATION -> {
+                val jobId = intent.getStringExtra(FloatingAgentService.EXTRA_INTERVENTION_JOB_ID)
+                val turnId = intent.getStringExtra(FloatingAgentService.EXTRA_INTERVENTION_TURN_ID)
+                if (!jobId.isNullOrBlank() || !turnId.isNullOrBlank()) {
+                    vm.focusInterventionFromNotification(jobId = jobId, turnId = turnId)
+                }
+                openConversationRequest++
+            }
             FloatingAgentService.ACTION_OPEN_DRAWER -> showFloaterDrawer = true
             FloatingAgentService.ACTION_CAPTURE_THOUGHT -> {
                 thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
