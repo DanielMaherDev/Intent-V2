@@ -7,7 +7,9 @@ import com.intent.launcher.store.IntentionFlowStore
 /**
  * Conversation card projection for GatewayStatus outcomes beyond AMBIGUOUS:
  * [GatewayStatus.CANCELLED], [GatewayStatus.STALE_REVISION], idempotent
- * [GatewayStatus.APPLIED] retry, and [GatewayStatus.FAILED].
+ * [GatewayStatus.APPLIED] retry, [GatewayStatus.FAILED],
+ * [GatewayStatus.PERMISSION_DENIED], [GatewayStatus.UNSUPPORTED],
+ * and [GatewayStatus.NEEDS_APPROVAL].
  *
  * Pure helpers so JVM tests can assert the card path without Compose.
  * AMBIGUOUS CHOICE_SET remains [AmbiguousChoiceSetCard].
@@ -18,6 +20,9 @@ object GatewayStatusCard {
     const val SOURCE_STALE = "stale_revision"
     const val SOURCE_IDEMPOTENT = "idempotent_retry"
     const val SOURCE_FAILED = "gateway_failed"
+    const val SOURCE_PERMISSION = "permission_denied"
+    const val SOURCE_UNSUPPORTED = "unsupported_capability"
+    const val SOURCE_NEEDS_APPROVAL = "needs_approval"
 
     const val ACTION_RETRY = "Retry"
 
@@ -74,6 +79,15 @@ object GatewayStatusCard {
         block.sourceLabel == SOURCE_FAILED ||
             block.sourceLabel.startsWith(SOURCE_FAILED) ->
             GatewayStatus.FAILED.name
+        block.sourceLabel == SOURCE_PERMISSION ||
+            block.sourceLabel.startsWith(SOURCE_PERMISSION) ->
+            GatewayStatus.PERMISSION_DENIED.name
+        block.sourceLabel == SOURCE_UNSUPPORTED ||
+            block.sourceLabel.startsWith(SOURCE_UNSUPPORTED) ->
+            GatewayStatus.UNSUPPORTED.name
+        block.sourceLabel == SOURCE_NEEDS_APPROVAL ||
+            block.sourceLabel.startsWith(SOURCE_NEEDS_APPROVAL) ->
+            GatewayStatus.NEEDS_APPROVAL.name
         else -> null
     }
 
@@ -221,6 +235,51 @@ object GatewayStatusCard {
         body = message,
         sourceLabel = SOURCE_FAILED,
         linkedObjectIds = emptyList(),
+        actions = emptyList(),
+        active = true
+    )
+
+    fun permissionDeniedBlock(
+        commandId: String,
+        message: String,
+        capabilityId: String
+    ): ResponseBlock = ResponseBlock(
+        blockId = "block-permission-$commandId",
+        type = ResponseBlockType.ERROR,
+        title = "Permission needed",
+        body = message,
+        sourceLabel = SOURCE_PERMISSION,
+        linkedObjectIds = listOf(capabilityId),
+        actions = emptyList(),
+        active = true
+    )
+
+    fun unsupportedBlock(
+        commandId: String,
+        message: String,
+        capabilityId: String
+    ): ResponseBlock = ResponseBlock(
+        blockId = "block-unsupported-$commandId",
+        type = ResponseBlockType.ERROR,
+        title = "Not supported",
+        body = message,
+        sourceLabel = SOURCE_UNSUPPORTED,
+        linkedObjectIds = listOf(capabilityId),
+        actions = emptyList(),
+        active = true
+    )
+
+    fun needsApprovalBlock(
+        commandId: String,
+        message: String,
+        linkedObjectId: String? = null
+    ): ResponseBlock = ResponseBlock(
+        blockId = "block-needs-approval-$commandId",
+        type = ResponseBlockType.ERROR,
+        title = "Needs your approval",
+        body = message,
+        sourceLabel = SOURCE_NEEDS_APPROVAL,
+        linkedObjectIds = listOfNotNull(linkedObjectId),
         actions = emptyList(),
         active = true
     )

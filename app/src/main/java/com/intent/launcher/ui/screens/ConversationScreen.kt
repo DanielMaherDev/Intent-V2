@@ -269,7 +269,8 @@ private fun AgentBubble(
                 }
             }
             gatewayModel != null -> {
-                // CANCELLED / STALE_REVISION / RETRY / FAILED — first-class status cards.
+                // CANCELLED / STALE / RETRY / FAILED / PERMISSION_DENIED /
+                // UNSUPPORTED / NEEDS_APPROVAL — first-class status cards.
                 Spacer(modifier = Modifier.height(6.dp))
                 SmallLabel(text = gatewayModel.eyebrow)
                 Spacer(modifier = Modifier.height(4.dp))
