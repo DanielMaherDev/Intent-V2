@@ -67,6 +67,9 @@ fun HomeScreen(
     onAbandonSession: () -> Unit = {},
     onOpenDestination: () -> Unit = {},
     destinationLaunchNote: String? = null,
+    usageNote: String? = null,
+    showGrantUsageAccess: Boolean = false,
+    onGrantUsageAccess: () -> Unit = {},
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -109,7 +112,10 @@ fun HomeScreen(
                     onAbandonSession = onAbandonSession,
                     onDiscuss = onDiscuss,
                     onOpenDestination = onOpenDestination,
-                    destinationLaunchNote = destinationLaunchNote
+                    destinationLaunchNote = destinationLaunchNote,
+                    usageNote = usageNote,
+                    showGrantUsageAccess = showGrantUsageAccess,
+                    onGrantUsageAccess = onGrantUsageAccess
                 )
             } else {
                 val cardTitle = when (nextAction.kind) {
@@ -342,7 +348,10 @@ private fun ActiveSessionCard(
     onAbandonSession: () -> Unit,
     onDiscuss: () -> Unit,
     onOpenDestination: () -> Unit = {},
-    destinationLaunchNote: String? = null
+    destinationLaunchNote: String? = null,
+    usageNote: String? = null,
+    showGrantUsageAccess: Boolean = false,
+    onGrantUsageAccess: () -> Unit = {}
 ) {
     val startedAt = nextAction.startedAtEpochMs
     var nowEpochMs by remember(startedAt) {
@@ -428,6 +437,21 @@ private fun ActiveSessionCard(
                 text = destinationLaunchNote,
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Warm
+            )
+        }
+        if (usageNote != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = usageNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+        if (showGrantUsageAccess) {
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentQuietButton(
+                text = "Grant usage access",
+                onClick = onGrantUsageAccess
             )
         }
         Spacer(modifier = Modifier.height(15.dp))

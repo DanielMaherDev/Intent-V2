@@ -46,6 +46,7 @@ class CapabilityRegistryTest {
     fun registry_marksUsageStatsPermissionNeeded_andCalendarUnsupported() {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_USAGE_STATS))
         assertFalse(registry.isActionable(CapabilityRegistry.ID_USAGE_STATS))
+        assertFalse(registry.canReadUsageStats())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_EXTERNAL_CALENDAR))
         assertTrue(registry.canProposeRecurringSession())
         assertTrue(registry.canRecommendBegin())
