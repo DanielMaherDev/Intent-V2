@@ -17,6 +17,7 @@ import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.HeldApps
 import com.intent.launcher.domain.HoldableApps
+import com.intent.launcher.domain.HomeAttention
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionOrdering
 import com.intent.launcher.domain.JobOfferScenario
@@ -566,6 +567,14 @@ class LauncherViewModel(
             store.snapshot(),
             System.currentTimeMillis(),
             registry = capabilityRegistry
+        )
+
+    /** OS-135 — due work / next deadline / agent attention (honest omit-when-empty). */
+    fun homeAttention(): HomeAttention.Model =
+        HomeAttention.build(
+            snapshot = snapshot,
+            nextAction = nextAction,
+            nowEpochMs = System.currentTimeMillis()
         )
 
     private fun observeUsageIfActive(): UsageStatsProbe.Observation? {
