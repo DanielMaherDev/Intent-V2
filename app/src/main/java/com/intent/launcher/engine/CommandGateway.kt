@@ -78,18 +78,7 @@ object CommandGateway {
                 role = "agent",
                 text = reason,
                 nowEpochMs = nowEpochMs,
-                blocks = listOf(
-                    ResponseBlock(
-                        blockId = "block-cancel-$turnId",
-                        type = ResponseBlockType.ERROR,
-                        title = "Cancelled",
-                        body = reason,
-                        sourceLabel = "turn_cancellation",
-                        linkedObjectIds = listOf(turnId),
-                        actions = emptyList(),
-                        active = true
-                    )
-                )
+                blocks = listOf(GatewayStatusCard.cancelBlock(turnId, reason))
             )
         )
         return GatewayResult(
@@ -140,13 +129,57 @@ object CommandGateway {
             )
         }
         if (expectedRevision != null && expectedRevision != revisionOf(snap)) {
+            val message = "Snapshot revision changed — refresh before applying"
+            val intentionForCard = intentionId
+                ?: snap.activeIntentionId
+                ?: snap.intentions.firstOrNull()?.id
+            val moduleForRetry = moduleId.orEmpty()
+            val intentionForRetry = intentionId
+                ?: snap.activeIntentionId
+                ?: ""
+            val block = if (intentionForCard != null &&
+                intentionForRetry.isNotBlank() &&
+                moduleForRetry.isNotBlank()
+            ) {
+                GatewayStatusCard.staleTrackerBlock(
+                    commandId = commandId,
+                    message = message,
+                    retryPayload = GatewayStatusCard.encodeTrackerRetry(
+                        turnId = turnId,
+                        commandId = commandId,
+                        entryId = entryId,
+                        intentionId = intentionForRetry,
+                        moduleId = moduleForRetry,
+                        valueText = valueText
+                    )
+                )
+            } else {
+                GatewayStatusCard.staleTrackerBlock(
+                    commandId = commandId,
+                    message = message,
+                    retryPayload = ""
+                ).copy(actions = emptyList(), linkedObjectIds = emptyList())
+            }
+            if (intentionForCard != null) {
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-stale-$commandId",
+                        intentionId = intentionForCard,
+                        role = "agent",
+                        text = message,
+                        nowEpochMs = nowEpochMs,
+                        blocks = listOf(block)
+                    )
+                )
+            }
             return GatewayResult(
                 turnId = turnId,
                 toolCallId = toolCallId,
                 commandId = commandId,
                 status = GatewayStatus.STALE_REVISION,
-                revisionAfter = revisionOf(snap),
-                message = "Snapshot revision changed — refresh before applying"
+                revisionAfter = revisionOf(store.snapshot()),
+                message = message,
+                blocks = listOf(block)
             )
         }
 
@@ -216,6 +249,32 @@ object CommandGateway {
         check(activeSameId.size == 1) {
             "Idempotent retry must leave exactly one ACTIVE entry for $entryId"
         }
+        val idempotent = beforeCount == 1
+        val message = if (idempotent) {
+            "Idempotent retry — same entryId, no duplicate"
+        } else {
+            "Tracker entry applied"
+        }
+        val blocks = if (idempotent) {
+            val block = GatewayStatusCard.idempotentRetryBlock(
+                commandId = commandId,
+                entryId = entryId,
+                message = message
+            )
+            store.apply(
+                FlowCommand.AddConversationTurn(
+                    turnId = "turn-idempotent-$commandId-$nowEpochMs",
+                    intentionId = target.intentionId,
+                    role = "agent",
+                    text = message,
+                    nowEpochMs = nowEpochMs,
+                    blocks = listOf(block)
+                )
+            )
+            listOf(block)
+        } else {
+            emptyList()
+        }
         return GatewayResult(
             turnId = turnId,
             toolCallId = toolCallId,
@@ -223,14 +282,11 @@ object CommandGateway {
             status = GatewayStatus.APPLIED,
             objectIds = listOf(entryId),
             eventIds = listOf(commandId),
-            revisionAfter = revisionOf(after),
+            revisionAfter = revisionOf(store.snapshot()),
             source = provenanceKind,
             undoEventKind = "retract_tracker_entry",
-            message = if (beforeCount == 1) {
-                "Idempotent retry — same entryId, no duplicate"
-            } else {
-                "Tracker entry applied"
-            }
+            message = message,
+            blocks = blocks
         )
     }
 
@@ -264,14 +320,31 @@ object CommandGateway {
             explicitProposalId = explicitProposalId
         )
         when (outcome) {
-            is ApprovalAmbiguityResolver.Outcome.None ->
+            is ApprovalAmbiguityResolver.Outcome.None -> {
+                val block = GatewayStatusCard.failedBlock(commandId, outcome.message)
+                val intentionId = snap.activeIntentionId
+                    ?: snap.intentions.firstOrNull()?.id
+                if (intentionId != null) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-failed-$commandId",
+                            intentionId = intentionId,
+                            role = "agent",
+                            text = outcome.message,
+                            nowEpochMs = nowEpochMs,
+                            blocks = listOf(block)
+                        )
+                    )
+                }
                 return GatewayResult(
                     turnId = turnId,
                     toolCallId = toolCallId,
                     commandId = commandId,
                     status = GatewayStatus.FAILED,
-                    message = outcome.message
+                    message = outcome.message,
+                    blocks = listOf(block)
                 )
+            }
             is ApprovalAmbiguityResolver.Outcome.Ambiguous -> {
                 // Prefer active intention so Conversation shows the AMBIGUOUS card.
                 val intentionId = snap.activeIntentionId
