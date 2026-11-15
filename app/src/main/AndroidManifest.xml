@@ -52,6 +52,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
+            android:enableOnBackInvokedCallback="true"
             android:theme="@style/Theme.IntentLauncher">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

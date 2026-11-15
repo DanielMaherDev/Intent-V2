@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -20,13 +21,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.engine.BackNavigationPolicy
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
@@ -43,6 +47,7 @@ import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionBuilderScreen
 import com.intent.launcher.ui.screens.IntentionDrawerScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
+import com.intent.launcher.ui.screens.LeaveLiveDiscussDialog
 import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
@@ -61,6 +66,12 @@ class MainActivity : ComponentActivity() {
     private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
     /** When true, STT result goes to CaptureThought instead of Conversation. */
     private var speechForThoughtCapture: Boolean = false
+    /**
+     * OS-144 — voice STT launched and awaiting a result (honest stand-in for a
+     * live Discuss call until a real call FGS exists). Back must confirm/minimize.
+     */
+    private var voiceCaptureInFlight by mutableStateOf(false)
+    private var showLeaveLiveDialog by mutableStateOf(false)
 
     private val screenCaptureConsent = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -94,6 +105,15 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         val forThought = speechForThoughtCapture
         speechForThoughtCapture = false
+        val stillEngaged = voiceCaptureInFlight
+        voiceCaptureInFlight = false
+        if (!stillEngaged && !forThought) {
+            // User chose End on leave-live confirm while STT was away.
+            vm.onVoiceUnavailable(
+                "Discuss engagement ended before speech returned — use chips or mic again."
+            )
+            return@registerForActivityResult
+        }
         if (result.resultCode != Activity.RESULT_OK) {
             if (forThought) {
                 showThoughtCapture = true
@@ -238,6 +258,38 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { vm.cancelDefer() }
                             )
                         }
+                    }
+
+                    if (showLeaveLiveDialog) {
+                        LeaveLiveDiscussDialog(
+                            onMinimize = {
+                                showLeaveLiveDialog = false
+                                // Keep voiceCaptureInFlight — STT may still return.
+                                leaveConversationUi(nav)
+                            },
+                            onEnd = {
+                                showLeaveLiveDialog = false
+                                voiceCaptureInFlight = false
+                                leaveConversationUi(nav)
+                            },
+                            onDismiss = { showLeaveLiveDialog = false }
+                        )
+                    }
+
+                    val navEntry by nav.currentBackStackEntryAsState()
+                    val currentRoute = navEntry?.destination?.route
+                    val overlayOpen = showFloaterDrawer ||
+                        showThoughtCapture ||
+                        vm.deferConfirmPending ||
+                        showLeaveLiveDialog
+                    BackHandler {
+                        applyBackAction(
+                            nav = nav,
+                            route = currentRoute,
+                            canPop = nav.previousBackStackEntry != null,
+                            overlayOpen = overlayOpen,
+                            liveEngagementActive = voiceCaptureInFlight
+                        )
                     }
 
                     NavHost(navController = nav, startDestination = "home") {
@@ -469,7 +521,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onBack = {
                                     vm.clearConnectionUnlinkNote()
-                                    nav.popBackStack()
+                                    safePopOrHome(nav)
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -490,9 +542,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onCancel = {
                                     vm.cancelBuilder()
-                                    nav.popBackStack()
+                                    safePopOrHome(nav)
                                 },
-                                onBack = { nav.popBackStack() },
+                                onBack = { safePopOrHome(nav) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -510,7 +562,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onReject = { id -> vm.rejectTriageItem(id) },
                                 onClear = { vm.clearTriage() },
-                                onBack = { nav.popBackStack() },
+                                onBack = { safePopOrHome(nav) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -527,12 +579,7 @@ class MainActivity : ComponentActivity() {
                                 onMoveIntention = { id, direction ->
                                     vm.moveIntentionInDrawer(id, direction)
                                 },
-                                onBackHome = {
-                                    nav.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
-                                        launchSingleTop = true
-                                    }
-                                },
+                                onBackHome = { navigateHome(nav) },
                                 onAgent = {
                                     val route = vm.openDiscussFromHome()
                                     if (route != null) {
@@ -565,7 +612,7 @@ class MainActivity : ComponentActivity() {
                                         else -> nav.navigate("conversation")
                                     }
                                 },
-                                onBack = { nav.popBackStack() },
+                                onBack = { safePopOrHome(nav) },
                                 onMoveIntentionToTrash = { vm.softDeleteActiveIntention() },
                                 onMoveSessionToTrash = { sessionId -> vm.softDeleteSession(sessionId) },
                                 trashItems = vm.recoverableTrash(),
@@ -596,7 +643,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onDelete = { entryId -> vm.deleteTrackerEntry(entryId) },
                                 onOpenReports = { nav.navigate("reports") },
-                                onBack = { nav.popBackStack() },
+                                onBack = { safePopOrHome(nav) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -604,7 +651,7 @@ class MainActivity : ComponentActivity() {
                             ReportScreen(
                                 pathSummary = vm.pathSummary(),
                                 progressProof = vm.progressProof(),
-                                onBack = { nav.popBackStack() },
+                                onBack = { safePopOrHome(nav) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -631,7 +678,15 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 },
-                                onBack = { nav.popBackStack() },
+                                onBack = {
+                                    applyBackAction(
+                                        nav = nav,
+                                        route = BackNavigationPolicy.ROUTE_CONVERSATION,
+                                        canPop = nav.previousBackStackEntry != null,
+                                        overlayOpen = false,
+                                        liveEngagementActive = voiceCaptureInFlight
+                                    )
+                                },
                                 onOpenProposal = { nav.navigate("proposal") },
                                 hasPendingProposal = pending != null,
                                 conversationEyebrow = convProjection.conversationEyebrow,
@@ -656,18 +711,14 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onApprove = {
                                     vm.approveProposal()
-                                    nav.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
-                                    }
+                                    navigateHome(nav)
                                 },
                                 onEdit = { vm.editProposalToFriday() },
                                 onDecline = {
                                     vm.declineProposal()
-                                    nav.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
-                                    }
+                                    navigateHome(nav)
                                 },
-                                onBack = { nav.popBackStack() },
+                                onBack = { safePopOrHome(nav) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -675,6 +726,59 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** OS-144 — shared system / chrome back path. */
+    private fun applyBackAction(
+        nav: NavHostController,
+        route: String?,
+        canPop: Boolean,
+        overlayOpen: Boolean,
+        liveEngagementActive: Boolean
+    ) {
+        when (
+            BackNavigationPolicy.resolve(
+                BackNavigationPolicy.Context(
+                    route = route,
+                    canPopBackStack = canPop,
+                    overlayOpen = overlayOpen,
+                    liveEngagementActive = liveEngagementActive
+                )
+            )
+        ) {
+            BackNavigationPolicy.Action.CONSUME_STAY -> Unit
+            BackNavigationPolicy.Action.DISMISS_OVERLAY -> dismissTopOverlay()
+            BackNavigationPolicy.Action.POP_BACK_STACK -> safePopOrHome(nav)
+            BackNavigationPolicy.Action.NAVIGATE_HOME -> navigateHome(nav)
+            BackNavigationPolicy.Action.CONFIRM_LEAVE_LIVE -> showLeaveLiveDialog = true
+        }
+    }
+
+    private fun dismissTopOverlay() {
+        when {
+            showLeaveLiveDialog -> showLeaveLiveDialog = false
+            showThoughtCapture -> showThoughtCapture = false
+            showFloaterDrawer -> showFloaterDrawer = false
+            vm.deferConfirmPending -> vm.cancelDefer()
+        }
+    }
+
+    private fun navigateHome(nav: NavHostController) {
+        nav.navigate(BackNavigationPolicy.ROUTE_HOME) {
+            popUpTo(BackNavigationPolicy.ROUTE_HOME) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
+    private fun safePopOrHome(nav: NavHostController) {
+        if (!nav.popBackStack()) {
+            navigateHome(nav)
+        }
+    }
+
+    /** Leave Conversation UI without finishing the activity or killing the floater. */
+    private fun leaveConversationUi(nav: NavHostController) {
+        navigateHome(nav)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -734,10 +838,12 @@ class MainActivity : ComponentActivity() {
 
     private fun launchSpeechRecognition(prompt: String = "Speak a conversation choice") {
         try {
+            voiceCaptureInFlight = true
             speechRecognition.launch(
                 AndroidSpeechToTextAccess.listenIntent(prompt = prompt)
             )
         } catch (_: Exception) {
+            voiceCaptureInFlight = false
             if (speechForThoughtCapture) {
                 speechForThoughtCapture = false
                 showThoughtCapture = true
