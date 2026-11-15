@@ -94,8 +94,10 @@ fun SettingsScreen(
         SectionTitle("Appearance")
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "Follow system, or lock light / dark. Dark tokens invert Intent’s " +
-                "warm paper + indigo language — not a separate brand.",
+            text = "Follow system, lock light / dark, or use high-contrast tokens " +
+                "(stronger ink / paper / line contrast). High contrast still follows " +
+                "the device light/dark setting for which HC palette applies — " +
+                "not a fake checkbox over the standard theme.",
             style = MaterialTheme.typography.bodyMedium,
             color = IntentColors.Muted
         )
@@ -106,6 +108,7 @@ fun SettingsScreen(
                 ThemePreference.SYSTEM -> "System (follow device)"
                 ThemePreference.LIGHT -> "Light"
                 ThemePreference.DARK -> "Dark"
+                ThemePreference.HIGH_CONTRAST -> "High contrast (follow device light/dark)"
             }
             Spacer(modifier = Modifier.height(8.dp))
             if (selected) {
