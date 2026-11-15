@@ -149,6 +149,7 @@ class CapabilityRegistry(
     fun canDailyCheckOut(): Boolean =
         isActionable(ID_DAILY_CHECK_OUT)
 
+    /** Shape-default tracker modules + manual SAID entries in the shared store. */
     fun canUseTrackerModules(): Boolean =
         isActionable(ID_TRACKER_MODULES)
 
@@ -201,6 +202,7 @@ class CapabilityRegistry(
         const val ID_LAUNCH_INSTALLED_APP = "launch_installed_app"
         const val ID_OBSERVE_LESSON_COMPLETION = "observe_lesson_completion"
         const val ID_OBSERVE_APP_USAGE = "observe_app_usage"
+        const val ID_OBSERVE_CESSATION = "observe_cessation"
         const val ID_USAGE_STATS = "usage_stats"
         const val ID_EXTERNAL_CALENDAR = "external_calendar_sync"
         const val ID_FLOATING_OVERLAY = "floating_overlay"
@@ -307,6 +309,12 @@ class CapabilityRegistry(
                 limitNote = "Needs UsageStats; stores OBSERVED package foreground only — not lesson completion."
             ),
             CapabilityEntry(
+                id = ID_OBSERVE_CESSATION,
+                title = "Observe cessation automatically",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Smoke-free streaks and biometric cessation are not observed. Use honest self-report tracker entries (SAID) only."
+            ),
+            CapabilityEntry(
                 id = ID_USAGE_STATS,
                 title = "App foreground time",
                 status = CapabilityStatus.PERMISSION_NEEDED,
@@ -407,7 +415,7 @@ class CapabilityRegistry(
                 title = "Tracker modules",
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Shape-default modules in the intention store; manual entries are SAID. " +
-                    "No partner autofill or fabricated streak charts."
+                    "No partner autofill, fabricated streak charts, or automatic smoke-free claims."
             ),
             CapabilityEntry(
                 id = ID_PROGRESS_REPORTS,

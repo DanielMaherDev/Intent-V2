@@ -23,6 +23,7 @@ import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ProvenanceKind
+import com.intent.launcher.domain.QuitSmokingScenario
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
@@ -814,6 +815,7 @@ class LauncherViewModel(
             "business" -> BusinessScenario.conversationChips(capabilityRegistry)
             "move" -> MoveScenario.conversationChips(capabilityRegistry)
             "decision" -> JobOfferScenario.conversationChips(capabilityRegistry)
+            QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(capabilityRegistry)
             else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
@@ -874,6 +876,11 @@ class LauncherViewModel(
         refresh()
     }
 
+    fun startQuitSmokingExploration() {
+        QuitSmokingScenario.ensureSeeded(store)
+        refresh()
+    }
+
     fun activateSpanish() {
         SpanishScenario.ensureSeeded(store)
         store.apply(
@@ -892,6 +899,7 @@ class LauncherViewModel(
             BusinessScenario.PROPOSAL_ID -> BusinessScenario.SESSION_ID
             MoveScenario.PROPOSAL_ID -> MoveScenario.SESSION_ID
             JobOfferScenario.PROPOSAL_ID -> JobOfferScenario.SESSION_ID
+            QuitSmokingScenario.PROPOSAL_ID -> QuitSmokingScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
@@ -923,6 +931,7 @@ class LauncherViewModel(
             BusinessScenario.PROPOSAL_ID -> 12
             MoveScenario.PROPOSAL_ID -> 10
             JobOfferScenario.PROPOSAL_ID -> 18
+            QuitSmokingScenario.PROPOSAL_ID -> 20
             else -> 18
         }
         store.apply(

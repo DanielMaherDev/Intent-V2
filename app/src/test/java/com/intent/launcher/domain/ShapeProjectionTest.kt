@@ -66,6 +66,15 @@ class ShapeProjectionTest {
         assertEquals("Move plan · landlord steps gated", move.homeSpaceSubtitle)
         assertEquals("A conversation about your move", move.conversationEyebrow)
         assertTrue(move.approachSteps.isEmpty())
+
+        QuitSmokingScenario.seed(store, now + 4)
+        val cessation = ShapeProjection.project(
+            store.snapshot().intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }
+        )
+        assertEquals("What is your baseline?", cessation.hero.heroTitle)
+        assertTrue(cessation.emptyNote!!.contains("No quit date"))
+        assertEquals("Baseline and support still open", cessation.homeSpaceSubtitle)
+        assertEquals("A conversation about quitting smoking", cessation.conversationEyebrow)
     }
 
     @Test

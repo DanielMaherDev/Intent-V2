@@ -139,6 +139,7 @@ data class Evidence(
 /**
  * Manual or observed tracker row for an intention module.
  * Lives in the same intention store — not a separate progress database.
+ * Provenance must stay explicit — never silent mix or invented completion charts.
  */
 data class TrackerEntry(
     val id: String,
@@ -264,7 +265,7 @@ data class Intention(
     val phase: IntentionPhase,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    val shapeTag: String // language | marathon | business | move | decision | other
+    val shapeTag: String // language | marathon | business | move | decision | cessation | other
 )
 
 /**
