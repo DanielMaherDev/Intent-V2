@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.27**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.26**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.27**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.24.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.26.apk`
 
 ## Scope
 
@@ -39,6 +39,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.23:** Floater / Home quick thought capture — `FlowCommand.CaptureThought`, SAID provenance, no LLM summary
 - **v0.0.24:** Undo last reversible FlowCommand via transaction history; soft-delete intentions/sessions to recoverable trash with restore; honest irreversible notes for external opens / purge
 - **v0.0.27:** Stage 4 deferral deadline preview — Later shows window + siblings; confirm before defer
+- **v0.0.26:** OBSERVED provenance — UsageStats package foreground stored as `Evidence` distinct from SAID/INFERRED; SessionCard / check-out surface; never auto-Complete or lesson claims
 
 ## Shapes
 
@@ -76,6 +77,10 @@ Shapes with a destination package (Spanish → Duolingo / `com.duolingo`) launch
 
 `UsageStatsProbe` refreshes `usage_stats` in the capability registry from a live AppOps check. On an active SessionCard with a destination package, INTENT shows package-level foreground time when granted, or an honest “Grant usage access” path when not — **never** auto-complete or lesson claims.
 
+## OBSERVED provenance (v0.0.26)
+
+When UsageStats is granted, package foreground for the active session is persisted via `FlowCommand.RecordObservedEvidence` as **OBSERVED** evidence (`observe_app_usage`). SessionCard and post-Complete check-out show “Observed N min in …”; the user can mark it inaccurate. Observation never Completes the run and never claims lesson completion (`observe_lesson_completion` stays `NOT_SUPPORTED`).
+
 ## Overlay permission (Stage 6 / v0.0.15)
 
 `OverlayPermissionProbe` refreshes `floating_overlay` from `Settings.canDrawOverlays`. Home shows an honest note and **Grant overlay permission** when needed.
@@ -100,9 +105,9 @@ Home offers **Undo** for the last reversible local commitment (approve / decline
 
 Home **Later** shows a one-line `DeferralPreview` (new clock window + sibling sessions on the same intention). Confirm dialog before `FlowCommand.DeferNextSession`. Local schedule only — no invented dependency graph or calendar write-back.
 
-## Sideload packaging (v0.0.17–v0.0.27)
+## Sideload packaging (v0.0.17–v0.0.26)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.27.apk` on this branch. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.26.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -110,6 +115,6 @@ Conversation mic uses platform speech recognition when `RECORD_AUDIO` is granted
 
 ## Download
 
-Sideload APK (v0.0.27, release): [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/deferral-preview-v027-930c/artifacts/INTENT-v0.0.27.apk)
+Sideload APK (v0.0.26, release): [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/observed-provenance-v026-4030/artifacts/INTENT-v0.0.26.apk)
 
-(Prior: [INTENT-v0.0.24.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.24.apk) · [INTENT-v0.0.23.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.23.apk) · [INTENT-v0.0.22.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.22.apk) · [INTENT-v0.0.21.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.21.apk) · [INTENT-v0.0.20.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.20.apk) · [INTENT-v0.0.19-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.19-debug.apk) · [INTENT-v0.0.18-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.18-debug.apk) · [INTENT-v0.0.17-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.17-debug.apk) · [INTENT-v0.0.16-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.16-debug.apk) · [INTENT-v0.0.15-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.15-debug.apk) · [INTENT-v0.0.14-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.14-debug.apk) · [INTENT-v0.0.13-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.13-debug.apk) · [INTENT-v0.0.12-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.12-debug.apk) · [INTENT-v0.0.11-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.11-debug.apk) · [INTENT-v0.0.10-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.10-debug.apk) · [INTENT-v0.0.09-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.09-debug.apk) · [INTENT-v0.0.08-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.08-debug.apk) · [INTENT-v0.0.07-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.07-debug.apk) · [INTENT-v0.0.06-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.06-debug.apk) · [INTENT-v0.0.05-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.05-debug.apk) · [INTENT-v0.0.04-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.04-debug.apk) · [INTENT-v0.0.03-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.03-debug.apk) · [INTENT-v0.0.02-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.02-debug.apk) · [INTENT-v0.0.01-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk))
+(Prior: [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.24.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.24.apk) · [INTENT-v0.0.23.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.23.apk) · [INTENT-v0.0.22.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.22.apk))

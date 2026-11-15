@@ -16,10 +16,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.domain.Evidence
+import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
@@ -43,6 +46,7 @@ fun IntentionSpaceScreen(
     facts: List<Fact>,
     hypotheses: List<Hypothesis>,
     sessions: List<ScheduledSession>,
+    evidence: List<Evidence> = emptyList(),
     onWorkThisOut: () -> Unit,
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
@@ -151,7 +155,7 @@ fun IntentionSpaceScreen(
                 .background(IntentColors.Card, RoundedCornerShape(20.dp))
                 .padding(horizontal = 14.dp, vertical = 4.dp)
         ) {
-            if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty()) {
+            if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty() && evidence.isEmpty()) {
                 projection.defaultFacts.forEach { FactRow(text = it) }
             } else {
                 facts.forEach { f ->
@@ -160,6 +164,14 @@ fun IntentionSpaceScreen(
                 hypotheses.forEach { h ->
                     FactRow(text = "Inferred · ${h.text}")
                 }
+                evidence
+                    .filter {
+                        it.accuracy == EvidenceAccuracy.ACTIVE &&
+                            it.provenance.kind == ProvenanceKind.OBSERVED
+                    }
+                    .forEach { e ->
+                        FactRow(text = "Observed · ${e.summaryText}")
+                    }
                 sessions.forEach { s ->
                     val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
                     FactRow(text = "${s.title} · $whenLabel")

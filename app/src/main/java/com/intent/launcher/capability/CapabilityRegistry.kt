@@ -87,6 +87,13 @@ class CapabilityRegistry(
         isActionable(ID_USAGE_STATS)
 
     /**
+     * True when package foreground may be stored as OBSERVED evidence.
+     * Never implies lesson completion ([ID_OBSERVE_LESSON_COMPLETION] stays unsupported).
+     */
+    fun canObserveAppUsage(): Boolean =
+        isActionable(ID_OBSERVE_APP_USAGE)
+
+    /**
      * True when overlay permission is granted.
      * Does not mean a floating agent is shipped — check limit notes.
      */
@@ -130,6 +137,7 @@ class CapabilityRegistry(
         const val ID_DISCUSS = "discuss"
         const val ID_LAUNCH_INSTALLED_APP = "launch_installed_app"
         const val ID_OBSERVE_LESSON_COMPLETION = "observe_lesson_completion"
+        const val ID_OBSERVE_APP_USAGE = "observe_app_usage"
         const val ID_USAGE_STATS = "usage_stats"
         const val ID_EXTERNAL_CALENDAR = "external_calendar_sync"
         const val ID_FLOATING_OVERLAY = "floating_overlay"
@@ -216,6 +224,12 @@ class CapabilityRegistry(
                 title = "Observe lesson completion",
                 status = CapabilityStatus.NOT_SUPPORTED,
                 limitNote = "Opening a learning app is observable; lesson completion is not unless a reliable source provides it."
+            ),
+            CapabilityEntry(
+                id = ID_OBSERVE_APP_USAGE,
+                title = "Observe app usage",
+                status = CapabilityStatus.PERMISSION_NEEDED,
+                limitNote = "Needs UsageStats; stores OBSERVED package foreground only — not lesson completion."
             ),
             CapabilityEntry(
                 id = ID_USAGE_STATS,

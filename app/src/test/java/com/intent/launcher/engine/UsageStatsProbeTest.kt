@@ -62,6 +62,7 @@ class UsageStatsProbeTest {
             registry.get(CapabilityRegistry.ID_USAGE_STATS)!!.limitNote
                 .contains("not lesson", ignoreCase = true)
         )
+        assertTrue(registry.canObserveAppUsage())
         // Lesson completion stays unsupported
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
     }

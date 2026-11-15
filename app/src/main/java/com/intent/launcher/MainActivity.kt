@@ -208,6 +208,11 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 },
+                                observedEvidenceNote = vm.observedEvidenceNote(),
+                                showDismissObserved = vm.observedEvidence != null,
+                                onDismissObserved = { vm.dismissObservedEvidence() },
+                                checkoutObservationNote = vm.checkoutObservationNote,
+                                onClearCheckoutNote = { vm.clearCheckoutObservationNote() },
                                 notificationNote = vm.notificationObservation?.note,
                                 showGrantNotificationAccess =
                                     vm.notificationObservation?.canOpenSettings == true,
@@ -274,6 +279,9 @@ class MainActivity : ComponentActivity() {
                                 facts = vm.snapshot.facts.filter { it.intentionId == active?.id },
                                 hypotheses = vm.snapshot.hypotheses.filter { it.intentionId == active?.id },
                                 sessions = vm.snapshot.sessions.filter { it.intentionId == active?.id },
+                                evidence = vm.snapshot.evidence.filter {
+                                    it.intentionId == active?.id
+                                },
                                 onWorkThisOut = {
                                     when (active?.phase) {
                                         IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
