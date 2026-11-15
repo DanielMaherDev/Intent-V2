@@ -133,6 +133,7 @@ fun HomeScreen(
     onExploreJobOffer: (() -> Unit)? = null,
     onExploreQuitSmoking: (() -> Unit)? = null,
     onExploreAppUse: (() -> Unit)? = null,
+    onExploreEuWorkSpain: (() -> Unit)? = null,
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
@@ -394,6 +395,15 @@ fun HomeScreen(
                     title = "Cut Instagram & Shorts time",
                     subtitle = "CASE-06 — 45-min target; package ≠ Shorts identity",
                     onClick = onExploreAppUse,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onExploreEuWorkSpain != null) {
+                LineRow(
+                    title = "Work legally in Spain",
+                    subtitle = "Research checklist — SAID facts, no invented law",
+                    onClick = onExploreEuWorkSpain,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
                 )

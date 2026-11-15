@@ -1,5 +1,5 @@
 package com.intent.launcher.domain
-
+import com.intent.launcher.domain.JobOfferScenario
 import com.intent.launcher.store.IntentionFlowStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,6 +10,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+
 
 /**
  * Stage 5 — shape-aware Intention / Home / Conversation projections
@@ -83,6 +84,14 @@ class ShapeProjectionTest {
         assertTrue(appUse.emptyNote!!.contains("Shorts", ignoreCase = true))
         assertEquals("Usage target still taking shape", appUse.homeSpaceSubtitle)
         assertEquals("A conversation about your usage target", appUse.conversationEyebrow)
+        EuWorkSpainScenario.seed(store, now + 6)
+        val research = ShapeProjection.project(
+            store.snapshot().intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }
+        )
+        assertEquals("What must we confirm first?", research.hero.heroTitle)
+        assertTrue(research.emptyNote!!.contains("No legal requirements have been invented"))
+        assertEquals("Clarifying facts before research", research.homeSpaceSubtitle)
+        assertEquals("A conversation about working legally in Spain", research.conversationEyebrow)
     }
 
     @Test
@@ -134,6 +143,25 @@ class ShapeProjectionTest {
             projection.resourceLine!!.contains("package", ignoreCase = true))
         assertEquals("Daily usage target in motion", projection.homeSpaceSubtitle)
         assertEquals("Prepare your next usage review", projection.hero.heroTitle)
+    fun activeResearch_showsChecklistHonesty_withoutInventedLaw() {
+        EuWorkSpainScenario.seed(store, now)
+        EuWorkSpainScenario.onChip(store, "I am an EU citizen", now + 1)
+        EuWorkSpainScenario.onChip(store, "I already live in Spain", now + 2)
+        EuWorkSpainScenario.onChip(store, "I plan to work for more than three months", now + 3)
+        EuWorkSpainScenario.onChip(store, "I have not gathered documents yet", now + 4)
+        EuWorkSpainScenario.onChip(store, "Build a sourced research checklist", now + 5)
+        EuWorkSpainScenario.approve(store, now + 6)
+
+        val intention = store.snapshot().intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }
+        val sessions = store.snapshot().sessions.filter { it.intentionId == intention.id }
+        val projection = ShapeProjection.project(intention, sessions = sessions)
+
+        assertEquals("Your research checklist", projection.approachSectionTitle)
+        assertTrue(projection.approachSteps.first().title.contains("checklist", ignoreCase = true))
+        assertTrue(projection.resourceLine.orEmpty().contains("official", ignoreCase = true))
+        assertTrue(projection.resourceLine.orEmpty().contains("not legal advice", ignoreCase = true))
+        assertEquals("Prepare your next checklist review", projection.hero.heroTitle)
+        assertEquals("Checklist research in motion", projection.homeSpaceSubtitle)
     }
 
     @Test
@@ -261,6 +289,20 @@ class ShapeProjectionTest {
         )
         assertTrue(appUseFacts.defaultFacts.any { it.contains("45") })
         assertTrue(appUseFacts.defaultFacts.any { it.contains("Shorts", ignoreCase = true) })
+        val researchFacts = ShapeProjection.project(
+            Intention(
+                id = "r",
+                title = "T",
+                statement = "S",
+                phase = IntentionPhase.EXPLORING,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+                shapeTag = "research"
+            )
+        )
+        assertTrue(researchFacts.defaultFacts.any { it.contains("work legally", ignoreCase = true) })
+        assertTrue(researchFacts.defaultFacts.any { it.contains("EU citizen", ignoreCase = true) })
+        assertTrue(researchFacts.defaultFacts.any { it.contains("invented law", ignoreCase = true) })
     }
 
     @Test

@@ -77,6 +77,7 @@ object ShapeProjection {
                 "decision" -> "Comparing — no choice made yet"
                 "cessation" -> "Baseline and support still open"
                 "app_use" -> "Usage target still taking shape"
+                "research" -> "Clarifying facts before research"
                 else -> "Open your intention"
             }
             IntentionPhase.PROPOSAL_PENDING -> when (shapeTag) {
@@ -86,6 +87,7 @@ object ShapeProjection {
                 "decision" -> "A decision-review block is pending"
                 "cessation" -> "An evening check-in is pending"
                 "app_use" -> "A usage review is pending"
+                "research" -> "A sourced checklist is pending"
                 else -> "Your approach is taking shape"
             }
             IntentionPhase.ACTIVE -> when (shapeTag) {
@@ -95,6 +97,7 @@ object ShapeProjection {
                 "decision" -> "Decision support in motion"
                 "cessation" -> "Self-report check-in in motion"
                 "app_use" -> "Daily usage target in motion"
+                "research" -> "Checklist research in motion"
                 else -> "Speaking practice in motion"
             }
             IntentionPhase.PAUSED -> "Paused — facts kept"
@@ -110,6 +113,7 @@ object ShapeProjection {
             phase == IntentionPhase.CLARIFYING && shapeTag == "decision" -> "Your comparison matrix"
             phase == IntentionPhase.ACTIVE && shapeTag == "cessation" -> "Baseline and reports"
             phase == IntentionPhase.ACTIVE && shapeTag == "app_use" -> "Usage facts"
+            phase == IntentionPhase.ACTIVE && shapeTag == "research" -> "Confirmed facts"
             phase == IntentionPhase.ACTIVE -> "What we know"
             else -> "What we know"
         }
@@ -122,6 +126,7 @@ object ShapeProjection {
             "decision" -> "Your decision support"
             "cessation" -> "Your first-phase support"
             "app_use" -> "Your usage approach"
+            "research" -> "Your research checklist"
             else -> "Your approach"
         }
 
@@ -140,6 +145,8 @@ object ShapeProjection {
                 "No quit date or smoke-free streak has been invented. Baseline and self-report come first."
             "app_use" ->
                 "No blocking or auto-cap has been invented. Package time is a proxy — not Shorts or Reels identity."
+            "research" ->
+                "No legal requirements have been invented. Confirm citizenship, arrangement, duration, and documents first — then a sourced checklist of research questions."
             else ->
                 "No tasks have been invented. This intention stays open while you decide on an approach."
         }
@@ -161,6 +168,9 @@ object ShapeProjection {
             "app_use" -> listOf(
                 "Goal · Instagram & YouTube under 45 min/day",
                 "Limit · package foreground ≠ Shorts/Reels"
+            "research" -> listOf(
+                "Goal · work legally in Spain",
+                "Honesty · official sources only — no invented law text"
             )
             else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
         }
@@ -189,6 +199,8 @@ object ShapeProjection {
             "cessation" -> "Measures · SAID self-report only — no biometric or automatic smoke-free streak."
             "app_use" ->
                 "Destination · Instagram / YouTube — package foreground only; not Shorts/Reels identity."
+            "research" ->
+                "Destination · official Spanish / EU portals — record source URL + retrieval date; not legal advice."
             else -> null
         }
     }
@@ -262,6 +274,22 @@ object ShapeProjection {
                     title = "Compare package time to 45 min",
                     detail = "Instagram/YouTube foreground only — not Shorts or Reels identity. " +
                         "Complete stays your report.",
+                    muted = true
+                )
+            )
+            "research" -> listOf(
+                ApproachStep(
+                    title = session?.title ?: "Sourced checklist review",
+                    detail = (whenLabel?.let { "$it · approved" } ?: "Approved checklist block")
+                ),
+                ApproachStep(
+                    title = "Research questions (not answers)",
+                    detail = EuWorkSpainScenario.CHECKLIST_RESEARCH_QUESTIONS.first(),
+                    muted = true
+                ),
+                ApproachStep(
+                    title = "Honesty limit",
+                    detail = "No invented statutes. Live web research not shipped — verify on official portals yourself.",
                     muted = true
                 )
             )
@@ -359,6 +387,7 @@ object ShapeProjection {
                     "decision" -> "What will you weigh?"
                     "cessation" -> "What is your baseline?"
                     "app_use" -> "How will you hold the cap?"
+                    "research" -> "What must we confirm first?"
                     else -> "How will you practise?"
                 },
                 heroBody = when (shapeTag) {
@@ -375,6 +404,8 @@ object ShapeProjection {
                     "app_use" ->
                         "We can set a 45-minute daily target and review Instagram/YouTube package time — " +
                             "not Shorts or Reels identity."
+                    "research" ->
+                        "Citizenship, arrangement, duration, and documents — SAID facts only. No invented legal requirements."
                     else ->
                         "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
                 },
@@ -391,6 +422,7 @@ object ShapeProjection {
                     "decision" -> "Add a decision-review block?"
                     "cessation" -> "Add an evening check-in?"
                     "app_use" -> "Add an evening usage review?"
+                    "research" -> "Add a sourced checklist review?"
                     else -> "Add your session?"
                 },
                 heroBody = when (shapeTag) {
@@ -413,6 +445,7 @@ object ShapeProjection {
                     "decision" -> "Prepare your decision review"
                     "cessation" -> "Prepare your evening check-in"
                     "app_use" -> "Prepare your next usage review"
+                    "research" -> "Prepare your next checklist review"
                     else -> "Prepare for your next session"
                 },
                 heroBody = when (shapeTag) {
@@ -425,6 +458,8 @@ object ShapeProjection {
                     "cessation" -> "Log cigarettes and cravings honestly — no invented smoke-free streak."
                     "app_use" ->
                         "Compare package foreground to your 45-min target — never auto-Complete from UsageStats."
+                    "research" ->
+                        "Pick one research question and verify it on an official portal — record source + date."
                     else -> "Bring one situation you want to rehearse."
                 },
                 heroCta = "Begin preparation",
@@ -449,6 +484,7 @@ object ShapeProjection {
                 "decision" -> "Contextual conversation · decision support"
                 "cessation" -> "Contextual conversation · cessation support"
                 "app_use" -> "Contextual conversation · usage"
+                "research" -> "Contextual conversation · research checklist"
                 else -> "Contextual conversation"
             }
             IntentionPhase.PROPOSAL_PENDING -> "Your ongoing conversation"
@@ -459,6 +495,7 @@ object ShapeProjection {
                 "decision" -> "A conversation about your offer"
                 "cessation" -> "A conversation about quitting smoking"
                 "app_use" -> "A conversation about your usage target"
+                "research" -> "A conversation about working legally in Spain"
                 else -> "A conversation about your goal"
             }
         }
@@ -472,6 +509,7 @@ object ShapeProjection {
                 "decision" -> "Your decision review"
                 "cessation" -> "Your evening check-in"
                 "app_use" -> "Your next usage review"
+                "research" -> "Your next checklist review"
                 else -> "Your next session"
             }
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"

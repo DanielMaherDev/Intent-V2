@@ -230,6 +230,7 @@ class CapabilityRegistry(
         const val ID_PARTNER_STRAVA = "partner_strava"
         const val ID_LIVE_LLM = "live_llm"
         const val ID_QUICK_TODO = "quick_todo"
+        const val ID_WEB_RESEARCH = "web_research"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -483,6 +484,11 @@ class CapabilityRegistry(
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Lightweight errand inbox with optional reminder — " +
                     "does not create an exploring Intention (CASE-01 / OS-073)."
+                id = ID_WEB_RESEARCH,
+                title = "Live web research",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Live web research with source links and retrieval dates is not shipped. " +
+                    "Checklist items stay research questions — never invented statutes or legal advice."
             )
         )
 
