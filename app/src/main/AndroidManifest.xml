@@ -63,7 +63,7 @@
         </service>
         <!--
           Required for Settings → Notification access to list this package.
-          Service is a no-op listener in v0.0.22 (no content retention).
+          Records package+category counts during a session window only — no title/body retention.
         -->
         <service
             android:name=".platform.IntentNotificationListenerService"

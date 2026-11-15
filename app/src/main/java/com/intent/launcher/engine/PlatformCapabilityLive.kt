@@ -20,13 +20,13 @@ object PlatformCapabilityLive {
             speech = speech,
             base = withOverlay.all()
         )
-        val withNotifications = NotificationListenerProbe.liveRegistry(
+        val withReview = SessionNotificationReviewProbe.liveRegistry(
             access = notifications,
             base = withVoice.all()
         )
         val withQuiet = QuietModeProbe.liveRegistry(
             access = quietMode,
-            base = withNotifications.all()
+            base = withReview.all()
         )
         return ScreenCaptureProbe.liveRegistry(
             access = screenCapture,

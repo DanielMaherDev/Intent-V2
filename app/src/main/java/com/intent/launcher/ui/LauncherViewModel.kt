@@ -38,6 +38,7 @@ import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.NotificationListenerProbe
 import com.intent.launcher.engine.ObservedProvenance
+import com.intent.launcher.engine.NotificationPackageTally
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PathSummary
@@ -47,6 +48,8 @@ import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.ScreenCaptureAccess
 import com.intent.launcher.engine.ScreenCaptureProbe
+import com.intent.launcher.engine.SessionNotificationReviewProbe
+import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.UsageStatsProbe
@@ -71,6 +74,8 @@ class LauncherViewModel(
         IntentApp.instance.quietModeAccess,
     private val screenCaptureAccess: ScreenCaptureAccess =
         IntentApp.instance.screenCaptureAccess,
+    private val sessionNotificationReviewStore: SessionNotificationReviewStore =
+        IntentApp.instance.sessionNotificationReviewStore,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
@@ -88,6 +93,10 @@ class LauncherViewModel(
 
     /** Local UI flag — user asked for quiet; never implies silence applied. */
     private var quietRequestedForActiveSession: Boolean = false
+
+    /** Last ended session run id kept for post-session package-count review. */
+    private var lastReviewSessionRunId: String? =
+        sessionNotificationReviewStore.activeWindow()?.sessionRunId
 
     var snapshot by mutableStateOf(store.snapshot())
         private set
@@ -168,6 +177,12 @@ class LauncherViewModel(
     var quietObservation by mutableStateOf<QuietModeProbe.Observation?>(null)
         private set
 
+    /** Privacy-safe package counts for the active / last session (no titles/bodies). */
+    var sessionNotificationObservation by mutableStateOf(
+        observeSessionNotifications()
+    )
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
@@ -177,6 +192,7 @@ class LauncherViewModel(
         floatingPresence = resolveFloatingPresence()
         deferPreview = resolveDeferPreview()
         quietObservation = observeQuietIfActive()
+        sessionNotificationObservation = observeSessionNotifications()
     }
 
     fun lastUndoableTransaction(): FlowTransaction? =
@@ -215,6 +231,7 @@ class LauncherViewModel(
         deferPreview = resolveDeferPreview()
         if (deferPreview == null) deferConfirmPending = false
         quietObservation = observeQuietIfActive()
+        sessionNotificationObservation = observeSessionNotifications()
     }
 
     /**
@@ -247,6 +264,32 @@ class LauncherViewModel(
             quietRequested = true,
             registry = capabilityRegistry
         )
+    }
+
+    private fun observeSessionNotifications(): SessionNotificationReviewProbe.Observation {
+        val runId = when {
+            nextAction.kind == NextActionKind.ACTIVE_SESSION -> nextAction.sessionRunId
+            else -> lastReviewSessionRunId
+                ?: sessionNotificationReviewStore.activeWindow()?.sessionRunId
+        }
+        return SessionNotificationReviewProbe.observe(
+            access = notificationListenerAccess,
+            store = sessionNotificationReviewStore,
+            registry = capabilityRegistry,
+            sessionRunId = runId
+        )
+    }
+
+    fun sessionNotificationRows(): List<NotificationPackageTally> =
+        sessionNotificationObservation.rows
+
+    fun dismissSessionNotificationRow(packageName: String, coarseCategory: String) {
+        val runId = lastReviewSessionRunId
+            ?: sessionNotificationReviewStore.activeWindow()?.sessionRunId
+            ?: nextAction.sessionRunId
+            ?: return
+        sessionNotificationReviewStore.dismiss(packageName, coarseCategory, runId)
+        sessionNotificationObservation = observeSessionNotifications()
     }
 
     /** True when mic may start platform speech recognition. */
@@ -589,13 +632,16 @@ class LauncherViewModel(
         }
         if (alreadyActive) return false
         val now = System.currentTimeMillis()
+        val runId = "run-$id-$now"
         store.apply(
             FlowCommand.BeginSession(
-                runId = "run-$id-$now",
+                runId = runId,
                 sessionId = id,
                 nowEpochMs = now
             )
         )
+        sessionNotificationReviewStore.beginWindow(runId, now)
+        lastReviewSessionRunId = runId
         refresh()
         val started = snapshot.sessionRuns.any {
             it.sessionId == id && it.status == SessionRunStatus.IN_PROGRESS
@@ -774,6 +820,9 @@ class LauncherViewModel(
             )
         )
         checkoutObservationNote = recorded?.let { ObservedProvenance.checkoutNote(it) }
+        // End tally window — review rows remain; never auto-Complete from counts.
+        sessionNotificationReviewStore.endWindow(now)
+        lastReviewSessionRunId = runId
         destinationLaunchNote = null
         refresh()
         return true
@@ -786,12 +835,15 @@ class LauncherViewModel(
                 it.intentionId == activeIntention()?.id && it.status == SessionRunStatus.IN_PROGRESS
             }?.id
             ?: return false
+        val now = System.currentTimeMillis()
         store.apply(
             FlowCommand.AbandonSessionRun(
                 runId = runId,
-                nowEpochMs = System.currentTimeMillis()
+                nowEpochMs = now
             )
         )
+        sessionNotificationReviewStore.endWindow(now)
+        lastReviewSessionRunId = runId
         destinationLaunchNote = null
         refresh()
         return true

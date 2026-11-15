@@ -93,6 +93,8 @@ fun HomeScreen(
     screenCaptureNote: String? = null,
     showCaptureScreen: Boolean = false,
     onCaptureScreen: () -> Unit = {},
+    sessionNotificationRows: List<Pair<String, String>> = emptyList(),
+    onDismissNotificationRow: ((String, String) -> Unit)? = null,
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
@@ -182,7 +184,9 @@ fun HomeScreen(
                     onOpenDndSettings = onOpenDndSettings,
                     screenCaptureNote = screenCaptureNote,
                     showCaptureScreen = showCaptureScreen,
-                    onCaptureScreen = onCaptureScreen
+                    onCaptureScreen = onCaptureScreen,
+                    sessionNotificationRows = sessionNotificationRows,
+                    onDismissNotificationRow = onDismissNotificationRow
                 )
             } else {
                 val cardTitle = when (nextAction.kind) {
@@ -438,6 +442,38 @@ fun HomeScreen(
                     color = IntentColors.Warm
                 )
             }
+
+            if (nextAction.kind != NextActionKind.ACTIVE_SESSION &&
+                sessionNotificationRows.isNotEmpty()
+            ) {
+                Spacer(modifier = Modifier.height(26.dp))
+                SectionTitle("Session notifications")
+                Spacer(modifier = Modifier.height(9.dp))
+                if (notificationNote != null) {
+                    Text(
+                        text = notificationNote,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+                sessionNotificationRows.forEach { (label, key) ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    if (onDismissNotificationRow != null) {
+                        val parts = key.split("|", limit = 2)
+                        if (parts.size == 2) {
+                            IntentQuietButton(
+                                text = "Dismiss",
+                                onClick = { onDismissNotificationRow(parts[0], parts[1]) }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         HomeBottomNav(
@@ -560,7 +596,9 @@ private fun ActiveSessionCard(
     onOpenDndSettings: () -> Unit = {},
     screenCaptureNote: String? = null,
     showCaptureScreen: Boolean = false,
-    onCaptureScreen: () -> Unit = {}
+    onCaptureScreen: () -> Unit = {},
+    sessionNotificationRows: List<Pair<String, String>> = emptyList(),
+    onDismissNotificationRow: ((String, String) -> Unit)? = null
 ) {
     val startedAt = nextAction.startedAtEpochMs
     var nowEpochMs by remember(startedAt) {
@@ -729,6 +767,23 @@ private fun ActiveSessionCard(
                 text = "Capture screen",
                 onClick = onCaptureScreen
             )
+        }
+        sessionNotificationRows.forEach { (label, key) ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink
+            )
+            if (onDismissNotificationRow != null) {
+                val parts = key.split("|", limit = 2)
+                if (parts.size == 2) {
+                    IntentQuietButton(
+                        text = "Dismiss",
+                        onClick = { onDismissNotificationRow(parts[0], parts[1]) }
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(15.dp))
         if (nextAction.openDestinationLabel != null) {

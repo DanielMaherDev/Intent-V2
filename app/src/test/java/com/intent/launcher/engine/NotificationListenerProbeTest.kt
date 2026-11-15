@@ -46,7 +46,7 @@ class NotificationListenerProbeTest {
                 .contains("not built yet", ignoreCase = true)
         )
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
-        // v0.0.29: screen capture is consent-at-ask (PERMISSION_NEEDED), not NOT_SUPPORTED.
+        // Post-#31: default screen_capture is consent-at-ask (PERMISSION_NEEDED).
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
     }

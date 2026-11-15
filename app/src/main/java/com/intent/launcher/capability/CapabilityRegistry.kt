@@ -150,6 +150,10 @@ class CapabilityRegistry(
     fun canViewProgressReports(): Boolean =
         isActionable(ID_PROGRESS_REPORTS)
 
+    /** Package-count review for the session window (no titles/bodies). */
+    fun canReviewSessionNotifications(): Boolean =
+        isActionable(ID_SESSION_NOTIFICATION_REVIEW)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -169,6 +173,7 @@ class CapabilityRegistry(
         const val ID_FLOATING_OVERLAY = "floating_overlay"
         const val ID_VOICE_INPUT = "voice_input"
         const val ID_NOTIFICATION_LISTENER = "notification_listener"
+        const val ID_SESSION_NOTIFICATION_REVIEW = "session_notification_review"
         const val ID_QUIET_MODE = "quiet_mode"
         const val ID_SCREEN_CAPTURE = "screen_capture"
         const val ID_UNDO_LAST = "undo_last"
@@ -294,6 +299,13 @@ class CapabilityRegistry(
                 limitNote = "Needs Notification access for permitted summaries. " +
                     "Does not silence notifications or prove lesson completion — " +
                     "Complete remains your report."
+            ),
+            CapabilityEntry(
+                id = ID_SESSION_NOTIFICATION_REVIEW,
+                title = "Session notification review",
+                status = CapabilityStatus.PERMISSION_NEEDED,
+                limitNote = "Needs Notification access for package counts during a session. " +
+                    "Does not store titles/bodies, silence apps, or mark sessions complete."
             ),
             CapabilityEntry(
                 id = ID_QUIET_MODE,

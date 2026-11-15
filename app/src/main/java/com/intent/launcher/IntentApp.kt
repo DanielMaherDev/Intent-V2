@@ -7,6 +7,7 @@ import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.ScreenCaptureAccess
+import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.VoicePermissionAccess
@@ -49,6 +50,9 @@ class IntentApp : Application() {
     lateinit var screenCaptureAccess: ScreenCaptureAccess
         private set
 
+    lateinit var sessionNotificationReviewStore: SessionNotificationReviewStore
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -62,6 +66,9 @@ class IntentApp : Application() {
         notificationListenerAccess = AndroidNotificationListenerAccess(this)
         quietModeAccess = AndroidQuietModeAccess(this)
         screenCaptureAccess = AndroidScreenCaptureAccess(this)
+        sessionNotificationReviewStore = SessionNotificationReviewStore(
+            File(filesDir, "session_notification_review.json")
+        )
         SpanishScenario.ensureSeeded(store)
     }
 
