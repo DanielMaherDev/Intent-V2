@@ -124,6 +124,7 @@ fun HomeScreen(
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     onExploreMove: (() -> Unit)? = null,
+    onExploreJobOffer: (() -> Unit)? = null,
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
@@ -308,6 +309,15 @@ fun HomeScreen(
                     title = "Plan a six-week move",
                     subtitle = "Finite plan — landlord steps stay gated",
                     onClick = onExploreMove,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onExploreJobOffer != null) {
+                LineRow(
+                    title = "Decide on a job offer",
+                    subtitle = "Comparison support — INTENT does not choose for you",
+                    onClick = onExploreJobOffer,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
                 )

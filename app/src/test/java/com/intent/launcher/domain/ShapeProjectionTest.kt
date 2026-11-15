@@ -85,6 +85,15 @@ class ShapeProjectionTest {
         assertTrue(projection.approachSteps[3].muted)
         assertTrue(projection.approachSteps[4].muted)
         assertTrue(projection.approachSteps[2].detail.contains("Gated", ignoreCase = true))
+        JobOfferScenario.seed(store, now + 3)
+        val decision = ShapeProjection.project(
+            store.snapshot().intentions.first { it.id == JobOfferScenario.INTENTION_ID }
+        )
+        assertEquals("What will you weigh?", decision.hero.heroTitle)
+        assertTrue(decision.emptyNote!!.contains("No accept/decline"))
+        assertEquals("Comparing — no choice made yet", decision.homeSpaceSubtitle)
+        assertEquals("A conversation about your offer", decision.conversationEyebrow)
+        assertTrue(decision.conversationHeadline.contains("will not choose", ignoreCase = true))
     }
 
     @Test
@@ -173,7 +182,7 @@ class ShapeProjectionTest {
 
         val move = ShapeProjection.project(
             Intention(
-                id = "z",
+                id = "z-move",
                 title = "T",
                 statement = "S",
                 phase = IntentionPhase.EXPLORING,
@@ -184,5 +193,36 @@ class ShapeProjectionTest {
         )
         assertTrue(move.defaultFacts.any { it.contains("Valencia", ignoreCase = true) })
         assertTrue(move.defaultFacts.any { it.contains("six weeks", ignoreCase = true) })
+
+        val decision = ShapeProjection.project(
+            Intention(
+                id = "z-decision",
+                title = "T",
+                statement = "S",
+                phase = IntentionPhase.EXPLORING,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+                shapeTag = "decision"
+            )
+        )
+        assertTrue(decision.defaultFacts.any { it.contains("job offer", ignoreCase = true) })
+        assertTrue(decision.defaultFacts.any { it.contains("does not choose", ignoreCase = true) })
+    }
+
+    @Test
+    fun activeDecision_showsReviewApproach_withoutAcceptDecline() {
+        JobOfferScenario.seed(store, now)
+        JobOfferScenario.onChip(store, "Schedule a decision review before the deadline", now + 1)
+        JobOfferScenario.approve(store, now + 2)
+        val intention = store.snapshot().intentions.first { it.id == JobOfferScenario.INTENTION_ID }
+        val sessions = store.snapshot().sessions.filter { it.intentionId == intention.id }
+        val projection = ShapeProjection.project(intention, sessions = sessions)
+
+        assertEquals("Your decision support", projection.approachSectionTitle)
+        assertTrue(projection.approachSteps.first().title.contains("Decision review", ignoreCase = true))
+        assertTrue(projection.approachSteps.any { it.title.contains("You choose accept or decline") })
+        assertTrue(projection.resourceLine.orEmpty().contains("never accepts or declines"))
+        assertEquals("Prepare your decision review", projection.hero.heroTitle)
+        assertEquals("Your comparison matrix", projection.knowledgeSectionTitle)
     }
 }

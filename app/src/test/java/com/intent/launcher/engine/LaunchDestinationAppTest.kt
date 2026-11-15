@@ -3,6 +3,7 @@ package com.intent.launcher.engine
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.capability.CapabilityStatus
 import com.intent.launcher.domain.BusinessScenario
+import com.intent.launcher.domain.JobOfferScenario
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.SessionDestinations
@@ -76,6 +77,10 @@ class LaunchDestinationAppTest {
         BusinessScenario.seed(store, seedAt + 1)
         val business = store.snapshot().intentions.first { it.id == BusinessScenario.INTENTION_ID }
         assertNull(SessionDestinations.forIntention(business))
+
+        JobOfferScenario.seed(store, seedAt + 2)
+        val decision = store.snapshot().intentions.first { it.id == JobOfferScenario.INTENTION_ID }
+        assertNull(SessionDestinations.forIntention(decision))
     }
 
     @Test
