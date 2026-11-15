@@ -117,6 +117,10 @@ fun HomeScreen(
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
+    /** HOME role honesty when INTENT is not yet the default launcher (OS-133). */
+    homeRoleNote: String? = null,
+    showSetAsHome: Boolean = false,
+    onSetAsHome: () -> Unit = {},
     /** Non-null when the overlay bubble is live (same agent as Conversation). */
     floatingCompanionLabel: String? = null,
     /** Honest manual route when overlay is denied — no fake floating UI. */
@@ -257,6 +261,9 @@ fun HomeScreen(
                 overlayNote = overlayNote,
                 showGrantOverlay = showGrantOverlay,
                 onGrantOverlay = onGrantOverlay,
+                homeRoleNote = homeRoleNote,
+                showSetAsHome = showSetAsHome,
+                onSetAsHome = onSetAsHome,
                 floatingCompanionLabel = floatingCompanionLabel,
                 floatingManualRouteNote = floatingManualRouteNote,
                 floaterTodayNote = floaterTodayNote,
@@ -954,6 +961,9 @@ private fun QuietGrantStrip(
     overlayNote: String?,
     showGrantOverlay: Boolean,
     onGrantOverlay: () -> Unit,
+    homeRoleNote: String?,
+    showSetAsHome: Boolean,
+    onSetAsHome: () -> Unit,
     floatingCompanionLabel: String?,
     floatingManualRouteNote: String?,
     floaterTodayNote: String?,
@@ -961,6 +971,24 @@ private fun QuietGrantStrip(
     onCaptureThought: () -> Unit,
     thoughtCaptureNote: String?
 ) {
+    if (homeRoleNote != null) {
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = homeRoleNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted,
+            modifier = Modifier.semantics {
+                contentDescription = "Home launcher status: $homeRoleNote"
+            }
+        )
+        if (showSetAsHome) {
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentQuietButton(
+                text = "Set as HOME",
+                onClick = onSetAsHome
+            )
+        }
+    }
     if (checkoutObservationNote != null) {
         Spacer(modifier = Modifier.height(14.dp))
         Text(

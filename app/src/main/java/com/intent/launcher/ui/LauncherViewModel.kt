@@ -51,6 +51,8 @@ import com.intent.launcher.engine.ErrandCapture
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
+import com.intent.launcher.engine.HomeRoleAccess
+import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.LiveLlmAccess
@@ -86,6 +88,8 @@ class LauncherViewModel(
     private val usageStatsAccess: UsageStatsAccess = IntentApp.instance.usageStatsAccess,
     private val overlayPermissionAccess: OverlayPermissionAccess =
         IntentApp.instance.overlayPermissionAccess,
+    private val homeRoleAccess: HomeRoleAccess =
+        IntentApp.instance.homeRoleAccess,
     private val voicePermissionAccess: VoicePermissionAccess =
         IntentApp.instance.voicePermissionAccess,
     private val speechToTextAccess: SpeechToTextAccess =
@@ -105,14 +109,15 @@ class LauncherViewModel(
     private var capabilityRegistry: CapabilityRegistry =
         initialRegistry
             ?: PlatformCapabilityLive.registry(
-                usageStatsAccess,
-                overlayPermissionAccess,
-                voicePermissionAccess,
-                speechToTextAccess,
-                notificationListenerAccess,
-                quietModeAccess,
-                screenCaptureAccess,
-                liveLlmAccess
+                usage = usageStatsAccess,
+                overlay = overlayPermissionAccess,
+                voicePermission = voicePermissionAccess,
+                speech = speechToTextAccess,
+                notifications = notificationListenerAccess,
+                quietMode = quietModeAccess,
+                screenCapture = screenCaptureAccess,
+                homeRole = homeRoleAccess,
+                liveLlm = liveLlmAccess
             )
 
     /** Local UI flag — user asked for quiet; never implies silence applied. */
@@ -162,6 +167,12 @@ class LauncherViewModel(
     /** Overlay permission honesty — floating companion when granted. */
     var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(
         OverlayPermissionProbe.observe(overlayPermissionAccess)
+    )
+        private set
+
+    /** HOME role honesty — default launcher / Set as HOME (OS-133). */
+    var homeRoleObservation by mutableStateOf(
+        HomeRoleProbe.observe(homeRoleAccess)
     )
         private set
 
@@ -378,14 +389,15 @@ class LauncherViewModel(
     fun refresh() {
         capabilityRegistry =
             PlatformCapabilityLive.registry(
-                usageStatsAccess,
-                overlayPermissionAccess,
-                voicePermissionAccess,
-                speechToTextAccess,
-                notificationListenerAccess,
-                quietModeAccess,
-                screenCaptureAccess,
-                liveLlmAccess
+                usage = usageStatsAccess,
+                overlay = overlayPermissionAccess,
+                voicePermission = voicePermissionAccess,
+                speech = speechToTextAccess,
+                notifications = notificationListenerAccess,
+                quietMode = quietModeAccess,
+                screenCapture = screenCaptureAccess,
+                homeRole = homeRoleAccess,
+                liveLlm = liveLlmAccess
             )
         snapshot = store.snapshot()
         nextAction = recommend()
@@ -400,6 +412,7 @@ class LauncherViewModel(
         screenCaptureObservation = observeScreenCaptureIfActive()
         applyPauseEvaluation()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
+        homeRoleObservation = HomeRoleProbe.observe(homeRoleAccess)
         floatingPresence = resolveFloatingPresence()
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
         deferPreview = resolveDeferPreview()

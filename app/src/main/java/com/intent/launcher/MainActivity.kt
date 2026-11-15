@@ -2,8 +2,10 @@ package com.intent.launcher
 
 import android.Manifest
 import android.app.Activity
+import android.app.role.RoleManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognizerIntent
@@ -29,6 +31,7 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.FloaterDrawerAction
+import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
@@ -56,11 +59,20 @@ class MainActivity : ComponentActivity() {
     private var openConversationRequest by mutableIntStateOf(0)
     private var openAskFromDrawerRequest by mutableIntStateOf(0)
     private var openTodayFromDrawerRequest by mutableIntStateOf(0)
+    /** OS-134 — MAIN/HOME should pop Compose back to the Home route. */
+    private var homeRestoreRequest by mutableIntStateOf(0)
     private var showFloaterDrawer by mutableStateOf(false)
     private var showThoughtCapture by mutableStateOf(false)
     private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
     /** When true, STT result goes to CaptureThought instead of Conversation. */
     private var speechForThoughtCapture: Boolean = false
+
+    private val requestHomeRole = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Role grant is decided in the system UI; refresh probe after return.
+        vm.refresh()
+    }
 
     private val screenCaptureConsent = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -185,6 +197,16 @@ class MainActivity : ComponentActivity() {
                             val route = vm.openTodayFromDrawer()
                             nav.navigate(route) {
                                 popUpTo("home") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                    LaunchedEffect(homeRestoreRequest) {
+                        if (homeRestoreRequest > 0) {
+                            nav.navigate("home") {
+                                popUpTo(nav.graph.startDestinationId) {
+                                    inclusive = true
+                                }
                                 launchSingleTop = true
                             }
                         }
@@ -370,6 +392,11 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 },
+                                homeRoleNote = vm.homeRoleObservation.note.takeIf {
+                                    !vm.homeRoleObservation.isDefaultHome
+                                },
+                                showSetAsHome = vm.homeRoleObservation.canOpenHomePicker,
+                                onSetAsHome = { requestDefaultHome() },
                                 floatingCompanionLabel = vm.floatingPresence.state?.let {
                                     vm.floatingPresence.label
                                 },
@@ -680,6 +707,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (isHomeLaunchIntent(intent)) {
+            // OS-134: unlock / HOME / recents must not leave Compose on a deep route.
+            homeRestoreRequest++
+        }
         consumeCompanionIntent(intent)
     }
 
@@ -696,6 +727,55 @@ class MainActivity : ComponentActivity() {
             FloatingAgentService.ACTION_CAPTURE_THOUGHT -> {
                 thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
                 showThoughtCapture = true
+            }
+        }
+    }
+
+    private fun isHomeLaunchIntent(intent: Intent?): Boolean {
+        if (intent == null) return false
+        return HomeRoleProbe.isHomeLaunchIntent(
+            action = intent.action,
+            categories = intent.categories
+        )
+    }
+
+    /**
+     * Prefer RoleManager ROLE_HOME request (API 29+); fall back to Settings Home picker.
+     * Does not invent OEM-privileged hooks — user confirms in system UI.
+     */
+    private fun requestDefaultHome() {
+        val obs = vm.homeRoleObservation
+        if (obs.canRequestRole && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(RoleManager::class.java)
+            if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                try {
+                    requestHomeRole.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
+                    return
+                } catch (_: Exception) {
+                    // Fall through to Settings.
+                }
+            }
+        }
+        openHomeSettingsFallback(obs.preferredSettingsAction)
+    }
+
+    private fun openHomeSettingsFallback(preferredAction: String) {
+        val actions = listOf(
+            preferredAction,
+            HomeRoleProbe.HOME_SETTINGS_ACTION,
+            HomeRoleProbe.DEFAULT_APPS_SETTINGS_ACTION,
+            Settings.ACTION_SETTINGS
+        ).distinct()
+        for (action in actions) {
+            try {
+                startActivity(
+                    Intent(action).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+                return
+            } catch (_: Exception) {
+                // Try next deep link.
             }
         }
     }
