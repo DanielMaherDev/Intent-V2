@@ -43,6 +43,18 @@ class CapabilityRegistryTest {
     }
 
     @Test
+    fun registry_marksNotificationListenerPermissionNeeded_andQuietModeUnsupported() {
+        assertTrue(registry.needsPermission(CapabilityRegistry.ID_NOTIFICATION_LISTENER))
+        assertFalse(registry.canReadNotificationSummaries())
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_NOTIFICATION_LISTENER)!!.limitNote
+                .contains("Does not silence", ignoreCase = true)
+        )
+    }
+
+    @Test
     fun registry_marksUsageStatsPermissionNeeded_andCalendarUnsupported() {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_USAGE_STATS))
         assertFalse(registry.isActionable(CapabilityRegistry.ID_USAGE_STATS))
