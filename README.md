@@ -219,9 +219,9 @@ Active sessions with a destination affinity (Spanish → Duolingo) soft-pause th
 
 Settings → Connections inventories Duolingo / Chess.com / Spotify / Strava via PackageManager + `<queries>` (never invents installs). `AppConnection` statuses are `DISCONNECTED` / `NOT_SUPPORTED` — unlink is a no-op when disconnected. Intention Space shows which intentions use each connection (SAID holds / OBSERVED foreground only). `partner_spotify` / `partner_chess` / `partner_strava` stay `NOT_SUPPORTED`. Missing candidates offer a source-labeled Play Store deep link.
 
-## Live LLM Discuss honesty (v0.0.61)
+## Live LLM Discuss (v0.0.61 honesty · v0.0.126 OpenAI)
 
-Registry capability `live_llm` is **NOT_SUPPORTED** without a configured key, **DENIED** when a key may exist but the user has not opted in, and **TEMPORARILY_UNAVAILABLE** when key+opt-in are ready but the live client is not shipped. Discuss / Conversation clearly labels **Local heuristics**. Optional `llm.api.key.configured` BuildConfig flag wires future app-secret presence without claiming LIVE. Model output must never write OBSERVED or auto-Complete.
+Registry capability `live_llm` is **NOT_SUPPORTED** without a key, **DENIED** when a key may exist but the user has not opted in, and **CONNECTED** when key + Settings **Use live OpenAI** opt-in + shipped OpenAI client. Without that, Discuss labels **Local heuristics** and never invents. With CONNECTED, free-text may call `api.openai.com` Chat Completions; agent turns are labeled **Model suggestion**. Supply keys only as Cursor/CI secret **`OPENAPI_GENERAL`** (env / gitignored `local.properties`) or EncryptedSharedPreferences on device — never commit secrets; public APKs keep BuildConfig empty. Model output must never write OBSERVED or auto-Complete.
 
 ## Four-core Home visual (v0.0.104)
 
@@ -229,6 +229,6 @@ Home restores the four-core brand-first composition: ✦ INTENT brand, date, gre
 
 ## Download
 
-Sideload APK (v0.0.125, release): [INTENT-v0.0.125.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/tip-compile-restore-v125-d817/artifacts/INTENT-v0.0.125.apk)
+Sideload APK (v0.0.126, release): [INTENT-v0.0.126.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/openai-live-llm-discuss-60d2/artifacts/INTENT-v0.0.126.apk)
 
-(Prior: [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk))
+(Prior: [INTENT-v0.0.125.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.125.apk))

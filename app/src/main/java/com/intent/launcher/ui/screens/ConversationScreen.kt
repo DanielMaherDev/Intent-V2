@@ -18,22 +18,31 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.ConversationTurn
@@ -61,6 +70,8 @@ fun ConversationScreen(
     voiceNote: String? = null,
     voiceEnabled: Boolean = false,
     onMicClick: () -> Unit = {},
+    onSendFreeText: (String) -> Unit = {},
+    freeTextBusy: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val paperWash = Brush.verticalGradient(
@@ -158,7 +169,9 @@ fun ConversationScreen(
 
         ComposerBar(
             voiceEnabled = voiceEnabled,
-            onMicClick = onMicClick
+            onMicClick = onMicClick,
+            onSendFreeText = onSendFreeText,
+            freeTextBusy = freeTextBusy
         )
     }
 }
@@ -243,8 +256,17 @@ private fun ChoiceRow(text: String, onClick: () -> Unit) {
 @Composable
 private fun ComposerBar(
     voiceEnabled: Boolean,
-    onMicClick: () -> Unit
+    onMicClick: () -> Unit,
+    onSendFreeText: (String) -> Unit,
+    freeTextBusy: Boolean
 ) {
+    var draft by remember { mutableStateOf("") }
+    fun send() {
+        val text = draft.trim()
+        if (text.isEmpty() || freeTextBusy) return
+        onSendFreeText(text)
+        draft = ""
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -273,18 +295,53 @@ private fun ComposerBar(
                     .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Tell me more, or choose above",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.ComposerHint,
-                    modifier = Modifier.weight(1f)
+                BasicTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = IntentColors.Ink),
+                    cursorBrush = SolidColor(IntentColors.Accent),
+                    singleLine = true,
+                    enabled = !freeTextBusy,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { send() }),
+                    decorationBox = { inner ->
+                        if (draft.isEmpty()) {
+                            Text(
+                                text = if (freeTextBusy) {
+                                    "Waiting for model…"
+                                } else {
+                                    "Tell me more, or choose above"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IntentColors.ComposerHint
+                            )
+                        }
+                        inner()
+                    }
                 )
-                Icon(
-                    imageVector = Icons.Outlined.Keyboard,
-                    contentDescription = null,
-                    tint = IntentColors.ComposerHint,
-                    modifier = Modifier.size(18.dp)
-                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (draft.isNotBlank() && !freeTextBusy) {
+                                IntentColors.Accent
+                            } else {
+                                IntentColors.Muted
+                            }
+                        )
+                        .clickable(enabled = draft.isNotBlank() && !freeTextBusy, onClick = { send() }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Send,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
