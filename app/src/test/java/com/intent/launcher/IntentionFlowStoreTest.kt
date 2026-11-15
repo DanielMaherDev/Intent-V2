@@ -407,6 +407,7 @@ class IntentionFlowStoreTest {
         assertEquals(deferUntil, again.sessions.first { it.id == MoveScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals("move", again.intentions.first { it.id == MoveScenario.INTENTION_ID }.shapeTag)
         assertFalse(MoveScenario.placeIsConfirmed(again.facts))
+    }
 
     @Test
     fun appUseReductionFlow_45MinTarget_shortsHonesty_noAutoComplete() {
