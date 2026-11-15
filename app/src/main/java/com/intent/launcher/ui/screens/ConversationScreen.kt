@@ -48,6 +48,8 @@ fun ConversationScreen(
     onBack: () -> Unit,
     onOpenProposal: () -> Unit,
     hasPendingProposal: Boolean,
+    conversationEyebrow: String = "A conversation about your goal",
+    conversationHeadline: String = "Let's find a way that fits.",
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -67,10 +69,10 @@ fun ConversationScreen(
                 onBack = onBack
             )
             Spacer(modifier = Modifier.height(23.dp))
-            SmallLabel(text = "A conversation about your goal")
+            SmallLabel(text = conversationEyebrow)
             Spacer(modifier = Modifier.height(7.dp))
             Text(
-                text = "Let's find a way that fits.",
+                text = conversationHeadline,
                 style = MaterialTheme.typography.headlineMedium,
                 color = IntentColors.Ink
             )
