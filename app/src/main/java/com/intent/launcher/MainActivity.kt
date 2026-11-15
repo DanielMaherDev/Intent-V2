@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.HomeScreen
@@ -33,11 +34,13 @@ class MainActivity : ComponentActivity() {
                     val pending = snap.proposals.firstOrNull {
                         it.status == ProposalStatus.PENDING && it.intentionId == intention?.id
                     }
-                    val intentionHint = when (intention?.shapeTag) {
-                        "marathon" -> "Run a marathon · Base before speed"
-                        "business" -> "Business idea · Stay in discovery"
-                        else -> "Open your intention"
-                    }
+                    val intentionProjection = ShapeProjection.project(
+                        intention = intention,
+                        facts = snap.facts.filter { it.intentionId == intention?.id },
+                        hypotheses = snap.hypotheses.filter { it.intentionId == intention?.id },
+                        sessions = snap.sessions.filter { it.intentionId == intention?.id }
+                    )
+                    val intentionHint = intentionProjection.homeSpaceSubtitle
                     val showMarathonEntry = intention?.shapeTag != "marathon"
                     val showBusinessEntry = intention?.shapeTag != "business"
 
@@ -102,6 +105,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("conversation") {
                             val active = vm.activeIntention()
+                            val convProjection = ShapeProjection.project(intention = active)
                             ConversationScreen(
                                 turns = vm.snapshot.turns.filter { it.intentionId == active?.id },
                                 chips = vm.conversationChips(),
@@ -120,6 +124,8 @@ class MainActivity : ComponentActivity() {
                                 onBack = { nav.popBackStack() },
                                 onOpenProposal = { nav.navigate("proposal") },
                                 hasPendingProposal = pending != null,
+                                conversationEyebrow = convProjection.conversationEyebrow,
+                                conversationHeadline = convProjection.conversationHeadline,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

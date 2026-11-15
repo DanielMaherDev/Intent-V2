@@ -21,6 +21,8 @@ import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ScheduledSession
+import com.intent.launcher.domain.SessionDestinations
+import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.FactRow
 import com.intent.launcher.ui.components.HeroCard
@@ -42,9 +44,23 @@ fun IntentionSpaceScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val phase = intention?.phase ?: IntentionPhase.EXPLORING
-    val (phaseLabel, heroTone, heroLabel, heroTitle, heroBody, heroCta) =
-        intentionCopy(phase, intention?.shapeTag)
+    val projection = ShapeProjection.project(
+        intention = intention,
+        facts = facts,
+        hypotheses = hypotheses,
+        sessions = sessions,
+        destination = SessionDestinations.forIntention(intention)
+    )
+    val heroTone = when (projection.hero.tone) {
+        "warm" -> HeroTone.Warm
+        "success" -> HeroTone.Success
+        else -> HeroTone.Accent
+    }
+    val labelColor = when (heroTone) {
+        HeroTone.Warm -> IntentColors.Warm
+        HeroTone.Success -> IntentColors.Success
+        HeroTone.Accent -> IntentColors.Section
+    }
 
     Column(
         modifier = modifier
@@ -55,15 +71,7 @@ fun IntentionSpaceScreen(
     ) {
         ScreenTopBar(contextLabel = "Intention", onBack = onBack)
         Spacer(modifier = Modifier.height(23.dp))
-        SmallLabel(
-            text = phaseLabel,
-            color = when (heroTone) {
-                HeroTone.Warm -> IntentColors.Warm
-                HeroTone.Success -> IntentColors.Success
-                // JPG exploring label is muted olive, not accent
-                HeroTone.Accent -> IntentColors.Section
-            }
-        )
+        SmallLabel(text = projection.hero.phaseLabel, color = labelColor)
         Spacer(modifier = Modifier.height(7.dp))
         Text(
             text = intention?.title ?: "Intention",
@@ -75,32 +83,57 @@ fun IntentionSpaceScreen(
         Spacer(modifier = Modifier.height(26.dp))
 
         HeroCard(tone = heroTone) {
-            SmallLabel(
-                text = heroLabel,
-                color = when (heroTone) {
-                    HeroTone.Warm -> IntentColors.Warm
-                    HeroTone.Success -> IntentColors.Success
-                    HeroTone.Accent -> IntentColors.Section
-                }
-            )
+            SmallLabel(text = projection.hero.heroLabel, color = labelColor)
             Spacer(modifier = Modifier.height(7.dp))
             Text(
-                text = heroTitle,
+                text = projection.hero.heroTitle,
                 style = MaterialTheme.typography.headlineSmall,
                 color = IntentColors.Ink
             )
             Spacer(modifier = Modifier.height(7.dp))
             Text(
-                text = heroBody,
+                text = projection.hero.heroBody,
                 style = MaterialTheme.typography.bodyMedium,
                 color = IntentColors.Muted
             )
             Spacer(modifier = Modifier.height(15.dp))
-            IntentPrimaryButton(text = heroCta, onClick = onWorkThisOut)
+            IntentPrimaryButton(text = projection.hero.heroCta, onClick = onWorkThisOut)
+        }
+
+        if (projection.approachSectionTitle != null && projection.approachSteps.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle(projection.approachSectionTitle)
+            Spacer(modifier = Modifier.height(9.dp))
+            Column(modifier = Modifier.fillMaxWidth().padding(start = 7.dp)) {
+                projection.approachSteps.forEach { step ->
+                    Column(modifier = Modifier.padding(start = 17.dp, bottom = 14.dp)) {
+                        Text(
+                            text = step.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = IntentColors.Ink
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = step.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IntentColors.Muted
+                        )
+                    }
+                }
+            }
+        }
+
+        if (projection.resourceLine != null) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = projection.resourceLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
         }
 
         Spacer(modifier = Modifier.height(26.dp))
-        SectionTitle("What we know")
+        SectionTitle(projection.knowledgeSectionTitle)
         Spacer(modifier = Modifier.height(9.dp))
         Column(
             modifier = Modifier
@@ -110,8 +143,7 @@ fun IntentionSpaceScreen(
                 .padding(horizontal = 14.dp, vertical = 4.dp)
         ) {
             if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty()) {
-                FactRow(text = defaultGoalFact(intention))
-                FactRow(text = defaultTimeframeFact(intention))
+                projection.defaultFacts.forEach { FactRow(text = it) }
             } else {
                 facts.forEach { f ->
                     FactRow(text = "Confirmed by you · ${f.text}")
@@ -123,87 +155,15 @@ fun IntentionSpaceScreen(
                     val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
                     FactRow(text = "${s.title} · $whenLabel")
                 }
-                if (phase == IntentionPhase.PROPOSAL_PENDING) {
+                if (intention?.phase == IntentionPhase.PROPOSAL_PENDING) {
                     FactRow(text = "Pending · add a weekly commitment", pending = true)
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(17.dp))
-        if (sessions.isEmpty() && phase != IntentionPhase.ACTIVE) {
-            EmptyNote(
-                text = "No tasks have been invented. This intention stays open while you decide on an approach."
-            )
+        if (projection.emptyNote != null) {
+            Spacer(modifier = Modifier.height(17.dp))
+            EmptyNote(text = projection.emptyNote)
         }
     }
 }
-
-private data class IntentionCopy(
-    val phaseLabel: String,
-    val heroTone: HeroTone,
-    val heroLabel: String,
-    val heroTitle: String,
-    val heroBody: String,
-    val heroCta: String
-)
-
-private fun intentionCopy(phase: IntentionPhase, shapeTag: String?): IntentionCopy =
-    when (phase) {
-        IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> IntentionCopy(
-            phaseLabel = "Exploring",
-            heroTone = HeroTone.Accent,
-            heroLabel = "The question now",
-            heroTitle = when (shapeTag) {
-                "marathon" -> "How will you train?"
-                "business" -> "How will you learn?"
-                else -> "How will you practise?"
-            },
-            heroBody = when (shapeTag) {
-                "marathon" ->
-                    "We can shape this around base mileage, long runs, or a mix you can keep."
-                "business" ->
-                    "We can stay in discovery, talk to customers, or add a light research habit — nothing forced."
-                else ->
-                    "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
-            },
-            heroCta = "Work this out"
-        )
-        IntentionPhase.PROPOSAL_PENDING -> IntentionCopy(
-            phaseLabel = "Approach in progress",
-            heroTone = HeroTone.Warm,
-            heroLabel = "Decision needed",
-            heroTitle = "Add your session?",
-            heroBody = "INTENT will bring it into your week once approved.",
-            heroCta = "Review details"
-        )
-        IntentionPhase.ACTIVE -> IntentionCopy(
-            phaseLabel = "In motion",
-            heroTone = HeroTone.Success,
-            heroLabel = "Next useful step",
-            heroTitle = "Prepare for your next session",
-            heroBody = "Bring one situation you want to rehearse.",
-            heroCta = "Begin preparation"
-        )
-        IntentionPhase.PAUSED -> IntentionCopy(
-            phaseLabel = "Paused",
-            heroTone = HeroTone.Accent,
-            heroLabel = "When you are ready",
-            heroTitle = "Pick this up again?",
-            heroBody = "Your facts stay. Nothing is invented while you pause.",
-            heroCta = "Work this out"
-        )
-    }
-
-private fun defaultGoalFact(intention: Intention?): String =
-    when (intention?.shapeTag) {
-        "marathon" -> "Goal · finish a marathon"
-        "business" -> "Goal · explore a business idea"
-        else -> "Goal · use Spanish at work"
-    }
-
-private fun defaultTimeframeFact(intention: Intention?): String =
-    when (intention?.shapeTag) {
-        "marathon" -> "Timeframe · build base first"
-        "business" -> "Timeframe · stay in discovery"
-        else -> "Timeframe · within a year"
-    }
