@@ -61,5 +61,17 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Floating agent companion surface for the same Conversation agent" />
         </service>
+        <!--
+          Required for Settings → Notification access to list this package.
+          Service is a no-op listener in v0.0.22 (no content retention).
+        -->
+        <service
+            android:name=".platform.IntentNotificationListenerService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

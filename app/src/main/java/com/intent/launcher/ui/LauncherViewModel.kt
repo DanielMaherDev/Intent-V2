@@ -23,6 +23,8 @@ import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.NextActionEngine
+import com.intent.launcher.engine.NotificationListenerAccess
+import com.intent.launcher.engine.NotificationListenerProbe
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PlatformCapabilityLive
@@ -43,6 +45,8 @@ class LauncherViewModel(
         IntentApp.instance.voicePermissionAccess,
     private val speechToTextAccess: SpeechToTextAccess =
         IntentApp.instance.speechToTextAccess,
+    private val notificationListenerAccess: NotificationListenerAccess =
+        IntentApp.instance.notificationListenerAccess,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
@@ -52,7 +56,8 @@ class LauncherViewModel(
                 usageStatsAccess,
                 overlayPermissionAccess,
                 voicePermissionAccess,
-                speechToTextAccess
+                speechToTextAccess,
+                notificationListenerAccess
             )
 
     var snapshot by mutableStateOf(store.snapshot())
@@ -70,6 +75,10 @@ class LauncherViewModel(
 
     /** Package-level UsageStats observation for the active SessionCard (never completion). */
     var usageObservation by mutableStateOf<UsageStatsProbe.Observation?>(null)
+        private set
+
+    /** Notification listener honesty for the active SessionCard (never silence / completion). */
+    var notificationObservation by mutableStateOf<NotificationListenerProbe.Observation?>(null)
         private set
 
     /** Overlay permission honesty — floating companion when granted. */
@@ -100,6 +109,7 @@ class LauncherViewModel(
 
     init {
         usageObservation = observeUsageIfActive()
+        notificationObservation = observeNotificationsIfActive()
         floatingPresence = resolveFloatingPresence()
     }
 
@@ -109,11 +119,13 @@ class LauncherViewModel(
                 usageStatsAccess,
                 overlayPermissionAccess,
                 voicePermissionAccess,
-                speechToTextAccess
+                speechToTextAccess,
+                notificationListenerAccess
             )
         snapshot = store.snapshot()
         nextAction = recommend()
         usageObservation = observeUsageIfActive()
+        notificationObservation = observeNotificationsIfActive()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
         floatingPresence = resolveFloatingPresence()
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
@@ -168,6 +180,11 @@ class LauncherViewModel(
             nowEpochMs = System.currentTimeMillis(),
             registry = capabilityRegistry
         )
+    }
+
+    private fun observeNotificationsIfActive(): NotificationListenerProbe.Observation? {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
+        return NotificationListenerProbe.observeForSession(notificationListenerAccess)
     }
 
     fun activeIntention(): Intention? {

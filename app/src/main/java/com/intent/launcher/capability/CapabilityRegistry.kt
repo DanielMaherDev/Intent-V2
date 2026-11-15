@@ -97,6 +97,13 @@ class CapabilityRegistry(
     fun canUseVoiceInput(): Boolean =
         isActionable(ID_VOICE_INPUT)
 
+    /**
+     * True when NotificationListenerService access is granted.
+     * Does not mean quiet mode, content inbox, or lesson completion.
+     */
+    fun canReadNotificationSummaries(): Boolean =
+        isActionable(ID_NOTIFICATION_LISTENER)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -114,6 +121,9 @@ class CapabilityRegistry(
         const val ID_EXTERNAL_CALENDAR = "external_calendar_sync"
         const val ID_FLOATING_OVERLAY = "floating_overlay"
         const val ID_VOICE_INPUT = "voice_input"
+        const val ID_NOTIFICATION_LISTENER = "notification_listener"
+        const val ID_QUIET_MODE = "quiet_mode"
+        const val ID_SCREEN_CAPTURE = "screen_capture"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -215,6 +225,28 @@ class CapabilityRegistry(
                 status = CapabilityStatus.PERMISSION_NEEDED,
                 limitNote = "Requires microphone permission and platform speech recognition. " +
                     "Use conversation chips without it — same command path, no live LLM."
+            ),
+            CapabilityEntry(
+                id = ID_NOTIFICATION_LISTENER,
+                title = "Notification summaries",
+                status = CapabilityStatus.PERMISSION_NEEDED,
+                limitNote = "Needs Notification access for permitted summaries. " +
+                    "Does not silence notifications or prove lesson completion — " +
+                    "Complete remains your report."
+            ),
+            CapabilityEntry(
+                id = ID_QUIET_MODE,
+                title = "Quiet mode / DND",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "User-initiated quiet mode is not shipped. " +
+                    "INTENT does not claim device-wide notification silence."
+            ),
+            CapabilityEntry(
+                id = ID_SCREEN_CAPTURE,
+                title = "Screen capture for agent",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "MediaProjection consent path not shipped. " +
+                    "No screenshot or continuing capture without an explicit future ask."
             )
         )
 

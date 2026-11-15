@@ -150,6 +150,16 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 },
+                                notificationNote = vm.notificationObservation?.note,
+                                showGrantNotificationAccess =
+                                    vm.notificationObservation?.canOpenSettings == true,
+                                onGrantNotificationAccess = {
+                                    startActivity(
+                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                },
                                 overlayNote = vm.overlayObservation?.note,
                                 showGrantOverlay = vm.overlayObservation?.canOpenSettings == true,
                                 onGrantOverlay = {

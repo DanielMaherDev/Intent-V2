@@ -3,10 +3,12 @@ package com.intent.launcher
 import android.app.Application
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.InstalledAppLauncher
+import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.VoicePermissionAccess
+import com.intent.launcher.platform.AndroidNotificationListenerAccess
 import com.intent.launcher.platform.AndroidOverlayPermissionAccess
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.platform.AndroidUsageStatsAccess
@@ -34,6 +36,9 @@ class IntentApp : Application() {
     lateinit var speechToTextAccess: SpeechToTextAccess
         private set
 
+    lateinit var notificationListenerAccess: NotificationListenerAccess
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -44,6 +49,7 @@ class IntentApp : Application() {
         overlayPermissionAccess = AndroidOverlayPermissionAccess(this)
         voicePermissionAccess = AndroidVoicePermissionAccess(this)
         speechToTextAccess = AndroidSpeechToTextAccess(this)
+        notificationListenerAccess = AndroidNotificationListenerAccess(this)
         SpanishScenario.ensureSeeded(store)
     }
 

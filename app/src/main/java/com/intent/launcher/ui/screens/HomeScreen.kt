@@ -70,6 +70,9 @@ fun HomeScreen(
     usageNote: String? = null,
     showGrantUsageAccess: Boolean = false,
     onGrantUsageAccess: () -> Unit = {},
+    notificationNote: String? = null,
+    showGrantNotificationAccess: Boolean = false,
+    onGrantNotificationAccess: () -> Unit = {},
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
@@ -122,7 +125,10 @@ fun HomeScreen(
                     destinationLaunchNote = destinationLaunchNote,
                     usageNote = usageNote,
                     showGrantUsageAccess = showGrantUsageAccess,
-                    onGrantUsageAccess = onGrantUsageAccess
+                    onGrantUsageAccess = onGrantUsageAccess,
+                    notificationNote = notificationNote,
+                    showGrantNotificationAccess = showGrantNotificationAccess,
+                    onGrantNotificationAccess = onGrantNotificationAccess
                 )
             } else {
                 val cardTitle = when (nextAction.kind) {
@@ -389,7 +395,10 @@ private fun ActiveSessionCard(
     destinationLaunchNote: String? = null,
     usageNote: String? = null,
     showGrantUsageAccess: Boolean = false,
-    onGrantUsageAccess: () -> Unit = {}
+    onGrantUsageAccess: () -> Unit = {},
+    notificationNote: String? = null,
+    showGrantNotificationAccess: Boolean = false,
+    onGrantNotificationAccess: () -> Unit = {}
 ) {
     val startedAt = nextAction.startedAtEpochMs
     var nowEpochMs by remember(startedAt) {
@@ -490,6 +499,21 @@ private fun ActiveSessionCard(
             IntentQuietButton(
                 text = "Grant usage access",
                 onClick = onGrantUsageAccess
+            )
+        }
+        if (notificationNote != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = notificationNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+        if (showGrantNotificationAccess) {
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentQuietButton(
+                text = "Grant notification access",
+                onClick = onGrantNotificationAccess
             )
         }
         Spacer(modifier = Modifier.height(15.dp))
