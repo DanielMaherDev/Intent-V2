@@ -1,6 +1,7 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.98.apk`](./INTENT-v0.0.98.apk) — CASE-01 quick to-do / errand inbox (reclaimed from 0.0.79 / 0.0.62 / 0.0.52).
+- **v0.0.112:** Parent/child intention breadcrumb (OS-141) — Intention Space Path crumbs + child links from local `parentIntentionId` only; no invented dependency graph; drawer card layout left to 0.0.76/0.0.99 (reclaimed from 0.0.77 → 0.0.97 → 0.0.112)
+
 
 Main tip: [`INTENT-v0.0.80.apk`](./INTENT-v0.0.80.apk) (app-use reduction CASE-06).
 
