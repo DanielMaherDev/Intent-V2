@@ -125,7 +125,7 @@ class ErrandCaptureTest {
         assertEquals(1, again.errandTodos.size)
         assertEquals(ErrandScenario.RAW_TEXT, again.errandTodos.first().title)
         assertEquals(ErrandStatus.OPEN, again.errandTodos.first().status)
-        assertEquals(6, again.schemaVersion)
+        assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, again.schemaVersion)
     }
 
     @Test
