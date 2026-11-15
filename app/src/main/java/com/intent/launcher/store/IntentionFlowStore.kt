@@ -4,6 +4,8 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.ConversationTurn
 import com.intent.launcher.domain.DayCycleState
+import com.intent.launcher.domain.DrawerCardLayout
+import com.intent.launcher.domain.DrawerCards
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.Evidence
@@ -811,6 +813,26 @@ class IntentionFlowStore(
                 )
             }
 
+            is FlowCommand.UpdateDrawerCardLayout -> {
+                if (migrated.intentions.none { it.id == command.intentionId }) return migrated
+                val span = DrawerCards.normalizeSpan(command.spanColumns)
+                val imageKey = command.imageKey.ifBlank {
+                    val intention = migrated.intentions.first { it.id == command.intentionId }
+                    DrawerCards.coverKeyForShape(intention.shapeTag)
+                }
+                val layout = DrawerCardLayout(
+                    intentionId = command.intentionId,
+                    spanColumns = span,
+                    priorityBorder = command.priorityBorder,
+                    imageKey = imageKey
+                )
+                migrated.copy(
+                    drawerCardLayouts = migrated.drawerCardLayouts
+                        .filterNot { it.intentionId == command.intentionId } + layout,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
             is FlowCommand.RecordExternalAction -> migrated
 
             is FlowCommand.UndoLastReversible -> migrated
@@ -858,6 +880,7 @@ class IntentionFlowStore(
             sessionRuns = migrated.sessionRuns.filterNot { it.intentionId == intention.id },
             turns = migrated.turns.filterNot { it.intentionId == intention.id },
             thoughtCaptures = migrated.thoughtCaptures.filterNot { it.intentionId == intention.id },
+            drawerCardLayouts = migrated.drawerCardLayouts.filterNot { it.intentionId == intention.id },
             activeIntentionId = if (migrated.activeIntentionId == intention.id) {
                 migrated.intentions.firstOrNull { it.id != intention.id }?.id
             } else {
@@ -1023,6 +1046,7 @@ class IntentionFlowStore(
                     is FlowCommand.HoldAppForIntention -> command.nowEpochMs
                     is FlowCommand.ReorderHeldApps -> command.nowEpochMs
                     is FlowCommand.ReleaseHeldApp -> command.nowEpochMs
+                    is FlowCommand.UpdateDrawerCardLayout -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -1072,6 +1096,7 @@ class IntentionFlowStore(
             is FlowCommand.HoldAppForIntention -> command.nowEpochMs
             is FlowCommand.ReorderHeldApps -> command.nowEpochMs
             is FlowCommand.ReleaseHeldApp -> command.nowEpochMs
+            is FlowCommand.UpdateDrawerCardLayout -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -1715,6 +1740,7 @@ class IntentionFlowStore(
         }
     }
 
+
     data class WireErrandTodo(
         val id: String = "",
         val title: String = "",
@@ -1749,6 +1775,29 @@ class IntentionFlowStore(
         }
     }
 
+    data class WireDrawerCardLayout(
+        val intentionId: String = "",
+        val spanColumns: Int = 1,
+        val priorityBorder: Boolean = false,
+        val imageKey: String = "shape"
+    ) {
+        fun toDomain() = DrawerCardLayout(
+            intentionId = intentionId,
+            spanColumns = DrawerCards.normalizeSpan(spanColumns),
+            priorityBorder = priorityBorder,
+            imageKey = imageKey.ifBlank { "shape" }
+        )
+        companion object {
+            fun from(l: DrawerCardLayout) = WireDrawerCardLayout(
+                intentionId = l.intentionId,
+                spanColumns = DrawerCards.normalizeSpan(l.spanColumns),
+                priorityBorder = l.priorityBorder,
+                imageKey = l.imageKey
+            )
+        }
+    }
+
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -1769,7 +1818,8 @@ class IntentionFlowStore(
         val transactions: List<WireTransaction> = emptyList(),
         val trash: List<WireTrashEntry> = emptyList(),
         val intentionOrder: List<String> = emptyList(),
-        val heldApps: List<WireHeldApp> = emptyList()
+        val heldApps: List<WireHeldApp> = emptyList(),
+        val drawerCardLayouts: List<WireDrawerCardLayout> = emptyList()
     ) {
         fun toDomain() = IntentionSnapshot(
             schemaVersion = schemaVersion,
@@ -1791,7 +1841,8 @@ class IntentionFlowStore(
             transactions = transactions.map { it.toDomain() },
             trash = trash.map { it.toDomain() },
             intentionOrder = intentionOrder,
-            heldApps = heldApps.map { it.toDomain() }
+            heldApps = heldApps.map { it.toDomain() },
+            drawerCardLayouts = drawerCardLayouts.map { it.toDomain() }
         )
 
         companion object {
@@ -1815,7 +1866,8 @@ class IntentionFlowStore(
                 transactions = s.transactions.map(WireTransaction::from),
                 trash = s.trash.map(WireTrashEntry::from),
                 intentionOrder = s.intentionOrder,
-                heldApps = s.heldApps.map(WireHeldApp::from)
+                heldApps = s.heldApps.map(WireHeldApp::from),
+                drawerCardLayouts = s.drawerCardLayouts.map(WireDrawerCardLayout::from)
             )
         }
     }

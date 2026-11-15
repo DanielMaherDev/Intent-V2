@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.98** (this branch) · main baseline **v0.0.80**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.99**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.98** (this branch
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.98.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.99.apk`
 
 ## Scope
 
@@ -55,8 +55,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.61:** Live LLM Discuss honesty path — `live_llm` stays NOT_SUPPORTED/DENIED without key+opt-in+client; Discuss labels local heuristics; optional key presence wiring without claiming LIVE (reclaimed from 0.0.51)
 - **v0.0.64:** Job-offer decision shape (CASE-10) — SAID criteria matrix + decision-review session; never chooses accept/decline for the user
 - **v0.0.65:** CASE-05 quit smoking shape — baseline cigarettes/day, evening check-in, honest SAID cessation tracker modules (`cessation`)
-- **v0.0.80:** CASE-06 app-use reduction fixture — Instagram/YouTube 45-min target, Shorts honesty on OBSERVED package evidence (no auto-Complete; reclaimed from 0.0.63 / 0.0.53 / 0.0.40)
-- **v0.0.98:** CASE-01 small errand / quick to-do inbox (OS-073) — “Buy milk tonight” as first action + reminder, not an exploring Intention (reclaimed from 0.0.79 / 0.0.62 / 0.0.52)
+- **v0.0.99:** Intention drawer card layout (OS-139) — reorder, one/two-column width, local shape cover image, priority border, readable title overlay; not mini-apps (OS-140)
 
 ## Shapes
 
@@ -158,13 +157,15 @@ Home **Start a new intention** opens a guided builder (heuristic shape suggestio
 
 One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Optional secondary line is session elapsed **or** OBSERVED package minutes when UsageStats is granted — never both, never invented. Grant prompts, companion menu, and session notification rows stay quiet; builder/triage/move explore stay under Your space.
 
-## Intention drawer / hold-for-apps (v0.0.49)
+## Intention drawer / hold-for-apps (v0.0.49) · card chrome (v0.0.99)
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.17–v0.0.98)
+**v0.0.99 (OS-139):** Drawer cards support one/two-column width, local shape cover image, priority border, and a readable title overlay. Card chrome persists via `FlowCommand.UpdateDrawerCardLayout`. Generated mini-apps (OS-140) stay out of scope.
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.98.apk` on this branch (main: `INTENT-v0.0.80.apk`). Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+## Sideload packaging (v0.0.17–v0.0.99)
+
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.99.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
