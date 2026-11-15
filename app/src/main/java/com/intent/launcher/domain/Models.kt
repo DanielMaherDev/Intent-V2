@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 4
+const val SCHEMA_VERSION: Int = 5
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -51,6 +51,10 @@ enum class NextActionKind {
     REVIEW_PROPOSAL,
     /** A session run is in progress — Complete / Abandon, not another Begin. */
     ACTIVE_SESSION,
+    /** Morning focus confirm / adjust (worksheet §10). */
+    CHECK_IN,
+    /** Evening SAID review + keep / defer (worksheet §10). */
+    CHECK_OUT,
     NONE
 }
 
@@ -138,6 +142,24 @@ data class ConversationTurn(
 )
 
 /**
+ * Local day cycle on the same intention snapshot — not a separate daily-task store.
+ * Dates are device-local `yyyy-MM-dd`. Check-in/out are user-confirmed via commands.
+ */
+data class DayCycleState(
+    val localDate: String = "",
+    val checkInAtEpochMs: Long? = null,
+    val checkOutAtEpochMs: Long? = null,
+    val focusIntentionId: String? = null,
+    val focusSummary: String? = null
+) {
+    fun checkedInFor(date: String): Boolean =
+        localDate == date && checkInAtEpochMs != null
+
+    fun checkedOutFor(date: String): Boolean =
+        localDate == date && checkOutAtEpochMs != null
+}
+
+/**
  * Instant raw thought — stored before any classification.
  * Provenance is always SAID; classification is deferred (evening / Conversation).
  */
@@ -215,6 +237,7 @@ data class IntentionSnapshot(
     val turns: List<ConversationTurn> = emptyList(),
     val thoughtCaptures: List<ThoughtCapture> = emptyList(),
     val activeIntentionId: String? = null,
+    val dayCycle: DayCycleState = DayCycleState(),
     val transactions: List<FlowTransaction> = emptyList(),
     val trash: List<TrashEntry> = emptyList()
 )
@@ -350,6 +373,32 @@ sealed class FlowCommand {
         val nowEpochMs: Long
     ) : FlowCommand()
 
+    data class ConfirmDailyCheckIn(
+        val intentionId: String,
+        val localDate: String,
+        val focusSummary: String,
+        val nowEpochMs: Long,
+        val adjustedFocusNote: String? = null,
+        val adjustedFactId: String? = null,
+        val adjustedHypothesisId: String? = null
+    ) : FlowCommand()
+
+    /**
+     * Evening check-out: record user-reported [whatHappened] as SAID, optional SAID
+     * hypothesis, mark day complete, and optionally defer the scheduled session.
+     */
+    data class CompleteDailyCheckOut(
+        val intentionId: String,
+        val localDate: String,
+        val whatHappened: String,
+        val factId: String,
+        val nowEpochMs: Long,
+        val hypothesisId: String? = null,
+        val hypothesisText: String? = null,
+        val deferSessionId: String? = null,
+        val deferUntilEpochMs: Long? = null
+    ) : FlowCommand()
+
     /** Undo the last reversible commitment via transaction history. */
     data class UndoLastReversible(
         val transactionId: String,
@@ -416,6 +465,10 @@ data class NextAction(
     val discussLabel: String? = null,
     val completeLabel: String? = null,
     val abandonLabel: String? = null,
+    val confirmLabel: String? = null,
+    val adjustLabel: String? = null,
+    val keepLabel: String? = null,
+    val deferTomorrowLabel: String? = null,
     /** Destination package when this shape declares one (e.g. Duolingo for Spanish). */
     val destinationPackageName: String? = null,
     val destinationAppLabel: String? = null,

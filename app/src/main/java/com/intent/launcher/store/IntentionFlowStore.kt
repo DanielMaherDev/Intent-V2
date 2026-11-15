@@ -3,6 +3,7 @@ package com.intent.launcher.store
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.ConversationTurn
+import com.intent.launcher.domain.DayCycleState
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
@@ -333,6 +334,99 @@ class IntentionFlowStore(
                 )
             }
 
+            is FlowCommand.ConfirmDailyCheckIn -> {
+                var facts = migrated.facts
+                var hypotheses = migrated.hypotheses
+                val note = command.adjustedFocusNote?.trim().orEmpty()
+                if (note.isNotEmpty() && command.adjustedFactId != null) {
+                    val fact = Fact(
+                        id = command.adjustedFactId,
+                        intentionId = command.intentionId,
+                        text = note,
+                        provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                    )
+                    facts = facts.filterNot { it.id == fact.id } + fact
+                }
+                if (note.isNotEmpty() && command.adjustedHypothesisId != null) {
+                    val hypothesis = Hypothesis(
+                        id = command.adjustedHypothesisId,
+                        intentionId = command.intentionId,
+                        text = note,
+                        provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                    )
+                    hypotheses = hypotheses.filterNot { it.id == hypothesis.id } + hypothesis
+                }
+                migrated.copy(
+                    facts = facts,
+                    hypotheses = hypotheses,
+                    dayCycle = DayCycleState(
+                        localDate = command.localDate,
+                        checkInAtEpochMs = command.nowEpochMs,
+                        checkOutAtEpochMs = null,
+                        focusIntentionId = command.intentionId,
+                        focusSummary = command.focusSummary
+                    ),
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.CompleteDailyCheckOut -> {
+                val fact = Fact(
+                    id = command.factId,
+                    intentionId = command.intentionId,
+                    text = command.whatHappened,
+                    provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                )
+                var facts = migrated.facts.filterNot { it.id == fact.id } + fact
+                var hypotheses = migrated.hypotheses
+                val hypothesisText = command.hypothesisText?.trim().orEmpty()
+                if (hypothesisText.isNotEmpty() && command.hypothesisId != null) {
+                    val hypothesis = Hypothesis(
+                        id = command.hypothesisId,
+                        intentionId = command.intentionId,
+                        text = hypothesisText,
+                        provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                    )
+                    hypotheses = hypotheses.filterNot { it.id == hypothesis.id } + hypothesis
+                }
+                val prior = migrated.dayCycle
+                val dayCycle = DayCycleState(
+                    localDate = command.localDate,
+                    checkInAtEpochMs = if (prior.localDate == command.localDate) {
+                        prior.checkInAtEpochMs
+                    } else {
+                        null
+                    },
+                    checkOutAtEpochMs = command.nowEpochMs,
+                    focusIntentionId = command.intentionId,
+                    focusSummary = prior.focusSummary
+                )
+                var sessions = migrated.sessions
+                val deferSessionId = command.deferSessionId
+                val deferUntil = command.deferUntilEpochMs
+                if (deferSessionId != null && deferUntil != null) {
+                    val inProgress = migrated.sessionRuns.any {
+                        it.sessionId == deferSessionId && it.status == SessionRunStatus.IN_PROGRESS
+                    }
+                    if (!inProgress) {
+                        sessions = sessions.map {
+                            if (it.id == deferSessionId) {
+                                it.copy(deferredUntilEpochMs = deferUntil)
+                            } else {
+                                it
+                            }
+                        }
+                    }
+                }
+                migrated.copy(
+                    facts = facts,
+                    hypotheses = hypotheses,
+                    sessions = sessions,
+                    dayCycle = dayCycle,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
             is FlowCommand.SoftDeleteIntention -> softDeleteIntention(migrated, command)
             is FlowCommand.SoftDeleteSession -> softDeleteSession(migrated, command)
             is FlowCommand.RestoreTrashItem -> restoreTrash(migrated, command)
@@ -530,6 +624,8 @@ class IntentionFlowStore(
                     is FlowCommand.CaptureThought -> command.nowEpochMs
                     is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
                     is FlowCommand.DismissEvidence -> command.nowEpochMs
+                    is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
+                    is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -556,6 +652,8 @@ class IntentionFlowStore(
             is FlowCommand.CaptureThought -> command.nowEpochMs
             is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
             is FlowCommand.DismissEvidence -> command.nowEpochMs
+            is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
+            is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -945,6 +1043,32 @@ class IntentionFlowStore(
         }
     }
 
+    data class WireDayCycle(
+        val localDate: String = "",
+        val checkInAtEpochMs: Long? = null,
+        val checkOutAtEpochMs: Long? = null,
+        val focusIntentionId: String? = null,
+        val focusSummary: String? = null
+    ) {
+        fun toDomain() = DayCycleState(
+            localDate = localDate,
+            checkInAtEpochMs = checkInAtEpochMs,
+            checkOutAtEpochMs = checkOutAtEpochMs,
+            focusIntentionId = focusIntentionId,
+            focusSummary = focusSummary
+        )
+
+        companion object {
+            fun from(d: DayCycleState) = WireDayCycle(
+                localDate = d.localDate,
+                checkInAtEpochMs = d.checkInAtEpochMs,
+                checkOutAtEpochMs = d.checkOutAtEpochMs,
+                focusIntentionId = d.focusIntentionId,
+                focusSummary = d.focusSummary
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -957,6 +1081,7 @@ class IntentionFlowStore(
         val turns: List<WireTurn> = emptyList(),
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
         val activeIntentionId: String? = null,
+        val dayCycle: WireDayCycle = WireDayCycle(),
         val transactions: List<WireTransaction> = emptyList(),
         val trash: List<WireTrashEntry> = emptyList()
     ) {
@@ -972,6 +1097,7 @@ class IntentionFlowStore(
             turns = turns.map { it.toDomain() },
             thoughtCaptures = thoughtCaptures.map { it.toDomain() },
             activeIntentionId = activeIntentionId,
+            dayCycle = dayCycle.toDomain(),
             transactions = transactions.map { it.toDomain() },
             trash = trash.map { it.toDomain() }
         )
@@ -989,6 +1115,7 @@ class IntentionFlowStore(
                 turns = s.turns.map(WireTurn::from),
                 thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
                 activeIntentionId = s.activeIntentionId,
+                dayCycle = WireDayCycle.from(s.dayCycle),
                 transactions = s.transactions.map(WireTransaction::from),
                 trash = s.trash.map(WireTrashEntry::from)
             )

@@ -56,6 +56,10 @@ object CommandReversibility {
                 Reversibility(true, "Recorded observed evidence ${command.evidenceId}")
             is FlowCommand.DismissEvidence ->
                 Reversibility(true, "Dismissed evidence ${command.evidenceId}")
+            is FlowCommand.ConfirmDailyCheckIn ->
+                Reversibility(true, "Confirmed daily check-in for ${command.localDate}")
+            is FlowCommand.CompleteDailyCheckOut ->
+                Reversibility(true, "Completed daily check-out for ${command.localDate}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

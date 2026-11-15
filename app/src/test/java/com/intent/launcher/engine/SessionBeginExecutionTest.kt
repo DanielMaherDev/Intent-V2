@@ -106,8 +106,9 @@ class SessionBeginExecutionTest {
         assertEquals(SessionRunStatus.COMPLETED, run.status)
         assertNotNull(run.endedAtEpochMs)
 
+        // Evening + a run today → check-out outranks another Begin.
         val next = NextActionEngine.recommend(snap, dueNow + 60, tz, registry)
-        assertEquals(NextActionKind.BEGIN, next.kind)
+        assertEquals(NextActionKind.CHECK_OUT, next.kind)
         assertFalse(next.kind == NextActionKind.ACTIVE_SESSION)
     }
 
@@ -121,7 +122,8 @@ class SessionBeginExecutionTest {
         assertNotNull(run.endedAtEpochMs)
 
         val next = NextActionEngine.recommend(store.snapshot(), dueNow + 60, tz, registry)
-        assertEquals(NextActionKind.BEGIN, next.kind)
+        assertEquals(NextActionKind.CHECK_OUT, next.kind)
+        assertFalse(next.kind == NextActionKind.ACTIVE_SESSION)
     }
 
     @Test
@@ -175,7 +177,7 @@ class SessionBeginExecutionTest {
         SpanishScenario.beginSession(store, dueNow, runId = "run-persist")
         val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
         val snap = restarted.snapshot()
-        assertEquals(4, snap.schemaVersion)
+        assertEquals(5, snap.schemaVersion)
         assertEquals(SessionRunStatus.IN_PROGRESS, snap.sessionRuns.single().status)
         val next = NextActionEngine.recommend(snap, dueNow + 1, tz, registry)
         assertEquals(NextActionKind.ACTIVE_SESSION, next.kind)

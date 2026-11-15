@@ -200,6 +200,19 @@ class MainActivity : ComponentActivity() {
                                 onCompleteSession = { vm.completeActiveSession() },
                                 onAbandonSession = { vm.abandonActiveSession() },
                                 onOpenDestination = { vm.launchDestinationApp() },
+                                onConfirmCheckIn = { vm.confirmDailyCheckIn() },
+                                onCheckOutKeepSchedule = {
+                                    vm.completeDailyCheckOut(
+                                        whatHappened = "",
+                                        deferTomorrow = false
+                                    )
+                                },
+                                onCheckOutDeferTomorrow = {
+                                    vm.completeDailyCheckOut(
+                                        whatHappened = "",
+                                        deferTomorrow = true
+                                    )
+                                },
                                 destinationLaunchNote = vm.destinationLaunchNote,
                                 usageNote = vm.usageObservation?.note,
                                 showGrantUsageAccess = vm.usageObservation?.canOpenSettings == true,

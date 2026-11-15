@@ -59,7 +59,9 @@ object FloatingCompanion {
         when (nextAction.kind) {
             NextActionKind.ACTIVE_SESSION -> FloatingAgentState.ACTIVE_SESSION
             NextActionKind.REVIEW_PROPOSAL,
-            NextActionKind.BEGIN -> FloatingAgentState.ATTENTION_NEEDED
+            NextActionKind.BEGIN,
+            NextActionKind.CHECK_IN,
+            NextActionKind.CHECK_OUT -> FloatingAgentState.ATTENTION_NEEDED
             else -> FloatingAgentState.IDLE
         }
 

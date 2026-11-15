@@ -131,6 +131,12 @@ class CapabilityRegistry(
     fun canApplyQuietMode(): Boolean =
         isActionable(ID_QUIET_MODE)
 
+    fun canDailyCheckIn(): Boolean =
+        isActionable(ID_DAILY_CHECK_IN)
+
+    fun canDailyCheckOut(): Boolean =
+        isActionable(ID_DAILY_CHECK_OUT)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -156,6 +162,8 @@ class CapabilityRegistry(
         const val ID_TRASH_SOFT_DELETE = "trash_soft_delete"
         const val ID_TRASH_RESTORE = "trash_restore"
         const val ID_EXTERNAL_ACTION_UNDO = "external_action_undo"
+        const val ID_DAILY_CHECK_IN = "daily_check_in"
+        const val ID_DAILY_CHECK_OUT = "daily_check_out"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -313,6 +321,19 @@ class CapabilityRegistry(
                 status = CapabilityStatus.NOT_SUPPORTED,
                 limitNote = "Opening another app, calendar write-back, messages, and purchases " +
                     "cannot be reversed by INTENT — only logged honestly."
+            ),
+            CapabilityEntry(
+                id = ID_DAILY_CHECK_IN,
+                title = "Daily check-in",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Morning focus confirm/adjust on the Home intention model — " +
+                    "not a separate daily-task store."
+            ),
+            CapabilityEntry(
+                id = ID_DAILY_CHECK_OUT,
+                title = "Daily check-out",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Evening SAID review + keep/defer on the same intention snapshot."
             )
         )
 
