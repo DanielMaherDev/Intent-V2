@@ -154,6 +154,15 @@ class CapabilityRegistry(
     fun canReviewSessionNotifications(): Boolean =
         isActionable(ID_SESSION_NOTIFICATION_REVIEW)
 
+    fun canCaptureThought(): Boolean =
+        isActionable(ID_CAPTURE_THOUGHT)
+
+    fun canBuildIntention(): Boolean =
+        isActionable(ID_BUILD_INTENTION)
+
+    fun canTriageThoughts(): Boolean =
+        isActionable(ID_TRIAGE_THOUGHTS)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -184,6 +193,9 @@ class CapabilityRegistry(
         const val ID_DAILY_CHECK_OUT = "daily_check_out"
         const val ID_TRACKER_MODULES = "tracker_modules"
         const val ID_PROGRESS_REPORTS = "progress_reports"
+        const val ID_CAPTURE_THOUGHT = "capture_thought"
+        const val ID_BUILD_INTENTION = "build_intention"
+        const val ID_TRIAGE_THOUGHTS = "triage_thoughts"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -375,6 +387,26 @@ class CapabilityRegistry(
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "PathSummary + labeled SAID/OBSERVED/INFERRED proof from the same store. " +
                     "Missing partner data stays empty — never invents completion."
+            ),
+            CapabilityEntry(
+                id = ID_CAPTURE_THOUGHT,
+                title = "Capture thought",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Stores raw text with SAID provenance before classification."
+            ),
+            CapabilityEntry(
+                id = ID_BUILD_INTENTION,
+                title = "Guided intention builder",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Heuristic shape + missing-fact prompts — no live LLM. " +
+                    "Facts are SAID only after you confirm; no auto-commit of INFERRED."
+            ),
+            CapabilityEntry(
+                id = ID_TRIAGE_THOUGHTS,
+                title = "Multi-thought triage",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Heuristic split into proposed intentions — no live LLM. " +
+                    "Confirm creates an intention; reject leaves the thought as evidence only."
             )
         )
 
