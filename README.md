@@ -49,6 +49,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.46:** Floater Ask / Today / Capture drawer — long-press menu; same agent as Conversation (reclaimed from 0.0.33)
 - **v0.0.47:** Guided intention builder + multi-thought triage — heuristic shape/split (no LLM); SAID facts only on confirm; rejected triage keeps RAW evidence (reclaimed; was staged as 0.0.32)
 - **v0.0.48:** Home clutter-free attention strip — one next-action strip + optional elapsed/OBSERVED line; quiet grants; no first-viewport clutter
+- **v0.0.48:** Home clutter-free attention strip — one next-action strip + optional elapsed/OBSERVED line; quiet grants; no first-viewport clutter
 
 ## Shapes
 
@@ -143,6 +144,12 @@ Long-press (or Home **Companion menu**) shows **Ask** (Conversation + optional i
 Home **Start a new intention** opens a guided builder (heuristic shape suggestion, missing-fact prompts). Confirm writes SAID facts only — no auto-INFERRED. **Triage thoughts** splits a dump or raw captures into proposed intentions; confirm creates one, reject leaves RAW evidence. No live LLM.
 
 ## Sideload packaging (v0.0.17–v0.0.48)
+
+## Sideload packaging (v0.0.17–v0.0.48)
+
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.48.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+
+## Home attention strip (v0.0.48)
 
 Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.48.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
