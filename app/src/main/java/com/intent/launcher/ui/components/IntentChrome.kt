@@ -236,14 +236,14 @@ fun OverflowMenuButton(
 @Composable
 fun SmallLabel(
     text: String,
-    color: Color = IntentColors.Accent,
+    color: Color? = null,
     modifier: Modifier = Modifier
 ) {
     Text(
         text = text.uppercase(),
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
-        color = color,
+        color = color ?: IntentColors.Accent,
         letterSpacing = 1.6.sp
     )
 }
