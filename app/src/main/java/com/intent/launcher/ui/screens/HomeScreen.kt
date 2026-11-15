@@ -57,6 +57,7 @@ import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.LineRow
 import com.intent.launcher.ui.components.PillTone
+import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SessionMetaCell
 import com.intent.launcher.ui.components.SessionSummaryCard
@@ -164,6 +165,8 @@ fun HomeScreen(
     errandNote: String? = null,
     onAddQuickTodo: (() -> Unit)? = null,
     onToggleErrand: (ErrandTodo) -> Unit = {},
+    /** OS-143 — History / Trash via overflow, not a primary tab. */
+    overflowItems: List<OverflowMenuItem> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
@@ -210,6 +213,8 @@ fun HomeScreen(
         ) {
             HomeBrandRow(onSettings = onSettings)
             Spacer(modifier = Modifier.height(37.dp))
+            HomeBrandRow(onSettings = onSettings, overflowItems = overflowItems)
+            Spacer(modifier = Modifier.height(22.dp))
             DateLabel(dateLabel)
             Spacer(modifier = Modifier.height(11.dp))
             Text(
