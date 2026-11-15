@@ -3,6 +3,7 @@ package com.intent.launcher
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.JobOfferScenario
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.NextActionKind
@@ -402,6 +403,121 @@ class IntentionFlowStoreTest {
         assertEquals(deferUntil, again.sessions.first { it.id == MoveScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals("move", again.intentions.first { it.id == MoveScenario.INTENTION_ID }.shapeTag)
         assertFalse(MoveScenario.placeIsConfirmed(again.facts))
+    }
+
+    @Test
+    fun jobOffer_keepComparing_doesNotChooseForUser() {
+        JobOfferScenario.seed(store, now)
+        JobOfferScenario.onChip(store, "I have an offer and ten days to decide", now + 10)
+        JobOfferScenario.onChip(
+            store,
+            "Compensation higher; growth unclear vs current role",
+            now + 20
+        )
+        JobOfferScenario.onChip(store, "Keep comparing — do not choose for me", now + 30)
+
+        val snap = store.snapshot()
+        val intention = snap.intentions.first { it.id == JobOfferScenario.INTENTION_ID }
+        assertEquals("decision", intention.shapeTag)
+        assertEquals(IntentionPhase.EXPLORING, intention.phase)
+        assertTrue(snap.proposals.none { it.intentionId == JobOfferScenario.INTENTION_ID })
+        assertTrue(snap.sessions.none { it.intentionId == JobOfferScenario.INTENTION_ID })
+        assertEquals(ProvenanceKind.SAID, snap.facts.first { it.id == JobOfferScenario.FACT_DEADLINE_ID }.provenance.kind)
+        assertEquals(
+            ProvenanceKind.SAID,
+            snap.facts.first { it.id == JobOfferScenario.FACT_CRITERION_COMP_ID }.provenance.kind
+        )
+        assertEquals(
+            ProvenanceKind.SAID,
+            snap.facts.first { it.id == JobOfferScenario.FACT_CRITERION_GROWTH_ID }.provenance.kind
+        )
+        val agentTurns = snap.turns.filter { it.intentionId == JobOfferScenario.INTENTION_ID && it.role == "agent" }
+        assertTrue(agentTurns.any { it.text.contains("No choice made on your behalf", ignoreCase = true) })
+        // Negation language ("will not accept or decline") is allowed; recommendations are not.
+        assertFalse(
+            agentTurns.any {
+                val t = it.text.lowercase()
+                t.contains("you should accept") ||
+                    t.contains("you should decline") ||
+                    t.contains("i recommend accepting") ||
+                    t.contains("i recommend declining") ||
+                    t.contains("accept on your behalf") ||
+                    t.contains("decline on your behalf")
+            }
+        )
+        assertTrue(
+            agentTurns.any {
+                it.text.contains("will not", ignoreCase = true) &&
+                    it.text.contains("accept", ignoreCase = true) &&
+                    it.text.contains("decline", ignoreCase = true)
+            } || agentTurns.any { it.text.contains("No choice made on your behalf", ignoreCase = true) }
+        )
+    }
+
+    @Test
+    fun jobOfferFlow_criteriaMatrix_reviewProposal_doesNotAutoDecide() {
+        JobOfferScenario.seed(store, now)
+        assertEquals(IntentionPhase.EXPLORING, store.snapshot().intentions.first { it.id == JobOfferScenario.INTENTION_ID }.phase)
+        assertEquals("decision", store.snapshot().intentions.first { it.id == JobOfferScenario.INTENTION_ID }.shapeTag)
+
+        JobOfferScenario.onChip(store, "I have an offer and ten days to decide", now + 10)
+        JobOfferScenario.onChip(
+            store,
+            "Compensation higher; growth unclear vs current role",
+            now + 20
+        )
+        JobOfferScenario.onChip(store, "Commute would be longer than today", now + 30)
+        JobOfferScenario.onChip(store, "Schedule a decision review before the deadline", now + 40)
+
+        var snap = store.snapshot()
+        val proposal = snap.proposals.first { it.id == JobOfferScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertTrue(proposal.title.contains("Decision review", ignoreCase = true))
+        assertTrue(proposal.summary.contains("does not accept or decline", ignoreCase = true))
+        assertFalse(proposal.title.contains("accept", ignoreCase = true))
+        assertFalse(proposal.title.contains("decline", ignoreCase = true))
+        assertTrue(proposal.basedOnFactIds.contains(JobOfferScenario.FACT_DEADLINE_ID))
+        assertEquals(
+            IntentionPhase.PROPOSAL_PENDING,
+            snap.intentions.first { it.id == JobOfferScenario.INTENTION_ID }.phase
+        )
+        assertEquals(3, snap.facts.count { it.id.startsWith("fact-criterion-") })
+        assertTrue(snap.facts.all { it.provenance.kind == ProvenanceKind.SAID })
+
+        JobOfferScenario.approve(store, now + 50)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == JobOfferScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == JobOfferScenario.SESSION_ID })
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == JobOfferScenario.INTENTION_ID }.phase)
+        assertEquals("Decision review", snap.sessions.first { it.id == JobOfferScenario.SESSION_ID }.title)
+
+        val deferUntil = now + 86_400_000L
+        JobOfferScenario.deferSession(store, deferUntil, now + 60)
+        assertEquals(deferUntil, store.snapshot().sessions.first { it.id == JobOfferScenario.SESSION_ID }.deferredUntilEpochMs)
+
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == JobOfferScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == JobOfferScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals(
+            ProvenanceKind.SAID,
+            again.facts.first { it.id == JobOfferScenario.FACT_CRITERION_COMMUTE_ID }.provenance.kind
+        )
+    }
+
+    @Test
+    fun fourShapes_shareCoreRecordsIncludingDecision() {
+        SpanishScenario.seed(store, now)
+        MarathonScenario.seed(store, now + 1)
+        BusinessScenario.seed(store, now + 2)
+        JobOfferScenario.seed(store, now + 3)
+        val snap = store.snapshot()
+        assertEquals(4, snap.intentions.size)
+        assertTrue(snap.intentions.any { it.shapeTag == "language" })
+        assertTrue(snap.intentions.any { it.shapeTag == "marathon" })
+        assertTrue(snap.intentions.any { it.shapeTag == "business" })
+        assertTrue(snap.intentions.any { it.shapeTag == "decision" })
+        assertEquals(JobOfferScenario.INTENTION_ID, snap.activeIntentionId)
     }
 
     @Test

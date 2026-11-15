@@ -74,18 +74,21 @@ object ShapeProjection {
                 "marathon" -> "Training still taking shape"
                 "business" -> "Still in discovery"
                 "move" -> "Move plan · landlord steps gated"
+                "decision" -> "Comparing — no choice made yet"
                 else -> "Open your intention"
             }
             IntentionPhase.PROPOSAL_PENDING -> when (shapeTag) {
                 "marathon" -> "Your approach is taking shape"
                 "business" -> "A research habit is pending"
                 "move" -> "Apartment search pending approval"
+                "decision" -> "A decision-review block is pending"
                 else -> "Your approach is taking shape"
             }
             IntentionPhase.ACTIVE -> when (shapeTag) {
                 "marathon" -> "Long-run routine in motion"
                 "business" -> "Discovery habit in motion"
                 "move" -> "Search rhythm in motion · lease still gated"
+                "decision" -> "Decision support in motion"
                 else -> "Speaking practice in motion"
             }
             IntentionPhase.PAUSED -> "Paused — facts kept"
@@ -97,6 +100,8 @@ object ShapeProjection {
             phase == IntentionPhase.ACTIVE && shapeTag == "business" -> "What we are learning"
             phase == IntentionPhase.ACTIVE && shapeTag == "marathon" -> "Training facts"
             phase == IntentionPhase.ACTIVE && shapeTag == "move" -> "Move constraints"
+            phase == IntentionPhase.ACTIVE && shapeTag == "decision" -> "Your comparison matrix"
+            phase == IntentionPhase.CLARIFYING && shapeTag == "decision" -> "Your comparison matrix"
             phase == IntentionPhase.ACTIVE -> "What we know"
             else -> "What we know"
         }
@@ -106,6 +111,7 @@ object ShapeProjection {
             "marathon" -> "Your training approach"
             "business" -> "Your discovery approach"
             "move" -> "Your move plan"
+            "decision" -> "Your decision support"
             else -> "Your approach"
         }
 
@@ -118,6 +124,8 @@ object ShapeProjection {
             "move" ->
                 "No lease or landlord confirmation has been invented. Search and budget can start; " +
                     "lease, notice, and movers stay gated until a place is confirmed."
+            "decision" ->
+                "No accept/decline has been chosen for you. Add SAID criteria to compare before the deadline."
             else ->
                 "No tasks have been invented. This intention stays open while you decide on an approach."
         }
@@ -129,6 +137,11 @@ object ShapeProjection {
             "move" -> listOf(
                 "Goal · Barcelona → Valencia",
                 "Timeframe · about six weeks · renting · no place found"
+            )
+            "decision" -> listOf(
+                "Goal · decide on a job offer",
+                "Timeframe · about ten days",
+                "Support · compare criteria — INTENT does not choose"
             )
             else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
         }
@@ -147,6 +160,8 @@ object ShapeProjection {
             "business" -> "Destination · notes & conversations — no CRM completion claimed."
             "move" ->
                 "Destination · listings & notes — no invented landlord confirmation or lease."
+            "decision" ->
+                "Destination · your notes & criteria — INTENT never accepts or declines for you."
             else -> null
         }
     }
@@ -186,6 +201,17 @@ object ShapeProjection {
                 ApproachStep(
                     title = "Capture one learning",
                     detail = "What did you learn about customers or the idea?",
+                    muted = true
+                )
+            )
+            "decision" -> listOf(
+                ApproachStep(
+                    title = session?.title ?: "Decision review",
+                    detail = (whenLabel?.let { "$it · approved" } ?: "Approved review block")
+                ),
+                ApproachStep(
+                    title = "You choose accept or decline",
+                    detail = "INTENT only holds your SAID criteria — never picks for you.",
                     muted = true
                 )
             )
@@ -280,6 +306,7 @@ object ShapeProjection {
                     "marathon" -> "How will you train?"
                     "business" -> "How will you learn?"
                     "move" -> "What depends on a landlord?"
+                    "decision" -> "What will you weigh?"
                     else -> "How will you practise?"
                 },
                 heroBody = when (shapeTag) {
@@ -289,6 +316,8 @@ object ShapeProjection {
                         "We can stay in discovery, talk to customers, or add a light research habit — nothing forced."
                     "move" ->
                         "Search and budget can start now. Lease, notice, and movers stay gated until a place is confirmed — nothing invents a landlord."
+                    "decision" ->
+                        "Capture SAID criteria into a comparison matrix. INTENT will not accept or decline for you."
                     else ->
                         "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
                 },
@@ -302,11 +331,14 @@ object ShapeProjection {
                     "marathon" -> "Add your long run?"
                     "business" -> "Add a research hour?"
                     "move" -> "Add a weekly search block?"
+                    "decision" -> "Add a decision-review block?"
                     else -> "Add your session?"
                 },
                 heroBody = when (shapeTag) {
                     "move" ->
                         "INTENT will bring the search into your week once approved. Landlord-gated steps stay blocked."
+                    "decision" ->
+                        "A review block helps you weigh criteria before the deadline — not a choice made for you."
                     else -> "INTENT will bring it into your week once approved."
                 },
                 heroCta = "Review details",
@@ -319,6 +351,7 @@ object ShapeProjection {
                     "marathon" -> "Prepare for your next long run"
                     "business" -> "Prepare your next research block"
                     "move" -> "Prepare your next search block"
+                    "decision" -> "Prepare your decision review"
                     else -> "Prepare for your next session"
                 },
                 heroBody = when (shapeTag) {
@@ -326,6 +359,8 @@ object ShapeProjection {
                     "business" -> "Pick one question to explore — no fake launch plan."
                     "move" ->
                         "Look at listings within budget — no invented lease or move-in date."
+                    "decision" ->
+                        "Revisit your SAID matrix. You still choose accept or decline."
                     else -> "Bring one situation you want to rehearse."
                 },
                 heroCta = "Begin preparation",
@@ -347,6 +382,7 @@ object ShapeProjection {
                 "marathon" -> "Contextual conversation · training"
                 "business" -> "Contextual conversation · discovery"
                 "move" -> "Contextual conversation · move plan"
+                "decision" -> "Contextual conversation · decision support"
                 else -> "Contextual conversation"
             }
             IntentionPhase.PROPOSAL_PENDING -> "Your ongoing conversation"
@@ -354,6 +390,7 @@ object ShapeProjection {
                 "marathon" -> "A conversation about your training"
                 "business" -> "A conversation about your idea"
                 "move" -> "A conversation about your move"
+                "decision" -> "A conversation about your offer"
                 else -> "A conversation about your goal"
             }
         }
@@ -364,9 +401,13 @@ object ShapeProjection {
                 "marathon" -> "Your next long run"
                 "business" -> "Your next research hour"
                 "move" -> "Your next apartment search"
+                "decision" -> "Your decision review"
                 else -> "Your next session"
             }
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"
-            else -> "Let's find a way that fits."
+            else -> when (shapeTag) {
+                "decision" -> "Compare — I will not choose for you."
+                else -> "Let's find a way that fits."
+            }
         }
 }
