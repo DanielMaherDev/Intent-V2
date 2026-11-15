@@ -135,6 +135,9 @@ class CapabilityRegistry(
     /** External side effects (app launch, calendar write-back) are not undoable. */
     fun canUndoExternalAction(): Boolean =
         isActionable(ID_EXTERNAL_ACTION_UNDO)
+    /** Lightweight errand / quick to-do inbox (OS-073) — not Intention builder. */
+    fun canCaptureQuickTodo(): Boolean =
+        isActionable(ID_QUICK_TODO)
 
     /**
      * True only when quiet_mode is actionable.
@@ -226,6 +229,7 @@ class CapabilityRegistry(
         const val ID_PARTNER_CHESS = "partner_chess"
         const val ID_PARTNER_STRAVA = "partner_strava"
         const val ID_LIVE_LLM = "live_llm"
+        const val ID_QUICK_TODO = "quick_todo"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -472,6 +476,13 @@ class CapabilityRegistry(
                 limitNote = "No LLM API key configured. Discuss uses labeled local heuristics " +
                     "(scripted chips / templates) — not a live model. Never writes OBSERVED " +
                     "from model output; never auto-Completes sessions."
+            ),
+            CapabilityEntry(
+                id = ID_QUICK_TODO,
+                title = "Quick to-do / errand",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Lightweight errand inbox with optional reminder — " +
+                    "does not create an exploring Intention (CASE-01 / OS-073)."
             )
         )
 

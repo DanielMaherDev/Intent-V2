@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
@@ -36,6 +37,7 @@ import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConnectionsScreen
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
+import com.intent.launcher.ui.screens.ErrandTodoDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionBuilderScreen
@@ -240,6 +242,16 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
+                            var showErrandDialog by remember { mutableStateOf(false) }
+                            if (showErrandDialog) {
+                                ErrandTodoDialog(
+                                    onDismiss = { showErrandDialog = false },
+                                    onSave = { text ->
+                                        vm.captureQuickTodo(text)
+                                        showErrandDialog = false
+                                    }
+                                )
+                            }
                             HomeScreen(
                                 nextAction = vm.nextAction,
                                 intentionHint = intentionHint,
@@ -425,6 +437,14 @@ class MainActivity : ComponentActivity() {
                                 onStartBuilder = { nav.navigate("builder") },
                                 onOpenTriage = { nav.navigate("triage") },
                                 rawThoughtCount = vm.rawThoughtCount(),
+                                openErrands = vm.openErrands(),
+                                errandNote = vm.errandNote,
+                                onAddQuickTodo = if (vm.canAddQuickTodo()) {
+                                    { showErrandDialog = true }
+                                } else {
+                                    null
+                                },
+                                onToggleErrand = { vm.toggleErrand(it) },
                                 onSettings = { nav.navigate("connections") },
                                 modifier = Modifier.fillMaxSize()
                             )

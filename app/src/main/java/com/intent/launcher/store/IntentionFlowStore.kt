@@ -4,6 +4,8 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.ConversationTurn
 import com.intent.launcher.domain.DayCycleState
+import com.intent.launcher.domain.ErrandStatus
+import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
@@ -485,7 +487,7 @@ class IntentionFlowStore(
                 )
             }
 
-is FlowCommand.MarkThoughtStatus -> {
+            is FlowCommand.MarkThoughtStatus -> {
                 migrated.copy(
                     thoughtCaptures = migrated.thoughtCaptures.map {
                         if (it.id == command.thoughtId) it.copy(status = command.status) else it
@@ -666,6 +668,51 @@ is FlowCommand.MarkThoughtStatus -> {
                 migrated.copy(triage = TriageState())
             }
 
+            is FlowCommand.CaptureErrand -> {
+                val todo = ErrandTodo(
+                    id = command.todoId,
+                    title = command.title,
+                    firstAction = command.firstAction,
+                    reminderNote = command.reminderNote,
+                    status = ErrandStatus.OPEN,
+                    createdAtEpochMs = command.nowEpochMs,
+                    completedAtEpochMs = null,
+                    provenance = Provenance(
+                        kind = ProvenanceKind.SAID,
+                        learnedAtEpochMs = command.nowEpochMs,
+                        sourceLabel = "user"
+                    )
+                )
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.filterNot { it.id == todo.id } + todo
+                )
+            }
+
+            is FlowCommand.CompleteErrand -> {
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.map {
+                        if (it.id == command.todoId && it.status == ErrandStatus.OPEN) {
+                            it.copy(
+                                status = ErrandStatus.DONE,
+                                completedAtEpochMs = command.nowEpochMs
+                            )
+                        } else it
+                    }
+                )
+            }
+
+            is FlowCommand.ReopenErrand -> {
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.map {
+                        if (it.id == command.todoId && it.status == ErrandStatus.DONE) {
+                            it.copy(
+                                status = ErrandStatus.OPEN,
+                                completedAtEpochMs = null
+                            )
+                        } else it
+                    }
+                )
+            }
 
             is FlowCommand.SoftDeleteIntention -> softDeleteIntention(migrated, command)
             is FlowCommand.SoftDeleteSession -> softDeleteSession(migrated, command)
@@ -953,6 +1000,9 @@ is FlowCommand.MarkThoughtStatus -> {
                     is FlowCommand.SetActiveIntention -> command.nowEpochMs
                     is FlowCommand.MarkPhase -> command.nowEpochMs
                     is FlowCommand.CaptureThought -> command.nowEpochMs
+                    is FlowCommand.CaptureErrand -> command.nowEpochMs
+                    is FlowCommand.CompleteErrand -> command.nowEpochMs
+                    is FlowCommand.ReopenErrand -> command.nowEpochMs
                     is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
                     is FlowCommand.DismissEvidence -> command.nowEpochMs
                     is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
@@ -999,6 +1049,9 @@ is FlowCommand.MarkThoughtStatus -> {
             is FlowCommand.SetActiveIntention -> command.nowEpochMs
             is FlowCommand.MarkPhase -> command.nowEpochMs
             is FlowCommand.CaptureThought -> command.nowEpochMs
+            is FlowCommand.CaptureErrand -> command.nowEpochMs
+            is FlowCommand.CompleteErrand -> command.nowEpochMs
+            is FlowCommand.ReopenErrand -> command.nowEpochMs
             is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
             is FlowCommand.DismissEvidence -> command.nowEpochMs
             is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
@@ -1662,6 +1715,40 @@ is FlowCommand.MarkThoughtStatus -> {
         }
     }
 
+    data class WireErrandTodo(
+        val id: String = "",
+        val title: String = "",
+        val firstAction: String = "",
+        val reminderNote: String? = null,
+        val status: String = ErrandStatus.OPEN.name,
+        val createdAtEpochMs: Long = 0L,
+        val completedAtEpochMs: Long? = null,
+        val provenance: WireProvenance = WireProvenance()
+    ) {
+        fun toDomain() = ErrandTodo(
+            id = id,
+            title = title,
+            firstAction = firstAction,
+            reminderNote = reminderNote,
+            status = ErrandStatus.valueOf(status),
+            createdAtEpochMs = createdAtEpochMs,
+            completedAtEpochMs = completedAtEpochMs,
+            provenance = provenance.toDomain()
+        )
+        companion object {
+            fun from(t: ErrandTodo) = WireErrandTodo(
+                id = t.id,
+                title = t.title,
+                firstAction = t.firstAction,
+                reminderNote = t.reminderNote,
+                status = t.status.name,
+                createdAtEpochMs = t.createdAtEpochMs,
+                completedAtEpochMs = t.completedAtEpochMs,
+                provenance = WireProvenance.from(t.provenance)
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -1676,6 +1763,7 @@ is FlowCommand.MarkThoughtStatus -> {
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
         val builderDraft: WireBuilderDraft = WireBuilderDraft(),
         val triage: WireTriageState = WireTriageState(),
+        val errandTodos: List<WireErrandTodo> = emptyList(),
         val activeIntentionId: String? = null,
         val dayCycle: WireDayCycle = WireDayCycle(),
         val transactions: List<WireTransaction> = emptyList(),
@@ -1697,6 +1785,7 @@ is FlowCommand.MarkThoughtStatus -> {
             thoughtCaptures = thoughtCaptures.map { it.toDomain() },
             builderDraft = builderDraft.toDomain(),
             triage = triage.toDomain(),
+            errandTodos = errandTodos.map { it.toDomain() },
             activeIntentionId = activeIntentionId,
             dayCycle = dayCycle.toDomain(),
             transactions = transactions.map { it.toDomain() },
@@ -1720,6 +1809,7 @@ is FlowCommand.MarkThoughtStatus -> {
                 thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
                 builderDraft = WireBuilderDraft.from(s.builderDraft),
                 triage = WireTriageState.from(s.triage),
+                errandTodos = s.errandTodos.map(WireErrandTodo::from),
                 activeIntentionId = s.activeIntentionId,
                 dayCycle = WireDayCycle.from(s.dayCycle),
                 transactions = s.transactions.map(WireTransaction::from),
