@@ -275,6 +275,14 @@ class MainActivity : ComponentActivity() {
                                         vm.onScreenCaptureConsentDenied()
                                     }
                                 },
+                                sessionNotificationRows = vm.sessionNotificationRows().map { row ->
+                                    val label = "${row.packageName} · ${row.coarseCategory} · ${row.count}"
+                                    val key = "${row.packageName}|${row.coarseCategory}"
+                                    label to key
+                                },
+                                onDismissNotificationRow = { pkg, category ->
+                                    vm.dismissSessionNotificationRow(pkg, category)
+                                },
                                 overlayNote = vm.overlayObservation?.note,
                                 showGrantOverlay = vm.overlayObservation?.canOpenSettings == true,
                                 onGrantOverlay = {

@@ -105,6 +105,18 @@ class CapabilityRegistryTest {
     }
 
     @Test
+    fun registry_marksNotificationReviewPermissionNeeded_andQuietUnsupported() {
+        assertTrue(registry.needsPermission(CapabilityRegistry.ID_NOTIFICATION_LISTENER))
+        assertTrue(registry.needsPermission(CapabilityRegistry.ID_SESSION_NOTIFICATION_REVIEW))
+        assertFalse(registry.canReviewSessionNotifications())
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_SESSION_NOTIFICATION_REVIEW)!!.limitNote
+                .contains("titles/bodies", ignoreCase = true)
+        )
+    }
+
+    @Test
     fun filterChips_dropsDishonestLessonCompletionSuggestion() {
         val mixed = SpanishScenario.suggestedChips + SpanishScenario.dishonestLessonCompletionChip
         val labels = registry.filterChips(mixed)
