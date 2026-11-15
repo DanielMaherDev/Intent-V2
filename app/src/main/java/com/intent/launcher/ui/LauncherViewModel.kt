@@ -14,6 +14,7 @@ import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
 
@@ -144,6 +145,22 @@ class LauncherViewModel(
             )
         )
         refresh()
+    }
+
+    /**
+     * Home Discuss → Conversation for the next-action intention (scheduled or
+     * active session). Returns the nav route, or null when Discuss is locked.
+     * Does not complete or abandon an in-progress run.
+     */
+    fun openDiscussFromHome(): String? {
+        val result = DiscussFromHome.open(
+            store = store,
+            nextAction = nextAction,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        refresh()
+        return result.navigateTo
     }
 
     /**

@@ -76,6 +76,9 @@ class CapabilityRegistry(
     fun canContinueExploring(): Boolean =
         isActionable(ID_CONTINUE_EXPLORING)
 
+    fun canDiscuss(): Boolean =
+        isActionable(ID_DISCUSS)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"

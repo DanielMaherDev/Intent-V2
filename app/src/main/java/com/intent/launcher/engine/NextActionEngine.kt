@@ -160,7 +160,7 @@ object NextActionEngine {
                 sessionId = run.sessionId,
                 sessionRunId = run.id,
                 startedAtEpochMs = run.startedAtEpochMs,
-                discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
+                discussLabel = if (registry.canDiscuss()) "Discuss" else null
             )
         }
         return NextAction(
@@ -174,7 +174,7 @@ object NextActionEngine {
             startedAtEpochMs = run.startedAtEpochMs,
             completeLabel = if (canComplete) "Complete" else null,
             abandonLabel = if (canAbandon) "Abandon" else null,
-            discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
+            discussLabel = if (registry.canDiscuss()) "Discuss" else null
         )
     }
 
@@ -212,7 +212,7 @@ object NextActionEngine {
 
         // Far-future day: prefer Discuss unless Begin is the only honest path users expect mid-flow.
         if (timing == SessionTiming.FUTURE_DAY) {
-            if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) {
+            if (registry.canDiscuss()) {
                 return NextAction(
                     kind = NextActionKind.DISCUSS,
                     label = session.title,
@@ -243,7 +243,7 @@ object NextActionEngine {
             sessionId = session.id,
             beginLabel = "Begin",
             deferLabel = if (registry.canRecommendDefer()) "Later" else null,
-            discussLabel = if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) "Discuss" else null
+            discussLabel = if (registry.canDiscuss()) "Discuss" else null
         )
     }
 
@@ -255,7 +255,7 @@ object NextActionEngine {
     ): NextAction {
         val note = registry.get(CapabilityRegistry.ID_BEGIN_SESSION)?.limitNote
             ?: "Beginning a session is not available in this build."
-        return if (registry.isActionable(CapabilityRegistry.ID_DISCUSS)) {
+        return if (registry.canDiscuss()) {
             NextAction(
                 kind = NextActionKind.DISCUSS,
                 label = session.title,
