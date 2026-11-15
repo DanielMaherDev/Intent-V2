@@ -20,6 +20,9 @@ import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.NextActionEngine
+import com.intent.launcher.engine.OverlayPermissionAccess
+import com.intent.launcher.engine.OverlayPermissionProbe
+import com.intent.launcher.engine.PlatformCapabilityLive
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.UsageStatsProbe
 import com.intent.launcher.store.IntentionFlowStore
@@ -28,11 +31,13 @@ class LauncherViewModel(
     private val store: IntentionFlowStore = IntentApp.instance.store,
     private val appLauncher: InstalledAppLauncher = IntentApp.instance.appLauncher,
     private val usageStatsAccess: UsageStatsAccess = IntentApp.instance.usageStatsAccess,
+    private val overlayPermissionAccess: OverlayPermissionAccess =
+        IntentApp.instance.overlayPermissionAccess,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
     private var capabilityRegistry: CapabilityRegistry =
-        initialRegistry ?: UsageStatsProbe.liveRegistry(usageStatsAccess)
+        initialRegistry ?: PlatformCapabilityLive.registry(usageStatsAccess, overlayPermissionAccess)
 
     var snapshot by mutableStateOf(store.snapshot())
         private set
@@ -51,11 +56,17 @@ class LauncherViewModel(
     var usageObservation by mutableStateOf<UsageStatsProbe.Observation?>(null)
         private set
 
+    /** Overlay permission honesty — floating agent not shipped even when granted. */
+    var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(null)
+        private set
+
     fun refresh() {
-        capabilityRegistry = UsageStatsProbe.liveRegistry(usageStatsAccess)
+        capabilityRegistry =
+            PlatformCapabilityLive.registry(usageStatsAccess, overlayPermissionAccess)
         snapshot = store.snapshot()
         nextAction = recommend()
         usageObservation = observeUsageIfActive()
+        overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
     }
 
     private fun recommend(): NextAction =

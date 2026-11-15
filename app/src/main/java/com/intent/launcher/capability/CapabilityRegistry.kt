@@ -86,6 +86,13 @@ class CapabilityRegistry(
     fun canReadUsageStats(): Boolean =
         isActionable(ID_USAGE_STATS)
 
+    /**
+     * True when overlay permission is granted.
+     * Does not mean a floating agent is shipped — check limit notes.
+     */
+    fun canUseFloatingOverlay(): Boolean =
+        isActionable(ID_FLOATING_OVERLAY)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"

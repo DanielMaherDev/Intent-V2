@@ -3,7 +3,9 @@ package com.intent.launcher
 import android.app.Application
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.InstalledAppLauncher
+import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.UsageStatsAccess
+import com.intent.launcher.platform.AndroidOverlayPermissionAccess
 import com.intent.launcher.platform.AndroidUsageStatsAccess
 import com.intent.launcher.platform.PackageManagerAppLauncher
 import com.intent.launcher.store.IntentionFlowStore
@@ -19,6 +21,9 @@ class IntentApp : Application() {
     lateinit var usageStatsAccess: UsageStatsAccess
         private set
 
+    lateinit var overlayPermissionAccess: OverlayPermissionAccess
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -26,6 +31,7 @@ class IntentApp : Application() {
         store = IntentionFlowStore(file)
         appLauncher = PackageManagerAppLauncher(this)
         usageStatsAccess = AndroidUsageStatsAccess(this)
+        overlayPermissionAccess = AndroidOverlayPermissionAccess(this)
         SpanishScenario.ensureSeeded(store)
     }
 
