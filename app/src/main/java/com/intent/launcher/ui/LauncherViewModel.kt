@@ -16,6 +16,7 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
@@ -25,8 +26,11 @@ import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PlatformCapabilityLive
+import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.UsageStatsProbe
+import com.intent.launcher.engine.VoiceInputProbe
+import com.intent.launcher.engine.VoicePermissionAccess
 import com.intent.launcher.store.IntentionFlowStore
 
 class LauncherViewModel(
@@ -35,11 +39,21 @@ class LauncherViewModel(
     private val usageStatsAccess: UsageStatsAccess = IntentApp.instance.usageStatsAccess,
     private val overlayPermissionAccess: OverlayPermissionAccess =
         IntentApp.instance.overlayPermissionAccess,
+    private val voicePermissionAccess: VoicePermissionAccess =
+        IntentApp.instance.voicePermissionAccess,
+    private val speechToTextAccess: SpeechToTextAccess =
+        IntentApp.instance.speechToTextAccess,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
     private var capabilityRegistry: CapabilityRegistry =
-        initialRegistry ?: PlatformCapabilityLive.registry(usageStatsAccess, overlayPermissionAccess)
+        initialRegistry
+            ?: PlatformCapabilityLive.registry(
+                usageStatsAccess,
+                overlayPermissionAccess,
+                voicePermissionAccess,
+                speechToTextAccess
+            )
 
     var snapshot by mutableStateOf(store.snapshot())
         private set
@@ -74,6 +88,16 @@ class LauncherViewModel(
     )
         private set
 
+    /** Voice / mic honesty for Conversation. */
+    var voiceObservation by mutableStateOf(
+        VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
+    )
+        private set
+
+    /** Last voice-path note (permission, unmatched transcript, chip match). */
+    var voicePathNote by mutableStateOf<String?>(null)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         floatingPresence = resolveFloatingPresence()
@@ -81,13 +105,26 @@ class LauncherViewModel(
 
     fun refresh() {
         capabilityRegistry =
-            PlatformCapabilityLive.registry(usageStatsAccess, overlayPermissionAccess)
+            PlatformCapabilityLive.registry(
+                usageStatsAccess,
+                overlayPermissionAccess,
+                voicePermissionAccess,
+                speechToTextAccess
+            )
         snapshot = store.snapshot()
         nextAction = recommend()
         usageObservation = observeUsageIfActive()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
         floatingPresence = resolveFloatingPresence()
+        voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
     }
+
+    /** True when mic may start platform speech recognition. */
+    fun canStartVoiceCapture(): Boolean =
+        capabilityRegistry.canUseVoiceInput() && voiceObservation.canCapture
+
+    fun voiceNeedsPermission(): Boolean =
+        voiceObservation.canRequestPermission && !voiceObservation.permissionGranted
 
     private fun resolveFloatingPresence(): FloatingCompanion.Presence =
         FloatingCompanion.presence(
@@ -147,11 +184,39 @@ class LauncherViewModel(
         }
 
     fun onConversationChip(chip: String) {
-        when (activeIntention()?.shapeTag) {
-            "marathon" -> MarathonScenario.onChip(store, chip, registry = capabilityRegistry)
-            "business" -> BusinessScenario.onChip(store, chip, registry = capabilityRegistry)
-            else -> SpanishScenario.onChip(store, chip, registry = capabilityRegistry)
-        }
+        ConversationCoordinator.submitChip(
+            store = store,
+            intention = activeIntention(),
+            chip = chip,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        voicePathNote = null
+        refresh()
+    }
+
+    /**
+     * After platform STT returns text — shared ConversationCoordinator path with chips.
+     */
+    fun onVoiceTranscript(transcript: String) {
+        val result = ConversationCoordinator.submitVoiceTranscript(
+            store = store,
+            intention = activeIntention(),
+            availableChips = conversationChips(),
+            transcript = transcript,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        voicePathNote = result.honestyNote
+        refresh()
+    }
+
+    fun onVoiceUnavailable(message: String) {
+        voicePathNote = message
+    }
+
+    fun onMicDenied() {
+        voicePathNote = voiceObservation.note
         refresh()
     }
 

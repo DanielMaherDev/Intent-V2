@@ -50,6 +50,9 @@ fun ConversationScreen(
     hasPendingProposal: Boolean,
     conversationEyebrow: String = "A conversation about your goal",
     conversationHeadline: String = "Let's find a way that fits.",
+    voiceNote: String? = null,
+    voiceEnabled: Boolean = false,
+    onMicClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -104,9 +107,21 @@ fun ConversationScreen(
                     onClick = onOpenProposal
                 )
             }
+
+            if (voiceNote != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = voiceNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
         }
 
-        ComposerBar()
+        ComposerBar(
+            voiceEnabled = voiceEnabled,
+            onMicClick = onMicClick
+        )
     }
 }
 
@@ -181,7 +196,10 @@ private fun ChoiceRow(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ComposerBar() {
+private fun ComposerBar(
+    voiceEnabled: Boolean,
+    onMicClick: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -205,7 +223,11 @@ private fun ComposerBar() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Tell me more, or choose above",
+                    text = if (voiceEnabled) {
+                        "Speak a chip phrase, or choose above"
+                    } else {
+                        "Choose a chip above — mic needs permission"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.ComposerHint,
                     modifier = Modifier.weight(1f)
@@ -222,7 +244,10 @@ private fun ComposerBar() {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(IntentColors.Accent),
+                    .background(
+                        if (voiceEnabled) IntentColors.Accent else IntentColors.Muted
+                    )
+                    .clickable(onClick = onMicClick),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
