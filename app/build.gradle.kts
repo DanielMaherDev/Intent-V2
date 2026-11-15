@@ -11,8 +11,8 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "0.0.18"
+        versionCode = 19
+        versionName = "0.0.19"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -32,10 +32,21 @@ android {
     }
 
     buildTypes {
+        // Published artifacts use the "debug" variant name historically, but must NOT set
+        // android:debuggable — PackageInstaller rejects debuggable APKs with
+        // INSTALL_FAILED_TEST_ONLY while ApkMirror Installer still succeeds.
         debug {
+            isDebuggable = false
             signingConfig = signingConfigs.getByName("sideload")
         }
+        // Local engineering builds that need a debugger (adb Studio attach).
+        create("engineering") {
+            initWith(getByName("debug"))
+            isDebuggable = true
+            matchingFallbacks += listOf("debug")
+        }
         release {
+            isDebuggable = false
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("sideload")
             proguardFiles(
