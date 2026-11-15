@@ -42,10 +42,13 @@ import com.intent.launcher.ui.components.HeroCard
 import com.intent.launcher.ui.components.HeroTone
 import com.intent.launcher.ui.components.HomeBottomNav
 import com.intent.launcher.ui.components.HomeBrandRow
+import com.intent.launcher.ui.components.IntentPill
 import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
+import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.LineRow
+import com.intent.launcher.ui.components.PillTone
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
@@ -55,9 +58,10 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 
 /**
- * Home — one calm attention strip (OS-135–136): brand, next action, optional
- * secondary timer/usage line, quiet grant prompts. No competing headline stack
- * or multi-stat first viewport. Thought capture stays a quiet control (v0.0.23).
+ * Home — brand-first four-core hierarchy (v0.0.104): ✦ INTENT, date, greeting
+ * headline + lede, then one next-action attention strip (OS-135–136) with
+ * optional secondary timer/usage line and soft-pause honesty. Quiet grants,
+ * errands inbox, and drawer behaviors stay below the strip.
  */
 @Composable
 fun HomeScreen(
@@ -149,6 +153,7 @@ fun HomeScreen(
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
         .format(Date())
+    val greeting = homeGreeting(nextAction, intentionTitle, sessionSoftPaused)
     val stripMeta = attentionStripMeta(nextAction, intentionTitle, sessionSoftPaused)
 
     val startedAt = nextAction.startedAtEpochMs
@@ -189,13 +194,23 @@ fun HomeScreen(
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
             HomeBrandRow(onSettings = onSettings)
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(37.dp))
             DateLabel(dateLabel)
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(11.dp))
+            Text(
+                text = greeting.headline,
+                style = MaterialTheme.typography.displayLarge,
+                color = IntentColors.Ink,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Lede(greeting.lede)
+            Spacer(modifier = Modifier.height(26.dp))
 
             AttentionStripCard(
                 nextAction = nextAction,
                 meta = stripMeta,
+                pills = greeting.pills,
                 secondary = secondary,
                 deferPreviewLine = deferPreviewLine,
                 onContinueExploring = onContinueExploring,
@@ -445,6 +460,85 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Greeting above the strip — matches four-core Home mock (date → headline → lede).
+ * Strip title/support stay in [attentionStripMeta]; pills live with the greeting.
+ */
+private data class HomeGreeting(
+    val headline: String,
+    val lede: String,
+    val pills: List<Pair<String, PillTone>>
+)
+
+private fun homeGreeting(
+    nextAction: NextAction,
+    intentionTitle: String,
+    sessionSoftPaused: Boolean = false
+): HomeGreeting = when (nextAction.kind) {
+    NextActionKind.CONTINUE_EXPLORING -> HomeGreeting(
+        headline = "Where would you like to begin?",
+        lede = "One goal is ready for a little more thought.",
+        pills = listOf("Exploring" to PillTone.Accent, "No plan yet" to PillTone.Neutral)
+    )
+    NextActionKind.REVIEW_PROPOSAL -> HomeGreeting(
+        headline = "You're finding your rhythm.",
+        lede = "One useful decision is waiting for you.",
+        pills = listOf("Needs approval" to PillTone.Warm)
+    )
+    NextActionKind.BEGIN -> HomeGreeting(
+        headline = "One small step today.",
+        lede = nextAction.reason.ifBlank {
+            nextAction.detail.ifBlank { "Something useful is ready." }
+        },
+        pills = listOf(
+            intentionTitle.ifBlank { "In motion" } to PillTone.Success
+        )
+    )
+    NextActionKind.ACTIVE_SESSION -> HomeGreeting(
+        headline = if (sessionSoftPaused) {
+            "You're away from the linked app."
+        } else {
+            "You're in a session."
+        },
+        lede = if (sessionSoftPaused) {
+            "Resume when you're back — soft-pause is not lesson completion."
+        } else {
+            "Mark complete when finished, or abandon if you stop."
+        },
+        pills = emptyList()
+    )
+    NextActionKind.DISCUSS -> HomeGreeting(
+        headline = "Not due just yet.",
+        lede = nextAction.reason.ifBlank { "Talk it through when you are ready." },
+        pills = listOf(intentionTitle.ifBlank { "Planned" } to PillTone.Warm)
+    )
+    NextActionKind.CHECK_IN -> HomeGreeting(
+        headline = "Good morning.",
+        lede = nextAction.reason.ifBlank {
+            "Confirm today's focus, or adjust it in Discuss."
+        },
+        pills = listOf(
+            intentionTitle.ifBlank { "Today's focus" } to PillTone.Accent,
+            "Confirm or adjust" to PillTone.Neutral
+        )
+    )
+    NextActionKind.CHECK_OUT -> HomeGreeting(
+        headline = "How did today go?",
+        lede = nextAction.reason.ifBlank {
+            "Report what happened, then keep the schedule or defer tomorrow."
+        },
+        pills = listOf(
+            intentionTitle.ifBlank { "Review" } to PillTone.Warm,
+            "User-reported" to PillTone.Neutral
+        )
+    )
+    else -> HomeGreeting(
+        headline = "Where would you like to begin?",
+        lede = nextAction.reason.ifBlank { "Your space is ready when you are." },
+        pills = emptyList()
+    )
+}
+
 private data class AttentionStripMeta(
     val smallLabel: String,
     val heroTone: HeroTone,
@@ -522,6 +616,7 @@ private fun attentionStripMeta(
 private fun AttentionStripCard(
     nextAction: NextAction,
     meta: AttentionStripMeta,
+    pills: List<Pair<String, PillTone>>,
     secondary: AttentionStrip.SecondaryLine?,
     deferPreviewLine: String?,
     onContinueExploring: () -> Unit,
@@ -581,6 +676,14 @@ private fun AttentionStripCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = IntentColors.Muted
             )
+        }
+        if (pills.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pills.forEach { (text, tone) ->
+                    IntentPill(text = text, tone = tone)
+                }
+            }
         }
 
         // One secondary line only — elapsed XOR OBSERVED minutes (never both).
