@@ -69,7 +69,7 @@ class DrawerCardsTest {
         assertEquals("marathon", layout.imageKey)
 
         val restarted = IntentionFlowStore(tmp.root.resolve("flow.json"))
-        assertEquals(7, restarted.snapshot().schemaVersion)
+        assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, restarted.snapshot().schemaVersion)
         val again = DrawerCards.layoutFor(
             restarted.snapshot(),
             restarted.snapshot().intentions.first { it.id == MarathonScenario.INTENTION_ID }

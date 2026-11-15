@@ -2,6 +2,7 @@ package com.intent.launcher.domain
 
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.capability.SuggestedChip
+import com.intent.launcher.engine.TriggerCooldownPolicy
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
@@ -104,6 +105,9 @@ object AppUseReductionScenario {
             )
         )
         when {
+            chipContainsLeaveMeAlone(chip) -> {
+                leaveMeAlone(store, now)
+            }
             chipContainsShortsIdentityClaim(chip) -> {
                 refuseShortsIdentity(store, now, registry)
             }
@@ -205,9 +209,40 @@ object AppUseReductionScenario {
         val lower = chip.lowercase()
         return (lower.contains("shorts") &&
             (lower.contains("auto") || lower.contains("detect") || lower.contains("identity") ||
-                lower.contains("completion") || lower.contains("count"))) ||
+                lower.contains("completion") || lower.contains("count") ||
+                lower.contains("track") || lower.contains("only"))) ||
             lower.contains("reels completion") ||
-            lower.contains("auto-detect")
+            lower.contains("auto-detect") ||
+            lower.contains("track shorts only")
+    }
+
+    fun chipContainsLeaveMeAlone(chip: String): Boolean {
+        val lower = chip.lowercase()
+        return lower.contains("leave me alone") ||
+            lower.contains("not now") ||
+            (lower.contains("needed a break") && lower.contains("alone"))
+    }
+
+    fun leaveMeAlone(store: IntentionFlowStore, now: Long) {
+        val until = now + TriggerCooldownPolicy.DEFAULT_LEAVE_ME_ALONE_MS
+        val key = TriggerCooldownPolicy.usageThresholdKey(INTENTION_ID)
+        store.apply(
+            FlowCommand.LeaveMeAlone(
+                untilEpochMs = until,
+                triggerKey = key,
+                nowEpochMs = now + 1
+            )
+        )
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-app-use-agent-leave-$now",
+                intentionId = INTENTION_ID,
+                role = "agent",
+                text = "Understood — I'll hold identical usage prompts until then. " +
+                    "This updates cooldown preference; it does not change your schedule.",
+                nowEpochMs = now + 2
+            )
+        )
     }
 
     private fun refuseShortsIdentity(
@@ -216,15 +251,29 @@ object AppUseReductionScenario {
         registry: CapabilityRegistry
     ) {
         val usageNote = registry.get(CapabilityRegistry.ID_USAGE_STATS)?.limitNote
+        val body = SHORTS_LIMITATION_COPY +
+            (usageNote?.let { " ($it)" } ?: "") +
+            " Complete stays your report — observation never auto-completes."
+        val block = ResponseBlock(
+            blockId = "block-cap-gap-shorts-$now",
+            type = ResponseBlockType.CAPABILITY_GAP,
+            title = "Shorts identity not supported",
+            body = body,
+            sourceLabel = "Capability registry",
+            linkedObjectIds = listOf(
+                CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION,
+                CapabilityRegistry.ID_USAGE_STATS
+            ),
+            actions = emptyList()
+        )
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-app-use-agent-shorts-refuse-$now",
                 intentionId = INTENTION_ID,
                 role = "agent",
-                text = SHORTS_LIMITATION_COPY +
-                    (usageNote?.let { " ($it)" } ?: "") +
-                    " Complete stays your report — observation never auto-completes.",
-                nowEpochMs = now + 1
+                text = body,
+                nowEpochMs = now + 1,
+                blocks = listOf(block)
             )
         )
     }
@@ -235,14 +284,25 @@ object AppUseReductionScenario {
         capabilityId: String,
         registry: CapabilityRegistry
     ) {
+        val body = registry.get(capabilityId)?.limitNote
+            ?: "That capability is not available in INTENT yet."
+        val block = ResponseBlock(
+            blockId = "block-cap-gap-$capabilityId-$now",
+            type = ResponseBlockType.CAPABILITY_GAP,
+            title = "Capability unavailable",
+            body = body,
+            sourceLabel = "Capability registry",
+            linkedObjectIds = listOf(capabilityId),
+            actions = emptyList()
+        )
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-app-use-agent-unavailable-$now",
                 intentionId = INTENTION_ID,
                 role = "agent",
-                text = registry.get(capabilityId)?.limitNote
-                    ?: "That capability is not available in INTENT yet.",
-                nowEpochMs = now + 1
+                text = body,
+                nowEpochMs = now + 1,
+                blocks = listOf(block)
             )
         )
     }

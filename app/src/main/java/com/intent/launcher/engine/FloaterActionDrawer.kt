@@ -26,7 +26,10 @@ object FloaterActionDrawer {
         val navigateTo: String?,
         val intentionId: String?,
         /** Optional context line for Conversation — intention title, not an LLM prompt. */
-        val contextChip: String?
+        val contextChip: String?,
+        /** Shared with floater / Conversation when an intervention is active. */
+        val interventionJobId: String? = null,
+        val interventionTurnId: String? = null
     )
 
     data class OpenTodayResult(
@@ -74,7 +77,9 @@ object FloaterActionDrawer {
         return OpenAskResult(
             navigateTo = result.navigateTo,
             intentionId = result.intentionId,
-            contextChip = chip
+            contextChip = chip,
+            interventionJobId = result.interventionJobId,
+            interventionTurnId = result.interventionTurnId
         )
     }
 

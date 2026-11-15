@@ -206,6 +206,27 @@ object ConversationCoordinator {
             }
         }
 
+        // App-use free-text: typed CAPABILITY_GAP / leave-me-alone (case 12 / 22) —
+        // same scripted path as chips, not prose-only LLM fallback.
+        if (intention?.shapeTag == "app_use" || intentionId == AppUseReductionScenario.INTENTION_ID) {
+            if (AppUseReductionScenario.chipContainsShortsIdentityClaim(trimmed) ||
+                AppUseReductionScenario.chipContainsLeaveMeAlone(trimmed)
+            ) {
+                AppUseReductionScenario.onChip(store, trimmed, nowEpochMs, registry)
+                return SubmitResult(
+                    channel = Channel.FREE_TEXT,
+                    appliedChip = trimmed,
+                    storedTranscript = trimmed,
+                    honestyNote = if (AppUseReductionScenario.chipContainsShortsIdentityClaim(trimmed)) {
+                        "Capability gap — Shorts identity is not supported."
+                    } else {
+                        "Leave-me-alone preference recorded — cooldown armed."
+                    },
+                    sourceLabel = sourceLabel
+                )
+            }
+        }
+
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-free-user-$nowEpochMs",

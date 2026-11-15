@@ -46,8 +46,9 @@ class GateCMeasurementTest {
     }
 
     @Test
-    fun schemaIsNine_afterGateC() {
-        assertEquals(9, SCHEMA_VERSION)
+    fun schemaIsAtLeastNine_afterGateC() {
+        // Gate C landed SCHEMA 9; Gate D bumps further — stamp must match constant.
+        assertTrue(SCHEMA_VERSION >= 9)
         assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
     }
 
