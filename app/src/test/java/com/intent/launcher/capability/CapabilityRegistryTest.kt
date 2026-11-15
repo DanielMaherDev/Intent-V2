@@ -80,6 +80,16 @@ class CapabilityRegistryTest {
     }
 
     @Test
+    fun registry_marksQuietModeUnsupported_noFakeSilence() {
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
+        assertFalse(registry.canApplyQuietMode())
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_QUIET_MODE)!!.limitNote
+                .contains("cannot silence", ignoreCase = true)
+        )
+    }
+
+    @Test
     fun filterChips_dropsDishonestLessonCompletionSuggestion() {
         val mixed = SpanishScenario.suggestedChips + SpanishScenario.dishonestLessonCompletionChip
         val labels = registry.filterChips(mixed)

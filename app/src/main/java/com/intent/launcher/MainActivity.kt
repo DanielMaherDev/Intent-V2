@@ -23,10 +23,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.OverlayPermissionProbe
+import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
@@ -219,6 +221,20 @@ class MainActivity : ComponentActivity() {
                                 onGrantNotificationAccess = {
                                     startActivity(
                                         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                },
+                                quietNote = vm.quietObservation?.note?.takeIf { it.isNotBlank() },
+                                showRequestQuiet = vm.nextAction.kind == NextActionKind.ACTIVE_SESSION &&
+                                    vm.quietObservation?.quietRequested != true,
+                                onRequestQuiet = { vm.requestSessionQuiet() },
+                                showOpenDndSettings = vm.quietObservation?.canOpenDndSettings == true,
+                                onOpenDndSettings = {
+                                    val action = vm.quietObservation?.dndSettingsAction
+                                        ?: QuietModeProbe.DND_SETTINGS_ACTION
+                                    startActivity(
+                                        Intent(action).apply {
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
                                     )
