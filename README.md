@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.130** (this branch) · main tip **v0.0.129**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.131** (this branch) · main tip **v0.0.130** (#71 merged).
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.130** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.130.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.131.apk`
 
 ## Scope
 
@@ -228,12 +228,12 @@ Registry capability `live_llm` is **NOT_SUPPORTED** without a key, **DENIED** wh
 
 Home restores the four-core brand-first composition: ✦ INTENT brand, date, greeting headline + lede, then one next-action attention strip (pills + CTAs). Soft-pause Away/Resume, errands inbox, quiet grants, companion drawer, and Settings → Connections stay intact below the greeting.
 
-## Gate D1 — triggers / cooldowns / capability gaps (v0.0.130)
+## Gate D1 — triggers / cooldowns / capability gaps (v0.0.131)
 
-SCHEMA 10: `TriggerCooldownPolicy` + `UsageInterventionTrigger` via `IntentionFlowStore` — dismiss / leave-me-alone arm cooldown; day-window usage queues ≤1 intervention; typed `CAPABILITY_GAP` ResponseBlocks for Shorts/unavailable; floater ↔ Conversation share intervention turn/job id. D2/D3 (provenance UI labels; overlay revoke notification) remain unmet.
+SCHEMA 10: `TriggerCooldownPolicy` + `UsageInterventionTrigger` via `IntentionFlowStore` — dismiss / leave-me-alone arm cooldown; day-window usage queues ≤1 intervention; typed `CAPABILITY_GAP` ResponseBlocks for Shorts/unavailable; floater ↔ Conversation share intervention turn/job id. D2/D3 (provenance UI labels; overlay revoke notification) remain unmet. Version bumped past #71’s 0.0.130 claim.
 
 ## Download
 
-Sideload APK (v0.0.130, release): [INTENT-v0.0.130.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.130.apk)
+Sideload APK (v0.0.131, release): [INTENT-v0.0.131.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-d-triggers-cooldowns-gaps-6920/artifacts/INTENT-v0.0.131.apk)
 
-(Prior tip: [INTENT-v0.0.129.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.129.apk) when published; earlier [INTENT-v0.0.127.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/discuss-voice-live-openai-fb17/artifacts/INTENT-v0.0.127.apk))
+(Prior tip: [INTENT-v0.0.130.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.130.apk); earlier [INTENT-v0.0.129.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.129.apk) when published)
