@@ -51,6 +51,7 @@ import com.intent.launcher.engine.ErrandCapture
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
+import com.intent.launcher.engine.HomeChromePrefs
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.LiveLlmAccess
@@ -70,6 +71,7 @@ import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.ScreenCaptureAccess
 import com.intent.launcher.engine.ScreenCaptureProbe
+import com.intent.launcher.engine.ScreenTimeBarProbe
 import com.intent.launcher.engine.SessionNotificationReviewProbe
 import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
@@ -99,6 +101,7 @@ class LauncherViewModel(
     private val sessionNotificationReviewStore: SessionNotificationReviewStore =
         IntentApp.instance.sessionNotificationReviewStore,
     private val liveLlmAccess: LiveLlmAccess = IntentApp.instance.liveLlmAccess,
+    private val homeChromePrefs: HomeChromePrefs = IntentApp.instance.homeChromePrefs,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
@@ -137,6 +140,17 @@ class LauncherViewModel(
 
     /** Package-level UsageStats observation for the active SessionCard (never completion). */
     var usageObservation by mutableStateOf<UsageStatsProbe.Observation?>(null)
+        private set
+
+    /**
+     * OS-136 top screen-time / focus bar — independent of floating companion.
+     * Refreshed on every Home refresh (not session-only).
+     */
+    var screenTimeBarObservation by mutableStateOf<ScreenTimeBarProbe.Observation?>(null)
+        private set
+
+    /** Settings chrome toggle — mirrors [HomeChromePrefs.isScreenTimeBarVisible]. */
+    var screenTimeBarPrefVisible by mutableStateOf(homeChromePrefs.isScreenTimeBarVisible())
         private set
 
     /** Notification listener honesty for the active SessionCard (never silence / completion). */
@@ -233,6 +247,7 @@ class LauncherViewModel(
 
     init {
         usageObservation = observeUsageIfActive()
+        screenTimeBarObservation = observeScreenTimeBar()
         notificationObservation = observeNotificationsIfActive()
         maybeRecordObservedEvidence(usageObservation)
         observedEvidence = resolveObservedEvidence()
@@ -393,6 +408,7 @@ class LauncherViewModel(
             quietRequestedForActiveSession = false
         }
         usageObservation = observeUsageIfActive()
+        screenTimeBarObservation = observeScreenTimeBar()
         notificationObservation = observeNotificationsIfActive()
         maybeRecordObservedEvidence(usageObservation)
         snapshot = store.snapshot()
@@ -407,6 +423,13 @@ class LauncherViewModel(
         quietObservation = observeQuietIfActive()
         sessionNotificationObservation = observeSessionNotifications()
         liveLlmObservation = LiveLlmProbe.observe(liveLlmAccess)
+    }
+
+    /** Settings → Home chrome: show or hide the top screen-time bar (OS-136). */
+    fun setScreenTimeBarVisible(visible: Boolean) {
+        homeChromePrefs.setScreenTimeBarVisible(visible)
+        screenTimeBarPrefVisible = visible
+        screenTimeBarObservation = observeScreenTimeBar()
     }
 
     /**
@@ -580,6 +603,21 @@ class LauncherViewModel(
             sessionStartedAtEpochMs = nextAction.startedAtEpochMs,
             nowEpochMs = System.currentTimeMillis(),
             registry = capabilityRegistry
+        )
+    }
+
+    /** Top bar day/focus observation — not tied to floating agent or session-only. */
+    private fun observeScreenTimeBar(): ScreenTimeBarProbe.Observation {
+        val destination = LaunchDestinationApp.resolve(
+            intention = activeIntention(),
+            nextAction = nextAction,
+            snapshot = snapshot
+        ) ?: SessionDestinations.forIntention(activeIntention())
+        return ScreenTimeBarProbe.observe(
+            access = usageStatsAccess,
+            prefs = homeChromePrefs,
+            focusDestination = destination,
+            nowEpochMs = System.currentTimeMillis()
         )
     }
 

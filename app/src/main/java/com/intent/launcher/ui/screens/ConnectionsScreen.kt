@@ -30,7 +30,7 @@ import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings → Connections (OS-157–159 + light OS-164).
+ * Settings → Connections (OS-157–159 + light OS-164) + Home chrome (OS-136).
  * Inventory is PackageManager-backed; partner feeds stay NOT_SUPPORTED.
  */
 @Composable
@@ -39,6 +39,8 @@ fun ConnectionsScreen(
     unlinkNote: String? = null,
     onUnlink: (connectionId: String) -> Unit,
     onOpenPlayStore: (packageName: String, label: String) -> Unit,
+    screenTimeBarVisible: Boolean = true,
+    onScreenTimeBarVisibleChange: (Boolean) -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -69,6 +71,34 @@ fun ConnectionsScreen(
                 color = IntentColors.Muted
             )
         }
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle("Home chrome")
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Top screen-time bar is independent of the floating agent. " +
+                "Without usage access it shows an honest grant path — never invented minutes.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        IntentSecondaryButton(
+            text = if (screenTimeBarVisible) {
+                "Hide screen-time bar"
+            } else {
+                "Show screen-time bar"
+            },
+            onClick = { onScreenTimeBarVisibleChange(!screenTimeBarVisible) }
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = if (screenTimeBarVisible) {
+                "Currently shown on Home above the brand."
+            } else {
+                "Currently hidden. Session timers on the attention strip stay available."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
         Spacer(modifier = Modifier.height(26.dp))
         SectionTitle("Candidates")
         Spacer(modifier = Modifier.height(12.dp))

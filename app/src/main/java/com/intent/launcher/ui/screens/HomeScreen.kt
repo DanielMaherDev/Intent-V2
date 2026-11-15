@@ -36,6 +36,7 @@ import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.domain.ScreenTimeBar
 import com.intent.launcher.ui.components.DateLabel
 import com.intent.launcher.ui.components.GlyphTone
 import com.intent.launcher.ui.components.HeroCard
@@ -46,6 +47,7 @@ import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.LineRow
+import com.intent.launcher.ui.components.ScreenTimeTopBar
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
@@ -55,9 +57,9 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 
 /**
- * Home — one calm attention strip (OS-135–136): brand, next action, optional
- * secondary timer/usage line, quiet grant prompts. No competing headline stack
- * or multi-stat first viewport. Thought capture stays a quiet control (v0.0.23).
+ * Home — brand, optional OS-136 top screen-time bar (independent of floater),
+ * next-action attention strip (OS-135), quiet grant prompts. No competing
+ * headline stack or multi-stat first viewport. Thought capture stays quiet.
  */
 @Composable
 fun HomeScreen(
@@ -80,6 +82,8 @@ fun HomeScreen(
     onCheckOutKeepSchedule: () -> Unit = {},
     onCheckOutDeferTomorrow: () -> Unit = {},
     destinationLaunchNote: String? = null,
+    /** OS-136 configurable top screen-time / focus bar (above brand). */
+    screenTimeBarContent: ScreenTimeBar.Content = ScreenTimeBar.Content.Hidden,
     usageNote: String? = null,
     usageGranted: Boolean = false,
     usageForegroundMs: Long? = null,
@@ -188,6 +192,13 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
+            if (screenTimeBarContent !is ScreenTimeBar.Content.Hidden) {
+                ScreenTimeTopBar(
+                    content = screenTimeBarContent,
+                    onGrantUsageAccess = onGrantUsageAccess
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             HomeBrandRow(onSettings = onSettings)
             Spacer(modifier = Modifier.height(22.dp))
             DateLabel(dateLabel)
