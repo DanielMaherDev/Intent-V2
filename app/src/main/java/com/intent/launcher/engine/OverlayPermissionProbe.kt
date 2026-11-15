@@ -10,6 +10,7 @@ import com.intent.launcher.capability.CapabilityStatus
  */
 object OverlayPermissionProbe {
 
+    /** Matches [android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION]. */
     const val SETTINGS_ACTION = "android.settings.action.MANAGE_OVERLAY_PERMISSION"
 
     data class Observation(
@@ -18,6 +19,13 @@ object OverlayPermissionProbe {
         val canOpenSettings: Boolean,
         val settingsAction: String = SETTINGS_ACTION
     )
+
+    /**
+     * Data URI for the per-app overlay screen so Settings lists / focuses this package.
+     * Requires [android.Manifest.permission.SYSTEM_ALERT_WINDOW] in the app manifest
+     * or the package never appears under Display over other apps.
+     */
+    fun manageOverlayDataUri(packageName: String): String = "package:$packageName"
 
     fun liveRegistry(
         access: OverlayPermissionAccess,
