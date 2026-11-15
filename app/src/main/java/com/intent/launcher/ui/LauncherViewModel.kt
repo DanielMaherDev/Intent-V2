@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.AppDurationCriterion
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.DestinationApp
@@ -1500,6 +1501,23 @@ class LauncherViewModel(
 
     fun activeSessionAccumulatedPausedMs(): Long =
         activeSessionRun()?.accumulatedPausedMs ?: 0L
+
+    /**
+     * Explicit app-duration criterion for the active SessionCard (e.g. 15-min Duolingo).
+     * Soft-pause freezes progress; never invents lesson completion.
+     */
+    fun activeDurationProgress(nowEpochMs: Long = System.currentTimeMillis()):
+        AppDurationCriterion.Progress? {
+        val run = activeSessionRun() ?: return null
+        val session = snapshot.sessions.firstOrNull { it.id == run.sessionId }
+        return AppDurationCriterion.forActiveRun(
+            run = run,
+            session = session,
+            facts = snapshot.facts,
+            nowEpochMs = nowEpochMs,
+            proposals = snapshot.proposals
+        )
+    }
 
     /**
      * Open / re-open the destination package for the current next-action intention.

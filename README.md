@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.140** (this branch) · main tip **v0.0.139** (#82 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.141** (this branch) · main tip **v0.0.140** (#83 merged).
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.140** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.140.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.141.apk`
 
 ## Scope
 
@@ -83,6 +83,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.132:** Gate D2 — OBSERVED vs INFERRED on intervention UI
 - **v0.0.133:** Gate D3 — overlay/service interrupt → saved work + notification
 - **v0.0.134:** Gate C dedicated Today view — planned · completed · deferred from day cycle / occurrences / sessions; Floater Today + Home link → `TodayScreen` (not Home-only)
+- **v0.0.141:** App-duration criterion UI — Home SessionCard / attention path shows explicit completed/target minutes + soft-pause progress for timed sessions (e.g. 15-min Duolingo); never invents lesson completion; SCHEMA 10 unchanged
 - **v0.0.140:** GatewayStatus Conversation cards — CANCELLED / STALE_REVISION (+ Retry) / idempotent RETRY / FAILED beyond AMBIGUOUS CHOICE_SET; SCHEMA 10 unchanged
 - **v0.0.139:** Dark theme design tokens — `DarkIntentColors` + Material `darkColorScheme`, Settings System/Light/Dark (SharedPreferences; SCHEMA stays 10 / migrate stamp-only). Rebased onto 0.0.138 tip after #81; AMBIGUOUS ChoiceSet already on main.
 - **v0.0.137:** Gate E frontend leftovers — History NavHost route (Settings / Companion / overflow), local snapshot import UI (same export JSON; stamp migrate only), ParentRollup child-contributions section on Reports
@@ -252,6 +253,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.140, release): [INTENT-v0.0.140.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-e-gateway-status-cards-5e8f/artifacts/INTENT-v0.0.140.apk)
+Sideload APK (v0.0.141, release): [INTENT-v0.0.141.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/app-duration-criterion-ui-63ce/artifacts/INTENT-v0.0.141.apk)
 
-(Prior tip APK on main: [INTENT-v0.0.139.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.139.apk).)
+(Prior tip APK on main: [INTENT-v0.0.140.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.140.apk).)

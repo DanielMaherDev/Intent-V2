@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,11 +33,13 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.intent.launcher.domain.AppDurationCriterion
 import com.intent.launcher.domain.AttentionStrip
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
@@ -152,6 +155,11 @@ fun HomeScreen(
     sessionPauseNote: String? = null,
     sessionPausedAtEpochMs: Long? = null,
     sessionAccumulatedPausedMs: Long = 0L,
+    /**
+     * Explicit app-duration criterion (e.g. 15-min Duolingo). Soft-pause freezes
+     * completed/target; never invents lesson completion. Null when undeclared.
+     */
+    durationProgress: AppDurationCriterion.Progress? = null,
     showResumeSession: Boolean = false,
     onResumeSession: () -> Unit = {},
     overlayNote: String? = null,
@@ -221,6 +229,25 @@ fun HomeScreen(
         }
     }
 
+    // Recompute against the ticking local clock so soft-pause freezes the bar.
+    val liveDuration = durationProgress?.let { base ->
+        val elapsed = if (startedAt != null) {
+            SessionElapsed.activeElapsedMs(
+                startedAtEpochMs = startedAt,
+                nowEpochMs = nowEpochMs,
+                pausedAtEpochMs = sessionPausedAtEpochMs,
+                accumulatedPausedMs = sessionAccumulatedPausedMs
+            )
+        } else {
+            base.elapsedMs
+        }
+        AppDurationCriterion.progressFromElapsed(
+            targetMinutes = base.targetMinutes,
+            elapsedMs = elapsed,
+            softPaused = base.softPaused || sessionSoftPaused || sessionPausedAtEpochMs != null
+        )
+    }
+
     val secondary = AttentionStrip.secondaryLine(
         nextAction = nextAction,
         nowEpochMs = nowEpochMs,
@@ -229,7 +256,8 @@ fun HomeScreen(
         usageAppLabel = usageAppLabel,
         pausedAtEpochMs = sessionPausedAtEpochMs,
         accumulatedPausedMs = sessionAccumulatedPausedMs,
-        softPaused = sessionSoftPaused
+        softPaused = sessionSoftPaused,
+        durationProgress = liveDuration
     )
 
     Column(
@@ -279,6 +307,7 @@ fun HomeScreen(
                     sessionPauseNote = sessionPauseNote,
                     sessionPausedAtEpochMs = sessionPausedAtEpochMs,
                     sessionAccumulatedPausedMs = sessionAccumulatedPausedMs,
+                    durationProgress = liveDuration,
                     showResumeSession = showResumeSession,
                     onResumeSession = onResumeSession,
                     onDiscuss = onDiscuss,
@@ -840,6 +869,64 @@ private fun attentionStripMeta(
 
 
 /**
+ * Explicit app-duration criterion: completed / target minutes + honest progress bar.
+ * Soft-pause freezes the bar; local timer met ≠ lesson completion.
+ */
+@Composable
+private fun DurationCriterionBlock(
+    ratioLabel: String,
+    fraction: Float,
+    softPaused: Boolean,
+    localTimerMet: Boolean,
+    honestyNote: String,
+    contentDescription: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { this.contentDescription = contentDescription }
+    ) {
+        SmallLabel(
+            text = if (softPaused) {
+                "Duration criterion · paused"
+            } else if (localTimerMet) {
+                "Duration criterion · local timer met"
+            } else {
+                "Duration criterion"
+            },
+            color = when {
+                softPaused -> IntentColors.Warm
+                localTimerMet -> IntentColors.Success
+                else -> IntentColors.Muted
+            }
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = ratioLabel,
+            style = MaterialTheme.typography.headlineSmall,
+            color = IntentColors.Ink,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+            color = if (softPaused) IntentColors.Warm else IntentColors.Success,
+            trackColor = IntentColors.Line,
+            strokeCap = StrokeCap.Round
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = honestyNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (softPaused) IntentColors.Warm else IntentColors.Muted
+        )
+    }
+}
+
+/**
  * Active SessionCard — SoftCard + 2×2 meta grid matching the approval weekly mock.
  * Begin/Complete/Abandon/Open/Discuss/Resume and honesty strings stay intact;
  * Home hero for other next-action kinds is unchanged.
@@ -854,6 +941,7 @@ private fun ActiveSessionCard(
     sessionPauseNote: String?,
     sessionPausedAtEpochMs: Long?,
     sessionAccumulatedPausedMs: Long,
+    durationProgress: AppDurationCriterion.Progress?,
     showResumeSession: Boolean,
     onResumeSession: () -> Unit,
     onDiscuss: () -> Unit,
@@ -901,10 +989,13 @@ private fun ActiveSessionCard(
     val destinationValue = nextAction.destinationAppLabel?.takeIf { it.isNotBlank() } ?: "—"
     val statusValue = when {
         sessionSoftPaused -> "Away"
+        durationProgress?.localTimerMet == true -> "Timer met"
         secondary is AttentionStrip.SecondaryLine.ObservedPackageMinutes -> "Observed"
         else -> "In progress"
     }
     val sourceValue = when (secondary) {
+        is AttentionStrip.SecondaryLine.DurationProgress ->
+            if (secondary.softPaused) "Soft-paused" else "Duration"
         is AttentionStrip.SecondaryLine.ObservedPackageMinutes -> secondary.text
         is AttentionStrip.SecondaryLine.SessionElapsed ->
             if (sessionSoftPaused) "Soft-paused" else "Local clock"
@@ -967,11 +1058,26 @@ private fun ActiveSessionCard(
                     "Soft-paused while away from the linked app — not lesson completion."
                 secondary is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
                     "Package foreground only — not lesson completion."
+                durationProgress != null ->
+                    "Local timer toward ${durationProgress.targetMinutes}-min criterion — " +
+                        "not lesson completion."
                 else ->
                     "Local clock from Begin — not verified completion."
             },
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
+        )
+    }
+
+    if (durationProgress != null) {
+        Spacer(modifier = Modifier.height(14.dp))
+        DurationCriterionBlock(
+            ratioLabel = durationProgress.ratioLabel,
+            fraction = durationProgress.fraction,
+            softPaused = durationProgress.softPaused,
+            localTimerMet = durationProgress.localTimerMet,
+            honestyNote = durationProgress.honestyNote,
+            contentDescription = durationProgress.contentDescription
         )
     }
 
@@ -1215,37 +1321,59 @@ private fun AttentionStripCard(
             }
         }
 
-        // One secondary line only — elapsed XOR OBSERVED minutes (never both).
+        // One secondary line only — duration criterion, elapsed, or OBSERVED (never stacked).
         if (secondary != null) {
             Spacer(modifier = Modifier.height(12.dp))
-            val (lineText, lineDesc) = when (secondary) {
-                is AttentionStrip.SecondaryLine.SessionElapsed ->
-                    secondary.text to secondary.contentDescription
-                is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
-                    secondary.text to secondary.contentDescription
-            }
-            Text(
-                text = lineText,
-                modifier = Modifier.semantics { contentDescription = lineDesc },
-                style = MaterialTheme.typography.titleMedium,
-                color = IntentColors.Ink,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = when (secondary) {
-                    is AttentionStrip.SecondaryLine.SessionElapsed ->
-                        if (sessionSoftPaused) {
+            when (secondary) {
+                is AttentionStrip.SecondaryLine.DurationProgress -> {
+                    DurationCriterionBlock(
+                        ratioLabel = secondary.ratioLabel,
+                        fraction = secondary.fraction,
+                        softPaused = secondary.softPaused,
+                        localTimerMet = secondary.fraction >= 1f,
+                        honestyNote = secondary.honestyNote,
+                        contentDescription = secondary.contentDescription
+                    )
+                }
+                is AttentionStrip.SecondaryLine.SessionElapsed -> {
+                    Text(
+                        text = secondary.text,
+                        modifier = Modifier.semantics {
+                            contentDescription = secondary.contentDescription
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = IntentColors.Ink,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (sessionSoftPaused) {
                             "Soft-paused while away from the linked app — not lesson completion."
                         } else {
                             "Local clock from Begin — not verified completion."
-                        }
-                    is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
-                        "Package foreground only — not lesson completion."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = IntentColors.Muted
-            )
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+                is AttentionStrip.SecondaryLine.ObservedPackageMinutes -> {
+                    Text(
+                        text = secondary.text,
+                        modifier = Modifier.semantics {
+                            contentDescription = secondary.contentDescription
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = IntentColors.Ink,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Package foreground only — not lesson completion.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
         }
 
         if (nextAction.kind == NextActionKind.ACTIVE_SESSION &&
