@@ -92,17 +92,28 @@ class ConversationCoordinatorTest {
         val registry = voiceReadyRegistry()
         val chips = SpanishScenario.conversationChips(registry)
         val beforeTurns = store.snapshot().turns.size
+        var httpCalls = 0
+        val client = OpenAiDiscussClient(
+            transporter = OpenAiHttpTransporter { _, _, _ ->
+                httpCalls++
+                OpenAiHttpResponse(200, "{}")
+            }
+        )
         val result = ConversationCoordinator.submitVoiceTranscript(
             store = store,
             intention = intention,
             availableChips = chips,
             transcript = "random free speech about weather",
             nowEpochMs = now + 30,
-            registry = registry
+            registry = registry,
+            access = FakeLiveLlmAccess(),
+            client = client
         )
         assertNull(result.appliedChip)
         assertEquals("random free speech about weather", result.storedTranscript)
-        assertTrue(result.honestyNote!!.contains("no LLM", ignoreCase = true))
+        assertFalse(result.liveCallAttempted)
+        assertEquals(0, httpCalls)
+        assertTrue(result.honestyNote!!.contains("local heuristics", ignoreCase = true))
         assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
         assertEquals(0, store.snapshot().proposals.size)
         assertTrue(store.snapshot().turns.size >= beforeTurns + 2)
@@ -111,6 +122,107 @@ class ConversationCoordinatorTest {
                 it.role == "agent" && it.text.contains("local heuristics", ignoreCase = true)
             }
         )
+        assertFalse(
+            store.snapshot().turns.any {
+                it.role == "agent" && it.text.contains("Model suggestion")
+            }
+        )
+    }
+
+    @Test
+    fun submitVoice_unmatched_liveConnected_usesSameOpenAiPathAsTyped() {
+        val access = FakeLiveLlmAccess(
+            keyConfigured = true,
+            optedIn = true,
+            clientEnabled = true,
+            apiKey = "sk-test-not-real"
+        )
+        val liveEntries = LiveLlmProbe.liveRegistry(access).all()
+        val entries = liveEntries.map { entry ->
+            if (entry.id == CapabilityRegistry.ID_VOICE_INPUT) {
+                entry.copy(status = CapabilityStatus.AVAILABLE, limitNote = "ok")
+            } else {
+                entry
+            }
+        }
+        val registry = CapabilityRegistry(entries)
+        assertTrue(registry.canUseLiveLlm())
+        assertTrue(registry.canUseVoiceInput())
+        var httpCalls = 0
+        val client = OpenAiDiscussClient(
+            transporter = OpenAiHttpTransporter { _, _, body ->
+                httpCalls++
+                assertTrue(body.contains("random free speech about weather"))
+                OpenAiHttpResponse(
+                    200,
+                    """
+                    {"choices":[{"message":{"role":"assistant","content":"Spoken path reply."}}]}
+                    """.trimIndent()
+                )
+            }
+        )
+        val intention = store.snapshot().intentions.first { it.id == SpanishScenario.INTENTION_ID }
+        val result = ConversationCoordinator.submitVoiceTranscript(
+            store = store,
+            intention = intention,
+            availableChips = SpanishScenario.conversationChips(registry),
+            transcript = "random free speech about weather",
+            nowEpochMs = now + 35,
+            registry = registry,
+            access = access,
+            client = client
+        )
+        assertEquals(ConversationCoordinator.Channel.VOICE_TRANSCRIPT, result.channel)
+        assertNull(result.appliedChip)
+        assertTrue(result.liveCallAttempted)
+        assertEquals(1, httpCalls)
+        assertEquals(LiveLlmProbe.MODEL_SUGGESTION_LABEL, result.sourceLabel)
+        val agent = store.snapshot().turns.last { it.role == "agent" }
+        assertTrue(agent.text.contains("Model suggestion"))
+        assertTrue(agent.text.contains("not observed evidence"))
+        assertTrue(agent.text.contains("Spoken path reply."))
+        assertFalse(agent.text.contains("Discuss is on local heuristics"))
+    }
+
+    @Test
+    fun submitVoice_unmatched_optInOff_noLiveCall() {
+        val access = FakeLiveLlmAccess(
+            keyConfigured = true,
+            optedIn = false,
+            clientEnabled = true,
+            apiKey = "sk-test-not-real"
+        )
+        val liveEntries = LiveLlmProbe.liveRegistry(access).all()
+        val entries = liveEntries.map { entry ->
+            if (entry.id == CapabilityRegistry.ID_VOICE_INPUT) {
+                entry.copy(status = CapabilityStatus.AVAILABLE, limitNote = "ok")
+            } else {
+                entry
+            }
+        }
+        val registry = CapabilityRegistry(entries)
+        var httpCalls = 0
+        val client = OpenAiDiscussClient(
+            transporter = OpenAiHttpTransporter { _, _, _ ->
+                httpCalls++
+                OpenAiHttpResponse(200, "{}")
+            }
+        )
+        val intention = store.snapshot().intentions.first { it.id == SpanishScenario.INTENTION_ID }
+        val result = ConversationCoordinator.submitVoiceTranscript(
+            store = store,
+            intention = intention,
+            availableChips = SpanishScenario.conversationChips(registry),
+            transcript = "spoken without opt-in",
+            nowEpochMs = now + 36,
+            registry = registry,
+            access = access,
+            client = client
+        )
+        assertFalse(result.liveCallAttempted)
+        assertEquals(0, httpCalls)
+        assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
+        assertTrue(result.honestyNote!!.contains("opt in", ignoreCase = true))
     }
 
     @Test

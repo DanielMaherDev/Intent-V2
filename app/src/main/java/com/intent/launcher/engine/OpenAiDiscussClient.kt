@@ -10,7 +10,8 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 
 /**
- * OpenAI Chat Completions client for Discuss free-text.
+ * OpenAI Chat Completions client for Discuss free-text (typed send and unmatched
+ * voice/STT — same [ConversationCoordinator.submitFreeText] path).
  *
  * Network host is restricted to api.openai.com. Callers must already enforce
  * key presence + user opt-in via [LiveLlmProbe] / [LiveLlmAccess].

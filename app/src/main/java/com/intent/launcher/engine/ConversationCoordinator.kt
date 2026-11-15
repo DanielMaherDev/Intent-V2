@@ -17,8 +17,8 @@ import com.intent.launcher.store.IntentionFlowStore
 /**
  * Shared conversation command path for text chips, voice transcripts, and free-text
  * Discuss (tech-arch §8). Without live_llm CONNECTED, free text stays labeled local
- * heuristics — never invents model replies. When LIVE + key + opt-in, free text may
- * call [OpenAiDiscussClient] and store a clearly provenance-labeled agent turn.
+ * heuristics — never invents model replies. When LIVE + key + opt-in, unmatched voice
+ * STT and typed free-text both call [OpenAiDiscussClient] on the same path.
  */
 object ConversationCoordinator {
 
@@ -66,7 +66,9 @@ object ConversationCoordinator {
 
     /**
      * Voice → same command path as chips when the transcript matches a visible chip;
-     * otherwise stores the transcript as a user turn with an honest non-LLM reply.
+     * otherwise the same Discuss free-text path as typed send ([submitFreeText] /
+     * [OpenAiDiscussClient] when CONNECTED). Never invents a model reply when key or
+     * opt-in is missing.
      */
     fun submitVoiceTranscript(
         store: IntentionFlowStore,
@@ -74,7 +76,9 @@ object ConversationCoordinator {
         availableChips: List<String>,
         transcript: String,
         nowEpochMs: Long,
-        registry: CapabilityRegistry = CapabilityRegistry.default
+        registry: CapabilityRegistry = CapabilityRegistry.default,
+        access: LiveLlmAccess = FakeLiveLlmAccess(),
+        client: OpenAiDiscussClient? = null
     ): SubmitResult {
         val sourceLabel = LiveLlmProbe.discussSourceLabel(registry)
         if (!registry.canUseVoiceInput()) {
@@ -109,43 +113,16 @@ object ConversationCoordinator {
                 sourceLabel = sourceLabel
             )
         }
-        val intentionId = intention?.id
-            ?: store.snapshot().activeIntentionId
-            ?: return SubmitResult(
-                channel = Channel.VOICE_TRANSCRIPT,
-                appliedChip = null,
-                storedTranscript = trimmed,
-                honestyNote = "No active intention — open Conversation from Home first.",
-                sourceLabel = sourceLabel
-            )
-        store.apply(
-            FlowCommand.AddConversationTurn(
-                turnId = "turn-voice-user-$nowEpochMs",
-                intentionId = intentionId,
-                role = "user",
-                text = trimmed,
-                nowEpochMs = nowEpochMs
-            )
-        )
-        store.apply(
-            FlowCommand.AddConversationTurn(
-                turnId = "turn-voice-agent-$nowEpochMs",
-                intentionId = intentionId,
-                role = "agent",
-                text = "I stored that as text from platform speech recognition. " +
-                    "Discuss is on local heuristics — no live LLM. Choose a chip above " +
-                    "to change your intention.",
-                nowEpochMs = nowEpochMs + 1
-            )
-        )
-        return SubmitResult(
-            channel = Channel.VOICE_TRANSCRIPT,
-            appliedChip = null,
-            storedTranscript = trimmed,
-            honestyNote = "Transcript stored as text only — local heuristics, no LLM. " +
-                "Use chips for scripted actions.",
-            sourceLabel = sourceLabel
-        )
+        // Unmatched STT free-text → identical OpenAI / local-heuristics path as typed send.
+        return submitFreeText(
+            store = store,
+            intention = intention,
+            text = trimmed,
+            nowEpochMs = nowEpochMs,
+            registry = registry,
+            access = access,
+            client = client
+        ).copy(channel = Channel.VOICE_TRANSCRIPT)
     }
 
     /**
