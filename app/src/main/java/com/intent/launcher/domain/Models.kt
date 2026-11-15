@@ -279,14 +279,12 @@ data class Intention(
     val phase: IntentionPhase,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    val shapeTag: String // language | marathon | business | move | decision | cessation | app_use | research | other
-    val shapeTag: String, // language | marathon | business | move | decision | cessation | app_use | other
+    val shapeTag: String, // language | marathon | business | move | decision | cessation | app_use | research | chess | other
     /**
      * Optional parent intention id (OS-141). Local pointer only —
      * not a dependency / task graph. Null = root intention.
      */
     val parentIntentionId: String? = null
-    val shapeTag: String // language | marathon | business | move | decision | cessation | app_use | research | chess | other
 )
 
 
