@@ -45,6 +45,7 @@ import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.AmbiguousChoiceSetCard
+import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.engine.AppDurationTask
@@ -1297,6 +1298,25 @@ class LauncherViewModel(
             choiceIndex = choiceIndex,
             nowEpochMs = now,
             sessionIdForProposal = ::sessionIdForProposal
+        ) ?: return
+        voicePathNote = result.message
+        refresh()
+    }
+
+    /**
+     * Conversation GatewayStatus card chip (STALE Retry, etc.) via [GatewayStatusCard.onAction].
+     */
+    fun onGatewayStatusAction(blockId: String, actionIndex: Int) {
+        val block = snapshot.turns
+            .flatMap { it.blocks }
+            .firstOrNull { it.blockId == blockId && it.active }
+            ?: return
+        val now = System.currentTimeMillis()
+        val result = GatewayStatusCard.onAction(
+            store = store,
+            block = block,
+            actionIndex = actionIndex,
+            nowEpochMs = now
         ) ?: return
         voicePathNote = result.message
         refresh()

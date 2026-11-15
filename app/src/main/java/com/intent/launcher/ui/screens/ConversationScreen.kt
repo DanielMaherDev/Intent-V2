@@ -49,6 +49,7 @@ import com.intent.launcher.domain.ConversationTurn
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.engine.AmbiguousChoiceSetCard
+import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SmallLabel
@@ -77,6 +78,8 @@ fun ConversationScreen(
     freeTextBusy: Boolean = false,
     /** AMBIGUOUS CHOICE_SET chip — [blockId] + choice index from the card. */
     onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
+    /** GatewayStatus card chip (e.g. STALE Retry) — [blockId] + action index. */
+    onGatewayStatusAction: (blockId: String, actionIndex: Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val paperWash = Brush.verticalGradient(
@@ -143,7 +146,8 @@ fun ConversationScreen(
                         AgentBubble(
                             text = turn.text,
                             blocks = turn.blocks,
-                            onAmbiguousChoice = onAmbiguousChoice
+                            onAmbiguousChoice = onAmbiguousChoice,
+                            onGatewayStatusAction = onGatewayStatusAction
                         )
                     }
                 }
@@ -206,12 +210,14 @@ private fun UserBubble(text: String) {
 private fun AgentBubble(
     text: String,
     blocks: List<ResponseBlock> = emptyList(),
-    onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> }
+    onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
+    onGatewayStatusAction: (blockId: String, actionIndex: Int) -> Unit = { _, _ -> }
 ) {
     val gap = blocks.firstOrNull { it.type == ResponseBlockType.CAPABILITY_GAP && it.active }
     val question = blocks.firstOrNull { it.type == ResponseBlockType.QUESTION && it.active }
     val choiceSet = blocks.firstOrNull { it.type == ResponseBlockType.CHOICE_SET && it.active }
     val choiceModel = choiceSet?.let { AmbiguousChoiceSetCard.fromBlock(it) }
+    val gatewayModel = GatewayStatusCard.fromTurnBlocks(blocks)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -257,6 +263,39 @@ private fun AgentBubble(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = choiceModel.sourceLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
+            gatewayModel != null -> {
+                // CANCELLED / STALE_REVISION / RETRY / FAILED — first-class status cards.
+                Spacer(modifier = Modifier.height(6.dp))
+                SmallLabel(text = gatewayModel.eyebrow)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = gatewayModel.body.ifBlank { text },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    lineHeight = 19.sp
+                )
+                if (gatewayModel.actions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        gatewayModel.actions.forEach { action ->
+                            ChoiceRow(
+                                text = action.label,
+                                onClick = {
+                                    onGatewayStatusAction(gatewayModel.blockId, action.index)
+                                }
+                            )
+                        }
+                    }
+                }
+                if (gatewayModel.sourceLabel.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = gatewayModel.sourceLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = IntentColors.Muted
                     )

@@ -852,6 +852,9 @@ class MainActivity : ComponentActivity() {
                                 onAmbiguousChoice = { blockId, choiceIndex ->
                                     vm.onAmbiguousChoice(blockId, choiceIndex)
                                 },
+                                onGatewayStatusAction = { blockId, actionIndex ->
+                                    vm.onGatewayStatusAction(blockId, actionIndex)
+                                },
                                 onBack = { nav.popBackStack() },
                                 onOpenProposal = { nav.navigate("proposal") },
                                 hasPendingProposal = pending != null,
