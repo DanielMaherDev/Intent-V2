@@ -62,6 +62,8 @@ fun HomeScreen(
     onReviewProposal: () -> Unit,
     onBegin: () -> Unit,
     onDefer: () -> Unit,
+    /** One-line deferral preview when Later is offered. */
+    deferPreviewLine: String? = null,
     onDiscuss: () -> Unit,
     onCompleteSession: () -> Unit = {},
     onAbandonSession: () -> Unit = {},
@@ -220,6 +222,14 @@ fun HomeScreen(
                                     text = nextAction.deferLabel ?: "Later",
                                     onClick = onDefer,
                                     modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (deferPreviewLine != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = deferPreviewLine,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = IntentColors.Muted
                                 )
                             }
                             if (nextAction.openDestinationLabel != null) {
