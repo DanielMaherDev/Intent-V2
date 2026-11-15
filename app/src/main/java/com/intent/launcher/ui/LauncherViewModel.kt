@@ -8,6 +8,8 @@ import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.DestinationApp
+import com.intent.launcher.domain.DrawerCardLayout
+import com.intent.launcher.domain.DrawerCards
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.EuWorkSpainScenario
@@ -761,6 +763,31 @@ class LauncherViewModel(
 
     /** Drawer list — explicit order, then any remainder. */
     fun orderedIntentions(): List<Intention> = IntentionOrdering.ordered(snapshot)
+
+    /** Resolved drawer card layouts (stored or phase/active defaults). */
+    fun drawerCardLayouts(): Map<String, DrawerCardLayout> =
+        orderedIntentions().associate { intention ->
+            intention.id to DrawerCards.layoutFor(snapshot, intention)
+        }
+
+    fun updateDrawerCardLayout(
+        intentionId: String,
+        spanColumns: Int,
+        priorityBorder: Boolean
+    ) {
+        val intention = snapshot.intentions.firstOrNull { it.id == intentionId } ?: return
+        val imageKey = DrawerCards.coverKeyForShape(intention.shapeTag)
+        store.apply(
+            FlowCommand.UpdateDrawerCardLayout(
+                intentionId = intentionId,
+                spanColumns = spanColumns,
+                priorityBorder = priorityBorder,
+                imageKey = imageKey,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+    }
 
     fun heldAppsForActive(): List<HeldApp> =
         HeldApps.forIntention(snapshot, activeIntention()?.id)

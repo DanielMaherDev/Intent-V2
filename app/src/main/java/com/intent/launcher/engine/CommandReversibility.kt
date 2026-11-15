@@ -116,6 +116,8 @@ object CommandReversibility {
                 Reversibility(true, "Reordered held apps for ${command.intentionId}")
             is FlowCommand.ReleaseHeldApp ->
                 Reversibility(true, "Released held app ${command.heldAppId}")
+            is FlowCommand.UpdateDrawerCardLayout ->
+                Reversibility(true, "Updated drawer card layout for ${command.intentionId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,
