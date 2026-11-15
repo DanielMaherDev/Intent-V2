@@ -1,5 +1,7 @@
 package com.intent.launcher.engine
 
+import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.capability.CapabilityStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.ProposalStatus
@@ -411,5 +413,120 @@ object CommandGateway {
                 )
             }
         }
+    }
+
+    /**
+     * Capability-gated request → Conversation honesty cards for the remaining
+     * GatewayStatus values:
+     * - registry NOT_SUPPORTED / missing → [GatewayStatus.UNSUPPORTED]
+     * - PERMISSION_NEEDED → [GatewayStatus.PERMISSION_DENIED]
+     * - requiresUserApproval without [userApproved] → [GatewayStatus.NEEDS_APPROVAL]
+     *
+     * Never mutates domain objects beyond an agent Conversation turn carrying
+     * the ERROR block. Callers must not treat non-APPLIED as success.
+     */
+    fun requestCapabilityAction(
+        store: IntentionFlowStore,
+        turnId: String,
+        commandId: String,
+        capabilityId: String,
+        nowEpochMs: Long,
+        intentionId: String? = null,
+        registry: CapabilityRegistry = CapabilityRegistry.default,
+        userApproved: Boolean = false,
+        linkedProposalId: String? = null,
+        toolCallId: String? = null
+    ): GatewayResult {
+        val snap = store.snapshot()
+        if (AgentTurnLifecycle.isCancelled(snap, turnId)) {
+            return GatewayResult(
+                turnId = turnId,
+                toolCallId = toolCallId,
+                commandId = commandId,
+                status = GatewayStatus.CANCELLED,
+                message = "Refused capability request after cancellation"
+            )
+        }
+        val intentionForCard = intentionId
+            ?: snap.activeIntentionId
+            ?: snap.intentions.firstOrNull()?.id
+        val entry = registry.get(capabilityId)
+        val status = when {
+            entry == null ||
+                entry.status == CapabilityStatus.NOT_SUPPORTED ||
+                registry.isUnsupported(capabilityId) ->
+                GatewayStatus.UNSUPPORTED
+            entry.status == CapabilityStatus.PERMISSION_NEEDED ||
+                registry.needsPermission(capabilityId) ->
+                GatewayStatus.PERMISSION_DENIED
+            entry.requiresUserApproval && !userApproved ->
+                GatewayStatus.NEEDS_APPROVAL
+            else -> null
+        }
+        if (status == null) {
+            // Actionable path is not applied here — callers use dedicated
+            // FlowCommand helpers once permission/approval is honest.
+            val message = "Capability $capabilityId is actionable — use the dedicated apply path"
+            return GatewayResult(
+                turnId = turnId,
+                toolCallId = toolCallId,
+                commandId = commandId,
+                status = GatewayStatus.FAILED,
+                message = message,
+                blocks = listOf(GatewayStatusCard.failedBlock(commandId, message))
+            )
+        }
+        val limitNote = entry?.limitNote.orEmpty()
+        val titleLabel = entry?.title ?: capabilityId
+        val (message, block) = when (status) {
+            GatewayStatus.UNSUPPORTED -> {
+                val msg = if (limitNote.isNotBlank()) {
+                    limitNote
+                } else {
+                    "$titleLabel is not supported in this build"
+                }
+                msg to GatewayStatusCard.unsupportedBlock(commandId, msg, capabilityId)
+            }
+            GatewayStatus.PERMISSION_DENIED -> {
+                val msg = if (limitNote.isNotBlank()) {
+                    limitNote
+                } else {
+                    "$titleLabel needs permission before it can run"
+                }
+                msg to GatewayStatusCard.permissionDeniedBlock(commandId, msg, capabilityId)
+            }
+            GatewayStatus.NEEDS_APPROVAL -> {
+                val msg = "“$titleLabel” needs your explicit approval before it can apply" +
+                    if (linkedProposalId != null) " (proposal $linkedProposalId)" else ""
+                msg to GatewayStatusCard.needsApprovalBlock(
+                    commandId = commandId,
+                    message = msg,
+                    linkedObjectId = linkedProposalId ?: capabilityId
+                )
+            }
+            else -> error("unreachable status $status")
+        }
+        if (intentionForCard != null) {
+            store.apply(
+                FlowCommand.AddConversationTurn(
+                    turnId = "turn-${status.name.lowercase()}-$commandId",
+                    intentionId = intentionForCard,
+                    role = "agent",
+                    text = message,
+                    nowEpochMs = nowEpochMs,
+                    blocks = listOf(block)
+                )
+            )
+        }
+        return GatewayResult(
+            turnId = turnId,
+            toolCallId = toolCallId,
+            commandId = commandId,
+            status = status,
+            objectIds = listOfNotNull(capabilityId, linkedProposalId, intentionForCard),
+            revisionAfter = revisionOf(store.snapshot()),
+            message = message,
+            blocks = listOf(block)
+        )
     }
 }

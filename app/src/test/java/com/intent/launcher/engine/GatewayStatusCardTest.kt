@@ -1,5 +1,6 @@
 package com.intent.launcher.engine
 
+import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.SCHEMA_VERSION
@@ -16,7 +17,8 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * GatewayStatus Conversation cards beyond AMBIGUOUS — cancel / stale / retry (JVM).
+ * GatewayStatus Conversation cards beyond AMBIGUOUS — cancel / stale / retry /
+ * permission / unsupported / needs-approval (JVM).
  */
 class GatewayStatusCardTest {
 
@@ -163,5 +165,89 @@ class GatewayStatusCardTest {
         // SCHEMA stamp unchanged
         assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
         assertFalse(card.actions.isNotEmpty())
+    }
+
+    @Test
+    fun permissionDenied_projectsCard_persistsConversation() {
+        MarathonScenario.seed(store, now)
+        val result = CommandGateway.requestCapabilityAction(
+            store = store,
+            turnId = "turn-perm-1",
+            commandId = "cmd-perm-1",
+            capabilityId = CapabilityRegistry.ID_USAGE_STATS,
+            nowEpochMs = now + 10,
+            intentionId = MarathonScenario.INTENTION_ID
+        )
+        assertEquals(GatewayStatus.PERMISSION_DENIED, result.status)
+        val block = result.blocks.first()
+        val card = GatewayStatusCard.fromBlock(block)
+        assertNotNull(card)
+        assertEquals(GatewayStatus.PERMISSION_DENIED.name, card!!.statusLabel)
+        assertEquals(GatewayStatusCard.SOURCE_PERMISSION, card.sourceLabel)
+        assertTrue(card.actions.isEmpty())
+        assertTrue(card.eyebrow.startsWith("PERMISSION_DENIED"))
+        assertTrue(
+            store.snapshot().turns.any { turn ->
+                turn.blocks.any { it.blockId == block.blockId && it.active }
+            }
+        )
+        assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
+    }
+
+    @Test
+    fun unsupported_projectsCard_lessonCompletion() {
+        MarathonScenario.seed(store, now)
+        val result = CommandGateway.requestCapabilityAction(
+            store = store,
+            turnId = "turn-unsup-1",
+            commandId = "cmd-unsup-1",
+            capabilityId = CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION,
+            nowEpochMs = now + 10,
+            intentionId = MarathonScenario.INTENTION_ID
+        )
+        assertEquals(GatewayStatus.UNSUPPORTED, result.status)
+        val block = result.blocks.first()
+        val card = GatewayStatusCard.fromBlock(block)
+        assertNotNull(card)
+        assertEquals(GatewayStatus.UNSUPPORTED.name, card!!.statusLabel)
+        assertEquals(GatewayStatusCard.SOURCE_UNSUPPORTED, card.sourceLabel)
+        assertTrue(card.body.contains("lesson", ignoreCase = true))
+        assertEquals(
+            listOf(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION),
+            block.linkedObjectIds
+        )
+        assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
+    }
+
+    @Test
+    fun needsApproval_projectsCard_whenApprovalRequired() {
+        MarathonScenario.seed(store, now)
+        val result = CommandGateway.requestCapabilityAction(
+            store = store,
+            turnId = "turn-approve-needed-1",
+            commandId = "cmd-approve-needed-1",
+            capabilityId = CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION,
+            nowEpochMs = now + 10,
+            intentionId = MarathonScenario.INTENTION_ID,
+            userApproved = false,
+            linkedProposalId = MarathonScenario.PROPOSAL_ID
+        )
+        assertEquals(GatewayStatus.NEEDS_APPROVAL, result.status)
+        val block = result.blocks.first()
+        val card = GatewayStatusCard.fromBlock(block)
+        assertNotNull(card)
+        assertEquals(GatewayStatus.NEEDS_APPROVAL.name, card!!.statusLabel)
+        assertEquals(GatewayStatusCard.SOURCE_NEEDS_APPROVAL, card.sourceLabel)
+        assertTrue(card.body.contains("approval", ignoreCase = true))
+        assertTrue(card.actions.isEmpty())
+        assertEquals(listOf(MarathonScenario.PROPOSAL_ID), block.linkedObjectIds)
+        assertTrue(
+            store.snapshot().turns.any { turn ->
+                turn.blocks.any {
+                    it.sourceLabel == GatewayStatusCard.SOURCE_NEEDS_APPROVAL && it.active
+                }
+            }
+        )
+        assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
     }
 }
