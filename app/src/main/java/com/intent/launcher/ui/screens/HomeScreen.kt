@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.AttentionStrip
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
+import com.intent.launcher.domain.HomeAttention
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.SessionElapsed
@@ -78,12 +79,23 @@ import kotlinx.coroutines.delay
  * Home — brand, optional OS-136 top screen-time bar (independent of floater),
  * next-action attention strip (OS-135), quiet grant prompts. No competing
  * headline stack or multi-stat first viewport. Thought capture stays quiet.
+ * Home — OS-135 four-slot hierarchy without clutter: today's recommendation
+ * (attention strip), optional next deadline, agent attention, and due-work
+ * summary. OS-136 secondary timer/usage line stays on the strip. Additive to
+ * four-core Home visual reclaim (#52) — does not own greeting/lede/pills.
+ * Thought capture stays a quiet control (v0.0.23).
  */
 @Composable
 fun HomeScreen(
     nextAction: NextAction,
     intentionHint: String,
     intentionTitle: String,
+    /** OS-135 due / deadline / agent slots — omit empty fields (no invented rows). */
+    homeAttention: HomeAttention.Model = HomeAttention.Model(
+        nextDeadlineLine = null,
+        dueWorkSummary = null,
+        agentAttention = null
+    ),
     onContinueExploring: () -> Unit,
     onOpenIntention: () -> Unit,
     onOpenIntentionDrawer: () -> Unit = onOpenIntention,
@@ -364,6 +376,43 @@ fun HomeScreen(
                 showResumeSession = showResumeSession,
                 onResumeSession = onResumeSession
             )
+
+            // OS-135 — quiet hierarchy under the recommendation strip (omit empties).
+            if (homeAttention.nextDeadlineLine != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Next · ${homeAttention.nextDeadlineLine}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted,
+                    modifier = Modifier.semantics {
+                        contentDescription =
+                            "Next deadline ${homeAttention.nextDeadlineLine}"
+                    }
+                )
+            }
+            if (homeAttention.agentAttention != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                LineRow(
+                    title = homeAttention.agentAttention.title,
+                    subtitle = homeAttention.agentAttention.subtitle,
+                    onClick = onDiscuss,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (homeAttention.dueWorkSummary != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                SectionTitle("Other things today")
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = homeAttention.dueWorkSummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted,
+                    modifier = Modifier.semantics {
+                        contentDescription = homeAttention.dueWorkSummary
+                    }
+                )
+            }
 
             QuietGrantStrip(
                 showGrantUsageAccess = showGrantUsageAccess &&
