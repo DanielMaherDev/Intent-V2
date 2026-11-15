@@ -1,6 +1,6 @@
 # Artifacts
 
-This branch: [`INTENT-v0.0.31.apk`](./INTENT-v0.0.31.apk) (`assembleRelease` · privacy-safe session notification review · sideload keystore · non-debuggable · no `QUERY_ALL_PACKAGES` · keeps `SYSTEM_ALERT_WINDOW`).
+Latest sideload APK: [`INTENT-v0.0.44.apk`](./INTENT-v0.0.44.apk) (`assembleRelease`, CASE-08 six-week move plan).
 
 Do not overwrite lower version APKs.
 

@@ -56,6 +56,35 @@ class ShapeProjectionTest {
         assertTrue(business.emptyNote!!.contains("No launch plan"))
         assertEquals("Still in discovery", business.homeSpaceSubtitle)
         assertEquals("A conversation about your idea", business.conversationEyebrow)
+
+        MoveScenario.seed(store, now + 3)
+        val move = ShapeProjection.project(
+            store.snapshot().intentions.first { it.id == MoveScenario.INTENTION_ID }
+        )
+        assertEquals("What depends on a landlord?", move.hero.heroTitle)
+        assertTrue(move.emptyNote!!.contains("No lease") || move.emptyNote!!.contains("landlord"))
+        assertEquals("Move plan · landlord steps gated", move.homeSpaceSubtitle)
+        assertEquals("A conversation about your move", move.conversationEyebrow)
+        assertTrue(move.approachSteps.isEmpty())
+    }
+
+    @Test
+    fun clarifyingMove_showsFinitePlanWithLandlordGates() {
+        MoveScenario.seed(store, now)
+        MoveScenario.onChip(store, "No place found yet", now + 1)
+        val intention = store.snapshot().intentions.first { it.id == MoveScenario.INTENTION_ID }
+        val facts = store.snapshot().facts.filter { it.intentionId == intention.id }
+        val hyps = store.snapshot().hypotheses.filter { it.intentionId == intention.id }
+        val projection = ShapeProjection.project(intention, facts = facts, hypotheses = hyps)
+
+        assertEquals("Your move plan", projection.approachSectionTitle)
+        assertEquals(5, projection.approachSteps.size)
+        assertFalse(projection.approachSteps[0].muted)
+        assertFalse(projection.approachSteps[1].muted)
+        assertTrue(projection.approachSteps[2].muted)
+        assertTrue(projection.approachSteps[3].muted)
+        assertTrue(projection.approachSteps[4].muted)
+        assertTrue(projection.approachSteps[2].detail.contains("Gated", ignoreCase = true))
     }
 
     @Test
@@ -141,5 +170,19 @@ class ShapeProjectionTest {
             )
         )
         assertTrue(marathon.defaultFacts.any { it.contains("marathon", ignoreCase = true) })
+
+        val move = ShapeProjection.project(
+            Intention(
+                id = "z",
+                title = "T",
+                statement = "S",
+                phase = IntentionPhase.EXPLORING,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+                shapeTag = "move"
+            )
+        )
+        assertTrue(move.defaultFacts.any { it.contains("Valencia", ignoreCase = true) })
+        assertTrue(move.defaultFacts.any { it.contains("six weeks", ignoreCase = true) })
     }
 }

@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
                     val intentionHint = intentionProjection.homeSpaceSubtitle
                     val showMarathonEntry = intention?.shapeTag != "marathon"
                     val showBusinessEntry = intention?.shapeTag != "business"
+                    val showMoveEntry = intention?.shapeTag != "move"
 
                     LaunchedEffect(openConversationRequest) {
                         if (openConversationRequest > 0) {
@@ -319,6 +320,14 @@ class MainActivity : ComponentActivity() {
                                 onExploreBusiness = if (showBusinessEntry) {
                                     {
                                         vm.startBusinessExploration()
+                                        nav.navigate("intention")
+                                    }
+                                } else {
+                                    null
+                                },
+                                onExploreMove = if (showMoveEntry) {
+                                    {
+                                        vm.startMoveExploration()
                                         nav.navigate("intention")
                                     }
                                 } else {

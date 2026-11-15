@@ -106,6 +106,7 @@ fun HomeScreen(
     thoughtCaptureNote: String? = null,
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
+    onExploreMove: (() -> Unit)? = null,
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
@@ -425,6 +426,15 @@ fun HomeScreen(
                     title = "Explore a business idea",
                     subtitle = "Third shape — discovery without forced tasks",
                     onClick = onExploreBusiness,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onExploreMove != null) {
+                LineRow(
+                    title = "Plan a six-week move",
+                    subtitle = "Finite plan — landlord steps stay gated",
+                    onClick = onExploreMove,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
                 )

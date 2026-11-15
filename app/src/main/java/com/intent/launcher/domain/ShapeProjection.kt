@@ -47,7 +47,7 @@ object ShapeProjection {
         val phase = intention?.phase ?: IntentionPhase.EXPLORING
         val hero = heroFor(phase, shape)
         val hasKnowledge = facts.isNotEmpty() || hypotheses.isNotEmpty() || sessions.isNotEmpty()
-        val approach = approachFor(phase, shape, sessions)
+        val approach = approachFor(phase, shape, sessions, facts, hypotheses)
         val dest = destination ?: SessionDestinations.forIntention(intention)
 
         return IntentionSpaceProjection(
@@ -73,16 +73,19 @@ object ShapeProjection {
             IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> when (shapeTag) {
                 "marathon" -> "Training still taking shape"
                 "business" -> "Still in discovery"
+                "move" -> "Move plan · landlord steps gated"
                 else -> "Open your intention"
             }
             IntentionPhase.PROPOSAL_PENDING -> when (shapeTag) {
                 "marathon" -> "Your approach is taking shape"
                 "business" -> "A research habit is pending"
+                "move" -> "Apartment search pending approval"
                 else -> "Your approach is taking shape"
             }
             IntentionPhase.ACTIVE -> when (shapeTag) {
                 "marathon" -> "Long-run routine in motion"
                 "business" -> "Discovery habit in motion"
+                "move" -> "Search rhythm in motion · lease still gated"
                 else -> "Speaking practice in motion"
             }
             IntentionPhase.PAUSED -> "Paused — facts kept"
@@ -93,6 +96,7 @@ object ShapeProjection {
             phase == IntentionPhase.PROPOSAL_PENDING -> "What has changed"
             phase == IntentionPhase.ACTIVE && shapeTag == "business" -> "What we are learning"
             phase == IntentionPhase.ACTIVE && shapeTag == "marathon" -> "Training facts"
+            phase == IntentionPhase.ACTIVE && shapeTag == "move" -> "Move constraints"
             phase == IntentionPhase.ACTIVE -> "What we know"
             else -> "What we know"
         }
@@ -101,6 +105,7 @@ object ShapeProjection {
         when (shapeTag) {
             "marathon" -> "Your training approach"
             "business" -> "Your discovery approach"
+            "move" -> "Your move plan"
             else -> "Your approach"
         }
 
@@ -110,6 +115,9 @@ object ShapeProjection {
                 "No training plan has been invented. This intention stays open while you decide how to build base."
             "business" ->
                 "No launch plan has been invented. Stay in discovery until a direction is worth testing."
+            "move" ->
+                "No lease or landlord confirmation has been invented. Search and budget can start; " +
+                    "lease, notice, and movers stay gated until a place is confirmed."
             else ->
                 "No tasks have been invented. This intention stays open while you decide on an approach."
         }
@@ -118,6 +126,10 @@ object ShapeProjection {
         when (shapeTag) {
             "marathon" -> listOf("Goal · finish a marathon", "Timeframe · build base first")
             "business" -> listOf("Goal · explore a business idea", "Timeframe · stay in discovery")
+            "move" -> listOf(
+                "Goal · Barcelona → Valencia",
+                "Timeframe · about six weeks · renting · no place found"
+            )
             else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
         }
 
@@ -133,6 +145,8 @@ object ShapeProjection {
         return when (shapeTag) {
             "marathon" -> "Destination · outdoors / your own run log — no partner completion evidence."
             "business" -> "Destination · notes & conversations — no CRM completion claimed."
+            "move" ->
+                "Destination · listings & notes — no invented landlord confirmation or lease."
             else -> null
         }
     }
@@ -140,8 +154,13 @@ object ShapeProjection {
     private fun approachFor(
         phase: IntentionPhase,
         shapeTag: String?,
-        sessions: List<ScheduledSession>
+        sessions: List<ScheduledSession>,
+        facts: List<Fact> = emptyList(),
+        hypotheses: List<Hypothesis> = emptyList()
     ): List<ApproachStep> {
+        if (shapeTag == "move") {
+            return moveDependencyPlan(phase, sessions, facts, hypotheses)
+        }
         if (phase != IntentionPhase.ACTIVE) return emptyList()
         val session = sessions.firstOrNull()
         val whenLabel = session?.let {
@@ -184,6 +203,74 @@ object ShapeProjection {
         }
     }
 
+    /**
+     * Finite dependency plan for CASE-08. Ready steps first; landlord-gated steps muted
+     * until a place is SAID-confirmed. Shown once clarifying facts/hypotheses exist
+     * (or when active), so the gate is visible before a search session is approved.
+     */
+    private fun moveDependencyPlan(
+        phase: IntentionPhase,
+        sessions: List<ScheduledSession>,
+        facts: List<Fact>,
+        hypotheses: List<Hypothesis>
+    ): List<ApproachStep> {
+        val hasPlanSignal = facts.isNotEmpty() ||
+            hypotheses.isNotEmpty() ||
+            phase == IntentionPhase.ACTIVE ||
+            phase == IntentionPhase.PROPOSAL_PENDING
+        if (!hasPlanSignal) return emptyList()
+
+        val placeConfirmed = MoveScenario.placeIsConfirmed(facts)
+        val session = sessions.firstOrNull()
+        val whenLabel = session?.let {
+            "day ${it.dayOfWeek} · %02d:%02d".format(it.hour, it.minute)
+        }
+        val searchDetail = when {
+            session != null -> whenLabel?.let { "$it · approved search block" } ?: "Approved search rhythm"
+            phase == IntentionPhase.PROPOSAL_PENDING -> "Ready now · search proposal pending approval"
+            else -> "Ready now · listings do not require a landlord"
+        }
+        return listOf(
+            ApproachStep(
+                title = session?.title ?: "Search listings",
+                detail = searchDetail,
+                muted = false
+            ),
+            ApproachStep(
+                title = "Set rent budget & timing",
+                detail = "Ready now · stay inside the six-week window",
+                muted = false
+            ),
+            ApproachStep(
+                title = "Sign lease",
+                detail = if (placeConfirmed) {
+                    "Place confirmed · review lease with landlord"
+                } else {
+                    "Gated · waiting on landlord / place — not invented"
+                },
+                muted = !placeConfirmed
+            ),
+            ApproachStep(
+                title = "Give Barcelona notice",
+                detail = if (placeConfirmed) {
+                    "Depends on signed lease date"
+                } else {
+                    "Gated · depends on signed lease"
+                },
+                muted = !placeConfirmed
+            ),
+            ApproachStep(
+                title = "Book movers / utilities",
+                detail = if (placeConfirmed) {
+                    "Depends on landlord move-in date"
+                } else {
+                    "Gated · depends on landlord move-in date"
+                },
+                muted = !placeConfirmed
+            )
+        )
+    }
+
     private fun heroFor(phase: IntentionPhase, shapeTag: String?): IntentionHeroProjection =
         when (phase) {
             IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> IntentionHeroProjection(
@@ -192,6 +279,7 @@ object ShapeProjection {
                 heroTitle = when (shapeTag) {
                     "marathon" -> "How will you train?"
                     "business" -> "How will you learn?"
+                    "move" -> "What depends on a landlord?"
                     else -> "How will you practise?"
                 },
                 heroBody = when (shapeTag) {
@@ -199,6 +287,8 @@ object ShapeProjection {
                         "We can shape this around base mileage, long runs, or a mix you can keep."
                     "business" ->
                         "We can stay in discovery, talk to customers, or add a light research habit — nothing forced."
+                    "move" ->
+                        "Search and budget can start now. Lease, notice, and movers stay gated until a place is confirmed — nothing invents a landlord."
                     else ->
                         "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
                 },
@@ -211,9 +301,14 @@ object ShapeProjection {
                 heroTitle = when (shapeTag) {
                     "marathon" -> "Add your long run?"
                     "business" -> "Add a research hour?"
+                    "move" -> "Add a weekly search block?"
                     else -> "Add your session?"
                 },
-                heroBody = "INTENT will bring it into your week once approved.",
+                heroBody = when (shapeTag) {
+                    "move" ->
+                        "INTENT will bring the search into your week once approved. Landlord-gated steps stay blocked."
+                    else -> "INTENT will bring it into your week once approved."
+                },
                 heroCta = "Review details",
                 tone = "warm"
             )
@@ -223,11 +318,14 @@ object ShapeProjection {
                 heroTitle = when (shapeTag) {
                     "marathon" -> "Prepare for your next long run"
                     "business" -> "Prepare your next research block"
+                    "move" -> "Prepare your next search block"
                     else -> "Prepare for your next session"
                 },
                 heroBody = when (shapeTag) {
                     "marathon" -> "Decide pace and distance you can keep — no invented mileage totals."
                     "business" -> "Pick one question to explore — no fake launch plan."
+                    "move" ->
+                        "Look at listings within budget — no invented lease or move-in date."
                     else -> "Bring one situation you want to rehearse."
                 },
                 heroCta = "Begin preparation",
@@ -248,12 +346,14 @@ object ShapeProjection {
             IntentionPhase.ACTIVE -> when (shapeTag) {
                 "marathon" -> "Contextual conversation · training"
                 "business" -> "Contextual conversation · discovery"
+                "move" -> "Contextual conversation · move plan"
                 else -> "Contextual conversation"
             }
             IntentionPhase.PROPOSAL_PENDING -> "Your ongoing conversation"
             else -> when (shapeTag) {
                 "marathon" -> "A conversation about your training"
                 "business" -> "A conversation about your idea"
+                "move" -> "A conversation about your move"
                 else -> "A conversation about your goal"
             }
         }
@@ -263,6 +363,7 @@ object ShapeProjection {
             IntentionPhase.ACTIVE -> when (shapeTag) {
                 "marathon" -> "Your next long run"
                 "business" -> "Your next research hour"
+                "move" -> "Your next apartment search"
                 else -> "Your next session"
             }
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"

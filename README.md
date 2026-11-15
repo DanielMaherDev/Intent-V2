@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.31**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.44**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.31**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.31.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.44.apk`
 
 ## Scope
 
@@ -45,14 +45,15 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.28:** Quiet mode / DND honesty — SessionCard request never claims silence; deep link to system DND; `quiet_mode` stays `NOT_SUPPORTED`
 - **v0.0.30:** Tracker modules + PathSummary / progress proof — shape-default modules in the same intention store; SAID/OBSERVED/INFERRED labeled; no fabricated charts
 - **v0.0.31:** Privacy-safe session notification review — package counts only; no titles/bodies; no auto-Complete
+- **v0.0.44:** CASE-08 six-week move — finite dependency / landlord-gated plan on shared intention model (`Plan a six-week move` on Home)
 
 ## Shapes
 
-Shared core records (`Intention`, facts, hypotheses, proposals, sessions). Shape tag: `language` | `marathon` | `business`.
+Shared core records (`Intention`, facts, hypotheses, proposals, sessions). Shape tag: `language` | `marathon` | `business` | `move`.
 
 ## Capability registry
 
-`CapabilityRegistry` lists what INTENT can do (`available` / `permission_needed` / `not_supported`, etc.). Conversation chips, recurring-session proposals, and `NextActionEngine` recommendations filter through it — e.g. opening an app is available; observing Duolingo lesson completion is not. All three shapes consult the same registry.
+`CapabilityRegistry` lists what INTENT can do (`available` / `permission_needed` / `not_supported`, etc.). Conversation chips, recurring-session proposals, and `NextActionEngine` recommendations filter through it — e.g. opening an app is available; observing Duolingo lesson completion is not. Language, marathon, business, and move shapes consult the same registry.
 
 ## Daily action (Stage 4)
 
@@ -130,9 +131,9 @@ Intention Space opens **Tracker** (shape-default modules; manual SAID entries) a
 
 When Notification access is granted, INTENT tallies **package + coarse category counts** during an active session window. Titles/bodies are not retained. Rows can be dismissed; counts never auto-Complete. Denied → SessionCard grant path.
 
-## Sideload packaging (v0.0.17–v0.0.31)
+## Sideload packaging (v0.0.17–v0.0.44)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.31.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.44.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -140,6 +141,6 @@ Conversation mic uses platform speech recognition when `RECORD_AUDIO` is granted
 
 ## Download
 
-Sideload APK (v0.0.31, release): [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/session-notification-review-209e/artifacts/INTENT-v0.0.31.apk)
+Sideload APK (v0.0.44, release): [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/six-week-move-case08-v044-cb74/artifacts/INTENT-v0.0.44.apk)
 
-(Prior: [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk))
+(Prior: [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk) · [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk))
