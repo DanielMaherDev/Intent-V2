@@ -105,6 +105,13 @@ class CapabilityRegistry(
     fun canUseFloatingOverlay(): Boolean =
         isActionable(ID_FLOATING_OVERLAY)
 
+    /**
+     * True when INTENT holds the default HOME / launcher role.
+     * Does not grant OEM PackageInstaller or partner OAuth powers.
+     */
+    fun isHomeRoleHeld(): Boolean =
+        isActionable(ID_HOME_ROLE)
+
     /** Mic + platform STT available for voice turns (same ConversationCoordinator as chips). */
     fun canUseVoiceInput(): Boolean =
         isActionable(ID_VOICE_INPUT)
@@ -209,6 +216,7 @@ class CapabilityRegistry(
         const val ID_USAGE_STATS = "usage_stats"
         const val ID_EXTERNAL_CALENDAR = "external_calendar_sync"
         const val ID_FLOATING_OVERLAY = "floating_overlay"
+        const val ID_HOME_ROLE = "home_role"
         const val ID_VOICE_INPUT = "voice_input"
         const val ID_NOTIFICATION_LISTENER = "notification_listener"
         const val ID_SESSION_NOTIFICATION_REVIEW = "session_notification_review"
@@ -337,6 +345,14 @@ class CapabilityRegistry(
                 status = CapabilityStatus.PERMISSION_NEEDED,
                 limitNote = "Requires overlay permission for the floating companion. " +
                     "Use Home’s Agent tab or Discuss without it."
+            ),
+            CapabilityEntry(
+                id = ID_HOME_ROLE,
+                title = "Default HOME launcher",
+                status = CapabilityStatus.PERMISSION_NEEDED,
+                limitNote = "Not the default HOME yet. Use Set as HOME (RoleManager when " +
+                    "available, otherwise Settings → Home app). Holding HOME does not " +
+                    "grant PackageInstaller or partner OAuth powers."
             ),
             CapabilityEntry(
                 id = ID_VOICE_INPUT,

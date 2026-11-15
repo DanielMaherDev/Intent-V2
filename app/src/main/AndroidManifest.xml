@@ -47,10 +47,18 @@
         android:testOnly="false"
         android:theme="@style/Theme.IntentLauncher"
         tools:replace="android:testOnly">
+        <!--
+          HOME launcher activity (OS-133 / OS-134):
+          singleTask + clearTaskOnLaunch so unlock / HOME / recents return the launcher
+          root instead of a stranded deep Compose route or duplicate task.
+          stateNotNeeded avoids stale instance state after process death.
+          Default package taskAffinity — do not invent OEM affinity hooks.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:clearTaskOnLaunch="true"
             android:stateNotNeeded="true"
             android:theme="@style/Theme.IntentLauncher">
             <intent-filter>

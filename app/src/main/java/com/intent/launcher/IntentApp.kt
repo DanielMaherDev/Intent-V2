@@ -2,6 +2,7 @@ package com.intent.launcher
 
 import android.app.Application
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.engine.HomeRoleAccess
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LiveLlmAccess
 import com.intent.launcher.engine.NotificationListenerAccess
@@ -12,6 +13,7 @@ import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.VoicePermissionAccess
+import com.intent.launcher.platform.AndroidHomeRoleAccess
 import com.intent.launcher.platform.AndroidLiveLlmAccess
 import com.intent.launcher.platform.AndroidNotificationListenerAccess
 import com.intent.launcher.platform.AndroidOverlayPermissionAccess
@@ -35,6 +37,9 @@ class IntentApp : Application() {
         private set
 
     lateinit var overlayPermissionAccess: OverlayPermissionAccess
+        private set
+
+    lateinit var homeRoleAccess: HomeRoleAccess
         private set
 
     lateinit var voicePermissionAccess: VoicePermissionAccess
@@ -66,6 +71,7 @@ class IntentApp : Application() {
         appLauncher = PackageManagerAppLauncher(this)
         usageStatsAccess = AndroidUsageStatsAccess(this)
         overlayPermissionAccess = AndroidOverlayPermissionAccess(this)
+        homeRoleAccess = AndroidHomeRoleAccess(this)
         voicePermissionAccess = AndroidVoicePermissionAccess(this)
         speechToTextAccess = AndroidSpeechToTextAccess(this)
         notificationListenerAccess = AndroidNotificationListenerAccess(this)
