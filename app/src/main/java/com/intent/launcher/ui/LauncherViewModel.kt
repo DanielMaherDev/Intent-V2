@@ -31,6 +31,8 @@ import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
+import com.intent.launcher.engine.AppConnectionInventory
+import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.ThoughtTriage
 import com.intent.launcher.engine.IntentionBuilder
@@ -53,6 +55,7 @@ import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.PlatformCapabilityLive
+import com.intent.launcher.engine.PlayStoreDeepLink
 import com.intent.launcher.engine.ProgressProof
 import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.QuietModeProbe
@@ -689,6 +692,45 @@ class LauncherViewModel(
         )
         refresh()
     }
+
+    /** Honest note from last unlink attempt (no-op when disconnected / not supported). */
+    var connectionUnlinkNote by mutableStateOf<String?>(null)
+        private set
+
+    /** OS-157/158 — all catalog candidates with live install flags (never invent installs). */
+    fun appConnections() =
+        AppConnectionInventory.connections(appLauncher)
+
+    /** OS-159 — Settings list: intentions + SAID/OBSERVED contribution per connection. */
+    fun connectionUsages(): List<AppConnectionUsage.ConnectionUsage> =
+        AppConnectionUsage.forAll(
+            connections = appConnections(),
+            snapshot = snapshot,
+            registry = capabilityRegistry
+        )
+
+    /** OS-159 — Intention Space subset for the active intention. */
+    fun connectionUsagesForActive(): List<AppConnectionUsage.ConnectionUsage> =
+        AppConnectionUsage.forIntention(
+            intentionId = activeIntention()?.id,
+            connections = appConnections(),
+            snapshot = snapshot,
+            registry = capabilityRegistry
+        )
+
+    /** Unlink is an honest no-op when DISCONNECTED / NOT_SUPPORTED. */
+    fun unlinkConnection(connectionId: String) {
+        val connection = appConnections().firstOrNull { it.id == connectionId } ?: return
+        val result = AppConnectionInventory.unlink(connection)
+        connectionUnlinkNote = result.note
+    }
+
+    fun clearConnectionUnlinkNote() {
+        connectionUnlinkNote = null
+    }
+
+    fun playStoreOffer(packageName: String, label: String): PlayStoreDeepLink.Offer =
+        PlayStoreDeepLink.forPackage(packageName, label)
 
     fun conversationChips(): List<String> =
         when (activeIntention()?.shapeTag) {

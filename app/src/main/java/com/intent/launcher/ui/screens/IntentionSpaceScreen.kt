@@ -31,6 +31,7 @@ import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.TrashEntry
+import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.FactRow
 import com.intent.launcher.ui.components.HeroCard
@@ -56,6 +57,8 @@ fun IntentionSpaceScreen(
     onConfirmHold: (packageName: String, label: String) -> Unit = { _, _ -> },
     onMoveHeldApp: (heldAppId: String, direction: Int) -> Unit = { _, _ -> },
     onReleaseHeldApp: (heldAppId: String) -> Unit = {},
+    connectionUsages: List<AppConnectionUsage.ConnectionUsage> = emptyList(),
+    onOpenConnections: (() -> Unit)? = null,
     onWorkThisOut: () -> Unit,
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
@@ -218,6 +221,78 @@ fun IntentionSpaceScreen(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
+        }
+
+        Spacer(modifier = Modifier.height(26.dp))
+        SectionTitle("Connections")
+        Spacer(modifier = Modifier.height(9.dp))
+        Text(
+            text = "Which connections this intention uses, and what data would contribute. " +
+                "Partner feeds stay empty until OAuth is supported.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        if (connectionUsages.isEmpty()) {
+            EmptyNote(
+                text = "No installed connection candidates for this intention. " +
+                    "Partner feed unavailable — SAID / OBSERVED only."
+            )
+        } else {
+            connectionUsages.forEach { usage ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                        .background(IntentColors.Card, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = usage.connection.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = if (usage.connection.installed) {
+                            "Installed · ${usage.connection.accountStatus}"
+                        } else {
+                            "Not installed · ${usage.connection.accountStatus}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                    if (usage.intentions.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        EmptyNote(
+                            text = usage.emptyNote
+                                ?: "No SAID / OBSERVED contribution yet. Partner feed empty."
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        usage.intentions.forEach { use ->
+                            Text(
+                                text = use.detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IntentColors.Ink
+                            )
+                        }
+                        usage.emptyNote?.let { note ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = note,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = IntentColors.Muted
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+        if (onOpenConnections != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentSecondaryButton(text = "All connections", onClick = onOpenConnections)
         }
 
         Spacer(modifier = Modifier.height(26.dp))

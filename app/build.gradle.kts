@@ -11,8 +11,8 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 49
-        versionName = "0.0.49"
+        versionCode = 59
+        versionName = "0.0.59"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

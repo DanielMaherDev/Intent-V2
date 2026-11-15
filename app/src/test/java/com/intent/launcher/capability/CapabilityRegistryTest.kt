@@ -43,6 +43,28 @@ class CapabilityRegistryTest {
     }
 
     @Test
+    fun registry_marksPartnerConnectionsUnsupported() {
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_PARTNER_SPOTIFY))
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_PARTNER_CHESS))
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_PARTNER_STRAVA))
+        assertFalse(registry.canUsePartnerSpotify())
+        assertFalse(registry.canUsePartnerChess())
+        assertFalse(registry.canUsePartnerStrava())
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_PARTNER_SPOTIFY)!!.limitNote
+                .contains("OAuth", ignoreCase = true)
+        )
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_PARTNER_CHESS)!!.limitNote
+                .contains("manual SAID", ignoreCase = true)
+        )
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_PARTNER_STRAVA)!!.limitNote
+                .contains("auto-Complete", ignoreCase = true)
+        )
+    }
+
+    @Test
     fun registry_marksNotificationListenerPermissionNeeded_andQuietModeUnsupported() {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_NOTIFICATION_LISTENER))
         assertFalse(registry.canReadNotificationSummaries())

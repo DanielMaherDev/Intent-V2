@@ -163,6 +163,18 @@ class CapabilityRegistry(
     fun canTriageThoughts(): Boolean =
         isActionable(ID_TRIAGE_THOUGHTS)
 
+    /** Spotify partner OAuth / playback — not shipped. */
+    fun canUsePartnerSpotify(): Boolean =
+        isActionable(ID_PARTNER_SPOTIFY)
+
+    /** Chess.com partner ratings / games — not shipped. */
+    fun canUsePartnerChess(): Boolean =
+        isActionable(ID_PARTNER_CHESS)
+
+    /** Strava activity sync — not shipped. */
+    fun canUsePartnerStrava(): Boolean =
+        isActionable(ID_PARTNER_STRAVA)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -196,6 +208,9 @@ class CapabilityRegistry(
         const val ID_CAPTURE_THOUGHT = "capture_thought"
         const val ID_BUILD_INTENTION = "build_intention"
         const val ID_TRIAGE_THOUGHTS = "triage_thoughts"
+        const val ID_PARTNER_SPOTIFY = "partner_spotify"
+        const val ID_PARTNER_CHESS = "partner_chess"
+        const val ID_PARTNER_STRAVA = "partner_strava"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -407,6 +422,27 @@ class CapabilityRegistry(
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Heuristic split into proposed intentions — no live LLM. " +
                     "Confirm creates an intention; reject leaves the thought as evidence only."
+            ),
+            CapabilityEntry(
+                id = ID_PARTNER_SPOTIFY,
+                title = "Spotify partner",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Spotify OAuth, playback state, and controls are not supported. " +
+                    "No fake now-playing or completion claims."
+            ),
+            CapabilityEntry(
+                id = ID_PARTNER_CHESS,
+                title = "Chess.com partner",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Chess.com ratings and game sync are not supported. " +
+                    "Use a manual SAID baseline — never invent ratings or games."
+            ),
+            CapabilityEntry(
+                id = ID_PARTNER_STRAVA,
+                title = "Strava partner",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Strava activity sync is not supported. " +
+                    "No fabricated runs or auto-Complete from partner data."
             )
         )
 

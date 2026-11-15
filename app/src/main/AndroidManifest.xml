@@ -23,7 +23,11 @@
       taps Install when this permission is present. Destination visibility uses <queries>.
     -->
     <queries>
+        <!-- Meaningful INTENT connection candidates (OS-157). No QUERY_ALL_PACKAGES. -->
         <package android:name="com.duolingo" />
+        <package android:name="com.chess" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.strava" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
