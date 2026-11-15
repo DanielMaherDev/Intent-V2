@@ -21,12 +21,17 @@ import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
+import com.intent.launcher.domain.BuilderDraft
+import com.intent.launcher.domain.BuilderPhase
 import com.intent.launcher.domain.ThoughtCapture
 import com.intent.launcher.domain.ThoughtCaptureStatus
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.domain.TrashKind
+import com.intent.launcher.domain.TriageItem
+import com.intent.launcher.domain.TriageItemStatus
+import com.intent.launcher.domain.TriageState
 import com.intent.launcher.engine.CommandReversibility
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
@@ -349,6 +354,7 @@ class IntentionFlowStore(
                         sourceLabel = when (command.source) {
                             "voice" -> "voice_thought_capture"
                             "floater" -> "floater_thought_capture"
+                            "triage" -> "triage_thought_capture"
                             else -> "home_thought_capture"
                         }
                     ),
@@ -460,6 +466,188 @@ class IntentionFlowStore(
                     intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
                 )
             }
+
+is FlowCommand.MarkThoughtStatus -> {
+                migrated.copy(
+                    thoughtCaptures = migrated.thoughtCaptures.map {
+                        if (it.id == command.thoughtId) it.copy(status = command.status) else it
+                    }
+                )
+            }
+
+            is FlowCommand.StartBuilderDraft -> {
+                val text = command.freeText.trim()
+                if (text.isEmpty()) return migrated
+                migrated.copy(
+                    builderDraft = BuilderDraft(
+                        active = true,
+                        freeText = text,
+                        suggestedShapeTag = command.suggestedShapeTag,
+                        shapeTag = null,
+                        title = command.title,
+                        statement = command.statement,
+                        factAnswers = emptyMap(),
+                        phase = BuilderPhase.PICK_SHAPE,
+                        honestyNote = command.honestyNote
+                    )
+                )
+            }
+
+            is FlowCommand.SetBuilderShape -> {
+                val draft = migrated.builderDraft
+                if (!draft.active) return migrated
+                migrated.copy(
+                    builderDraft = draft.copy(
+                        shapeTag = command.shapeTag,
+                        title = command.title,
+                        statement = command.statement,
+                        phase = BuilderPhase.MISSING_FACTS
+                    )
+                )
+            }
+
+            is FlowCommand.AnswerBuilderPrompt -> {
+                val draft = migrated.builderDraft
+                if (!draft.active) return migrated
+                val answer = command.answerText.trim()
+                if (answer.isEmpty()) return migrated
+                val answers = draft.factAnswers + (command.promptId to answer)
+                // Two answers is enough — avoid endless “needs more questions” loops.
+                val phase = if (answers.size >= 2) {
+                    BuilderPhase.CONFIRM
+                } else {
+                    BuilderPhase.MISSING_FACTS
+                }
+                migrated.copy(
+                    builderDraft = draft.copy(
+                        factAnswers = answers,
+                        phase = phase
+                    )
+                )
+            }
+
+            is FlowCommand.CommitBuilderIntention -> {
+                val draft = migrated.builderDraft
+                if (!draft.active) return migrated
+                val shape = draft.shapeTag ?: draft.suggestedShapeTag
+                val title = draft.title.ifBlank { draft.freeText.take(48) }
+                val statement = draft.statement.ifBlank { draft.freeText }
+                val intention = Intention(
+                    id = command.intentionId,
+                    title = title,
+                    statement = statement,
+                    phase = IntentionPhase.EXPLORING,
+                    createdAtEpochMs = command.nowEpochMs,
+                    updatedAtEpochMs = command.nowEpochMs,
+                    shapeTag = shape
+                )
+                var facts = migrated.facts
+                draft.factAnswers.entries.forEachIndexed { index, (promptId, text) ->
+                    val fact = Fact(
+                        id = "fact-builder-${command.intentionId}-$promptId",
+                        intentionId = command.intentionId,
+                        text = text,
+                        provenance = Provenance(
+                            ProvenanceKind.SAID,
+                            command.nowEpochMs + index,
+                            "user"
+                        )
+                    )
+                    facts = facts.filterNot { it.id == fact.id } + fact
+                }
+                // Seed statement itself as SAID when user provided free text.
+                if (draft.freeText.isNotBlank()) {
+                    val seedFact = Fact(
+                        id = "fact-builder-${command.intentionId}-seed",
+                        intentionId = command.intentionId,
+                        text = draft.freeText.trim(),
+                        provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                    )
+                    facts = facts.filterNot { it.id == seedFact.id } + seedFact
+                }
+                migrated.copy(
+                    intentions = migrated.intentions.filterNot { it.id == intention.id } + intention,
+                    facts = facts,
+                    activeIntentionId = command.intentionId,
+                    builderDraft = BuilderDraft()
+                )
+            }
+
+            is FlowCommand.CancelBuilderDraft -> {
+                migrated.copy(builderDraft = BuilderDraft())
+            }
+
+            is FlowCommand.StartTriageBatch -> {
+                if (command.items.isEmpty()) return migrated
+                migrated.copy(
+                    triage = TriageState(
+                        active = true,
+                        batchId = command.batchId,
+                        items = command.items,
+                        createdAtEpochMs = command.nowEpochMs
+                    )
+                )
+            }
+
+            is FlowCommand.ConfirmTriageItem -> {
+                val triage = migrated.triage
+                val item = triage.items.firstOrNull { it.id == command.itemId }
+                    ?: return migrated
+                if (item.status != TriageItemStatus.PENDING) return migrated
+                val intention = Intention(
+                    id = command.intentionId,
+                    title = item.title,
+                    statement = item.statement,
+                    phase = IntentionPhase.EXPLORING,
+                    createdAtEpochMs = command.nowEpochMs,
+                    updatedAtEpochMs = command.nowEpochMs,
+                    shapeTag = item.suggestedShapeTag
+                )
+                val seedFact = Fact(
+                    id = "fact-triage-${command.intentionId}-seed",
+                    intentionId = command.intentionId,
+                    text = item.statement,
+                    provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                )
+                val thoughts = migrated.thoughtCaptures.map {
+                    if (it.id in item.sourceThoughtIds) {
+                        it.copy(status = ThoughtCaptureStatus.PROMOTED)
+                    } else {
+                        it
+                    }
+                }
+                val items = triage.items.map {
+                    if (it.id == item.id) it.copy(status = TriageItemStatus.CONFIRMED) else it
+                }
+                migrated.copy(
+                    intentions = migrated.intentions.filterNot { it.id == intention.id } + intention,
+                    facts = migrated.facts.filterNot { it.id == seedFact.id } + seedFact,
+                    thoughtCaptures = thoughts,
+                    activeIntentionId = command.intentionId,
+                    triage = triage.copy(items = items, active = items.any { it.status == TriageItemStatus.PENDING })
+                )
+            }
+
+            is FlowCommand.RejectTriageItem -> {
+                val triage = migrated.triage
+                val item = triage.items.firstOrNull { it.id == command.itemId }
+                    ?: return migrated
+                // Rejected proposals stay as ThoughtCapture evidence (RAW) — not discarded.
+                val items = triage.items.map {
+                    if (it.id == item.id) it.copy(status = TriageItemStatus.REJECTED) else it
+                }
+                migrated.copy(
+                    triage = triage.copy(
+                        items = items,
+                        active = items.any { it.status == TriageItemStatus.PENDING }
+                    )
+                )
+            }
+
+            is FlowCommand.ClearTriageBatch -> {
+                migrated.copy(triage = TriageState())
+            }
+
 
             is FlowCommand.SoftDeleteIntention -> softDeleteIntention(migrated, command)
             is FlowCommand.SoftDeleteSession -> softDeleteSession(migrated, command)
@@ -662,6 +850,16 @@ class IntentionFlowStore(
                     is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
                     is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
                     is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
+                    is FlowCommand.MarkThoughtStatus -> command.nowEpochMs
+                    is FlowCommand.StartBuilderDraft -> command.nowEpochMs
+                    is FlowCommand.SetBuilderShape -> command.nowEpochMs
+                    is FlowCommand.AnswerBuilderPrompt -> command.nowEpochMs
+                    is FlowCommand.CommitBuilderIntention -> command.nowEpochMs
+                    is FlowCommand.CancelBuilderDraft -> command.nowEpochMs
+                    is FlowCommand.StartTriageBatch -> command.nowEpochMs
+                    is FlowCommand.ConfirmTriageItem -> command.nowEpochMs
+                    is FlowCommand.RejectTriageItem -> command.nowEpochMs
+                    is FlowCommand.ClearTriageBatch -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -692,6 +890,16 @@ class IntentionFlowStore(
             is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
             is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
             is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
+            is FlowCommand.MarkThoughtStatus -> command.nowEpochMs
+            is FlowCommand.StartBuilderDraft -> command.nowEpochMs
+            is FlowCommand.SetBuilderShape -> command.nowEpochMs
+            is FlowCommand.AnswerBuilderPrompt -> command.nowEpochMs
+            is FlowCommand.CommitBuilderIntention -> command.nowEpochMs
+            is FlowCommand.CancelBuilderDraft -> command.nowEpochMs
+            is FlowCommand.StartTriageBatch -> command.nowEpochMs
+            is FlowCommand.ConfirmTriageItem -> command.nowEpochMs
+            is FlowCommand.RejectTriageItem -> command.nowEpochMs
+            is FlowCommand.ClearTriageBatch -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -1140,6 +1348,103 @@ class IntentionFlowStore(
         }
     }
 
+    data class WireBuilderDraft(
+        val active: Boolean = false,
+        val freeText: String = "",
+        val suggestedShapeTag: String = "other",
+        val shapeTag: String? = null,
+        val title: String = "",
+        val statement: String = "",
+        val factAnswers: Map<String, String> = emptyMap(),
+        val phase: String = BuilderPhase.ENTER_TEXT.name,
+        val honestyNote: String = "Heuristic shape suggestion — no live LLM."
+    ) {
+        fun toDomain() = BuilderDraft(
+            active = active,
+            freeText = freeText,
+            suggestedShapeTag = suggestedShapeTag,
+            shapeTag = shapeTag,
+            title = title,
+            statement = statement,
+            factAnswers = factAnswers,
+            phase = runCatching { BuilderPhase.valueOf(phase) }.getOrDefault(BuilderPhase.ENTER_TEXT),
+            honestyNote = honestyNote
+        )
+
+        companion object {
+            fun from(d: BuilderDraft) = WireBuilderDraft(
+                active = d.active,
+                freeText = d.freeText,
+                suggestedShapeTag = d.suggestedShapeTag,
+                shapeTag = d.shapeTag,
+                title = d.title,
+                statement = d.statement,
+                factAnswers = d.factAnswers,
+                phase = d.phase.name,
+                honestyNote = d.honestyNote
+            )
+        }
+    }
+
+    data class WireTriageItem(
+        val id: String = "",
+        val title: String = "",
+        val statement: String = "",
+        val suggestedShapeTag: String = "other",
+        val suggestedNextAction: String = "",
+        val sourceThoughtIds: List<String> = emptyList(),
+        val status: String = TriageItemStatus.PENDING.name,
+        val honestyNote: String = "Heuristic split — no live LLM."
+    ) {
+        fun toDomain() = TriageItem(
+            id = id,
+            title = title,
+            statement = statement,
+            suggestedShapeTag = suggestedShapeTag,
+            suggestedNextAction = suggestedNextAction,
+            sourceThoughtIds = sourceThoughtIds,
+            status = runCatching { TriageItemStatus.valueOf(status) }
+                .getOrDefault(TriageItemStatus.PENDING),
+            honestyNote = honestyNote
+        )
+
+        companion object {
+            fun from(i: TriageItem) = WireTriageItem(
+                id = i.id,
+                title = i.title,
+                statement = i.statement,
+                suggestedShapeTag = i.suggestedShapeTag,
+                suggestedNextAction = i.suggestedNextAction,
+                sourceThoughtIds = i.sourceThoughtIds,
+                status = i.status.name,
+                honestyNote = i.honestyNote
+            )
+        }
+    }
+
+    data class WireTriageState(
+        val active: Boolean = false,
+        val batchId: String = "",
+        val items: List<WireTriageItem> = emptyList(),
+        val createdAtEpochMs: Long = 0L
+    ) {
+        fun toDomain() = TriageState(
+            active = active,
+            batchId = batchId,
+            items = items.map { it.toDomain() },
+            createdAtEpochMs = createdAtEpochMs
+        )
+
+        companion object {
+            fun from(t: TriageState) = WireTriageState(
+                active = t.active,
+                batchId = t.batchId,
+                items = t.items.map { WireTriageItem.from(it) },
+                createdAtEpochMs = t.createdAtEpochMs
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -1152,6 +1457,8 @@ class IntentionFlowStore(
         val trackerEntries: List<WireTrackerEntry> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
+        val builderDraft: WireBuilderDraft = WireBuilderDraft(),
+        val triage: WireTriageState = WireTriageState(),
         val activeIntentionId: String? = null,
         val dayCycle: WireDayCycle = WireDayCycle(),
         val transactions: List<WireTransaction> = emptyList(),
@@ -1169,6 +1476,8 @@ class IntentionFlowStore(
             trackerEntries = trackerEntries.map { it.toDomain() },
             turns = turns.map { it.toDomain() },
             thoughtCaptures = thoughtCaptures.map { it.toDomain() },
+            builderDraft = builderDraft.toDomain(),
+            triage = triage.toDomain(),
             activeIntentionId = activeIntentionId,
             dayCycle = dayCycle.toDomain(),
             transactions = transactions.map { it.toDomain() },
@@ -1188,6 +1497,8 @@ class IntentionFlowStore(
                 trackerEntries = s.trackerEntries.map(WireTrackerEntry::from),
                 turns = s.turns.map(WireTurn::from),
                 thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
+                builderDraft = WireBuilderDraft.from(s.builderDraft),
+                triage = WireTriageState.from(s.triage),
                 activeIntentionId = s.activeIntentionId,
                 dayCycle = WireDayCycle.from(s.dayCycle),
                 transactions = s.transactions.map(WireTransaction::from),

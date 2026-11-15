@@ -230,7 +230,7 @@ class DailyCheckInCheckoutTest {
         val file = tmp.newFile("restart-day.json")
         file.writeText(store.encode(store.snapshot()))
         val reloaded = IntentionFlowStore(file)
-        assertEquals(5, reloaded.snapshot().schemaVersion)
+        assertEquals(6, reloaded.snapshot().schemaVersion)
         assertTrue(reloaded.snapshot().dayCycle.checkedInFor(localDate))
         assertEquals("Persisted focus", reloaded.snapshot().dayCycle.focusSummary)
     }

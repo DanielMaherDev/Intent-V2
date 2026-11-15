@@ -37,10 +37,12 @@ import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
 import com.intent.launcher.ui.screens.HomeScreen
+import com.intent.launcher.ui.screens.IntentionBuilderScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
+import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
 import com.intent.launcher.ui.theme.IntentTheme
 
@@ -381,6 +383,49 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onUndo = vm.lastUndoableTransaction()?.let { { vm.undoLast() } },
                                 undoTrashNote = vm.undoTrashNote,
+                                onStartBuilder = { nav.navigate("builder") },
+                                onOpenTriage = { nav.navigate("triage") },
+                                rawThoughtCount = vm.rawThoughtCount(),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("builder") {
+                            IntentionBuilderScreen(
+                                draft = vm.snapshot.builderDraft,
+                                honestyNote = vm.builderTriageNote,
+                                onStart = { text -> vm.startBuilder(text) },
+                                onPickShape = { shape -> vm.pickBuilderShape(shape) },
+                                onAnswerPrompt = { id, answer -> vm.answerBuilderPrompt(id, answer) },
+                                onCommit = {
+                                    if (vm.commitBuilder()) {
+                                        nav.navigate("intention") {
+                                            popUpTo("home")
+                                        }
+                                    }
+                                },
+                                onCancel = {
+                                    vm.cancelBuilder()
+                                    nav.popBackStack()
+                                },
+                                onBack = { nav.popBackStack() },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("triage") {
+                            ThoughtTriageScreen(
+                                triage = vm.snapshot.triage,
+                                rawThoughtCount = vm.rawThoughtCount(),
+                                honestyNote = vm.builderTriageNote,
+                                onStartFromDump = { dump -> vm.startTriageFromDump(dump) },
+                                onStartFromRaw = { vm.startTriageFromRaw() },
+                                onConfirm = { id ->
+                                    if (vm.confirmTriageItem(id)) {
+                                        // Stay on triage for remaining items
+                                    }
+                                },
+                                onReject = { id -> vm.rejectTriageItem(id) },
+                                onClear = { vm.clearTriage() },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

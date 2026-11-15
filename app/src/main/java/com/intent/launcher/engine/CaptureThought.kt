@@ -14,6 +14,7 @@ object CaptureThought {
     const val SOURCE_FLOATER = "floater"
     const val SOURCE_HOME = "home"
     const val SOURCE_VOICE = "voice"
+    const val SOURCE_TRIAGE = "triage"
 
     data class Result(
         val ok: Boolean,
@@ -61,7 +62,7 @@ object CaptureThought {
             ok = saved != null,
             thought = saved,
             confirmation = "Thought saved — raw text only, no summary. " +
-                "You can classify it later in Conversation or evening review."
+                "Triage or Conversation can classify later."
         )
     }
 }

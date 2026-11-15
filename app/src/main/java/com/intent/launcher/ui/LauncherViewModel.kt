@@ -20,12 +20,15 @@ import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.domain.ThoughtCaptureStatus
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.CaptureThought
+import com.intent.launcher.engine.ThoughtTriage
+import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DailyCycle
@@ -193,6 +196,10 @@ class LauncherViewModel(
     var askContextChip by mutableStateOf<String?>(null)
         private set
 
+    /** Builder / triage honesty or validation note for the current screen. */
+    var builderTriageNote by mutableStateOf<String?>(null)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
@@ -205,7 +212,129 @@ class LauncherViewModel(
         sessionNotificationObservation = observeSessionNotifications()
     }
 
-    fun lastUndoableTransaction(): FlowTransaction? =
+    fun rawThoughtCount(): Int =
+        snapshot.thoughtCaptures.count { it.status == ThoughtCaptureStatus.RAW }
+
+    fun startBuilder(freeText: String): Boolean {
+        val result = IntentionBuilder.start(
+            store = store,
+            freeText = freeText,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = result.note
+        refresh()
+        return result.ok
+    }
+
+    fun pickBuilderShape(shapeTag: String): Boolean {
+        val ok = IntentionBuilder.setShape(
+            store = store,
+            shapeTag = shapeTag,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = if (ok) IntentionBuilder.HONESTY else "Could not set shape."
+        refresh()
+        return ok
+    }
+
+    fun answerBuilderPrompt(promptId: String, answer: String): Boolean {
+        val ok = IntentionBuilder.answerPrompt(
+            store = store,
+            promptId = promptId,
+            answerText = answer,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = if (ok) {
+            "Answer saved in draft — SAID fact written only when you confirm."
+        } else {
+            "Could not save answer."
+        }
+        refresh()
+        return ok
+    }
+
+    fun commitBuilder(): Boolean {
+        val ok = IntentionBuilder.commit(
+            store = store,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = if (ok) {
+            "Intention created — facts stored with SAID provenance."
+        } else {
+            "Could not confirm intention."
+        }
+        refresh()
+        return ok
+    }
+
+    fun cancelBuilder() {
+        IntentionBuilder.cancel(store, System.currentTimeMillis())
+        builderTriageNote = null
+        refresh()
+    }
+
+    fun startTriageFromDump(dump: String): Boolean {
+        val result = ThoughtTriage.startFromDump(
+            store = store,
+            dumpText = dump,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = result.note
+        refresh()
+        return result.ok
+    }
+
+    fun startTriageFromRaw(): Boolean {
+        val result = ThoughtTriage.startFromRawThoughts(
+            store = store,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = result.note
+        refresh()
+        return result.ok
+    }
+
+    fun confirmTriageItem(itemId: String): Boolean {
+        val ok = ThoughtTriage.confirm(
+            store = store,
+            itemId = itemId,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = if (ok) "Intention confirmed from triage." else "Confirm failed."
+        refresh()
+        return ok
+    }
+
+    fun rejectTriageItem(itemId: String): Boolean {
+        val ok = ThoughtTriage.reject(
+            store = store,
+            itemId = itemId,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = if (ok) {
+            "Rejected — thought kept as RAW evidence only."
+        } else {
+            "Reject failed."
+        }
+        refresh()
+        return ok
+    }
+
+    fun clearTriage() {
+        store.apply(FlowCommand.ClearTriageBatch(nowEpochMs = System.currentTimeMillis()))
+        builderTriageNote = null
+        refresh()
+    }
+
+        fun lastUndoableTransaction(): FlowTransaction? =
         CommandReversibility.lastUndoable(snapshot.transactions)
 
     fun recoverableTrash(nowEpochMs: Long = System.currentTimeMillis()): List<TrashEntry> =

@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 5
+const val SCHEMA_VERSION: Int = 6
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -180,8 +180,8 @@ data class DayCycleState(
 }
 
 /**
- * Instant raw thought — stored before any classification.
- * Provenance is always SAID; classification is deferred (evening / Conversation).
+ * Instant raw thought — stored before classification.
+ * Provenance is always SAID; triage may promote or leave as evidence.
  */
 enum class ThoughtCaptureStatus {
     RAW,
@@ -196,9 +196,55 @@ data class ThoughtCapture(
     val text: String,
     val provenance: Provenance,
     val capturedAtEpochMs: Long,
-    /** Entry surface: floater | home | voice */
+    /** Entry surface: floater | home | voice | triage */
     val source: String,
     val status: ThoughtCaptureStatus = ThoughtCaptureStatus.RAW
+)
+
+/** Guided intention builder draft — persisted so the flow can resume. */
+enum class BuilderPhase {
+    ENTER_TEXT,
+    PICK_SHAPE,
+    MISSING_FACTS,
+    CONFIRM
+}
+
+data class BuilderDraft(
+    val active: Boolean = false,
+    val freeText: String = "",
+    val suggestedShapeTag: String = "other",
+    val shapeTag: String? = null,
+    val title: String = "",
+    val statement: String = "",
+    /** promptId → user answer (written as SAID facts only on commit). */
+    val factAnswers: Map<String, String> = emptyMap(),
+    val phase: BuilderPhase = BuilderPhase.ENTER_TEXT,
+    val honestyNote: String = "Heuristic shape suggestion — no live LLM."
+)
+
+enum class TriageItemStatus {
+    PENDING,
+    CONFIRMED,
+    REJECTED
+}
+
+/** One proposed intention from multi-thought triage (heuristic unless LLM lands later). */
+data class TriageItem(
+    val id: String,
+    val title: String,
+    val statement: String,
+    val suggestedShapeTag: String,
+    val suggestedNextAction: String,
+    val sourceThoughtIds: List<String>,
+    val status: TriageItemStatus = TriageItemStatus.PENDING,
+    val honestyNote: String = "Heuristic split — no live LLM."
+)
+
+data class TriageState(
+    val active: Boolean = false,
+    val batchId: String = "",
+    val items: List<TriageItem> = emptyList(),
+    val createdAtEpochMs: Long = 0L
 )
 
 data class Intention(
@@ -257,6 +303,8 @@ data class IntentionSnapshot(
     val trackerEntries: List<TrackerEntry> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
     val thoughtCaptures: List<ThoughtCapture> = emptyList(),
+    val builderDraft: BuilderDraft = BuilderDraft(),
+    val triage: TriageState = TriageState(),
     val activeIntentionId: String? = null,
     val dayCycle: DayCycleState = DayCycleState(),
     val transactions: List<FlowTransaction> = emptyList(),
@@ -438,6 +486,67 @@ sealed class FlowCommand {
         val hypothesisText: String? = null,
         val deferSessionId: String? = null,
         val deferUntilEpochMs: Long? = null
+    ) : FlowCommand()
+
+    data class MarkThoughtStatus(
+        val thoughtId: String,
+        val status: ThoughtCaptureStatus,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class StartBuilderDraft(
+        val freeText: String,
+        val suggestedShapeTag: String,
+        val title: String,
+        val statement: String,
+        val nowEpochMs: Long,
+        val honestyNote: String = "Heuristic shape suggestion — no live LLM."
+    ) : FlowCommand()
+
+    data class SetBuilderShape(
+        val shapeTag: String,
+        val title: String,
+        val statement: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class AnswerBuilderPrompt(
+        val promptId: String,
+        val answerText: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Commit builder draft → [SeedExploring] facts as SAID. Never auto-writes INFERRED.
+     */
+    data class CommitBuilderIntention(
+        val intentionId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class CancelBuilderDraft(
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class StartTriageBatch(
+        val batchId: String,
+        val items: List<TriageItem>,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class ConfirmTriageItem(
+        val itemId: String,
+        val intentionId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class RejectTriageItem(
+        val itemId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class ClearTriageBatch(
+        val nowEpochMs: Long
     ) : FlowCommand()
 
     /** Undo the last reversible commitment via transaction history. */

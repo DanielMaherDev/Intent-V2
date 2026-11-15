@@ -114,6 +114,9 @@ fun HomeScreen(
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
+    onStartBuilder: (() -> Unit)? = null,
+    onOpenTriage: (() -> Unit)? = null,
+    rawThoughtCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
@@ -454,6 +457,29 @@ fun HomeScreen(
                     onClick = onExploreMove,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
+                )
+            }
+
+            if (onStartBuilder != null) {
+                LineRow(
+                    title = "Start a new intention",
+                    subtitle = "Guided builder — heuristic shape, SAID facts on confirm",
+                    onClick = onStartBuilder,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onOpenTriage != null) {
+                LineRow(
+                    title = "Triage thoughts",
+                    subtitle = if (rawThoughtCount > 0) {
+                        "$rawThoughtCount raw · confirm or reject proposals"
+                    } else {
+                        "Split multiple goals into proposed intentions"
+                    },
+                    onClick = onOpenTriage,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Success
                 )
             }
 

@@ -80,7 +80,7 @@ class CaptureThoughtTest {
         assertEquals("Buy milk tonight", thought.text)
         assertEquals(ProvenanceKind.SAID, thought.provenance.kind)
         assertEquals("voice_thought_capture", thought.provenance.sourceLabel)
-        assertEquals(5, second.snapshot().schemaVersion)
+        assertEquals(6, second.snapshot().schemaVersion)
     }
 
     @Test

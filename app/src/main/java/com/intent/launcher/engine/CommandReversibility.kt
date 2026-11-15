@@ -64,6 +64,26 @@ object CommandReversibility {
                 Reversibility(true, "Recorded tracker entry ${command.entryId}")
             is FlowCommand.DeleteTrackerEntry ->
                 Reversibility(true, "Deleted tracker entry ${command.entryId}")
+            is FlowCommand.MarkThoughtStatus ->
+                Reversibility(true, "Marked thought ${command.thoughtId}")
+            is FlowCommand.StartBuilderDraft ->
+                Reversibility(true, "Started intention builder")
+            is FlowCommand.SetBuilderShape ->
+                Reversibility(true, "Set builder shape ${command.shapeTag}")
+            is FlowCommand.AnswerBuilderPrompt ->
+                Reversibility(true, "Answered builder prompt ${command.promptId}")
+            is FlowCommand.CommitBuilderIntention ->
+                Reversibility(true, "Committed builder intention ${command.intentionId}")
+            is FlowCommand.CancelBuilderDraft ->
+                Reversibility(true, "Cancelled intention builder")
+            is FlowCommand.StartTriageBatch ->
+                Reversibility(true, "Started triage batch ${command.batchId}")
+            is FlowCommand.ConfirmTriageItem ->
+                Reversibility(true, "Confirmed triage item ${command.itemId}")
+            is FlowCommand.RejectTriageItem ->
+                Reversibility(true, "Rejected triage item ${command.itemId}")
+            is FlowCommand.ClearTriageBatch ->
+                Reversibility(true, "Cleared triage batch")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,
