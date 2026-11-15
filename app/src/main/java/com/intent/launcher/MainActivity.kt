@@ -32,7 +32,9 @@ import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
+import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
+import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConnectionsScreen
 import com.intent.launcher.ui.screens.ConversationScreen
@@ -47,6 +49,7 @@ import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.CheckOutWhatHappenedDialog
 import com.intent.launcher.ui.screens.EveningThoughtTriageSheet
+import com.intent.launcher.ui.screens.SettingsScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
@@ -506,7 +509,29 @@ class MainActivity : ComponentActivity() {
                                     null
                                 },
                                 onToggleErrand = { vm.toggleErrand(it) },
-                                onSettings = { nav.navigate("connections") },
+                                onSettings = { nav.navigate("settings") },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("settings") {
+                            val versionName = try {
+                                packageManager.getPackageInfo(packageName, 0).versionName
+                            } catch (_: Exception) {
+                                null
+                            } ?: "0.0.107"
+                            SettingsScreen(
+                                versionName = versionName,
+                                schemaVersion = SCHEMA_VERSION,
+                                onExportSnapshot = {
+                                    val json = vm.exportSnapshotJson()
+                                    val file = SnapshotExport.writeExportFile(
+                                        cacheDir = cacheDir,
+                                        json = json
+                                    )
+                                    startActivity(SnapshotExport.shareIntent(this@MainActivity, file))
+                                },
+                                onOpenConnections = { nav.navigate("connections") },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
