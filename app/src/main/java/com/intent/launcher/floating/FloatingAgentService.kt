@@ -18,9 +18,12 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.intent.launcher.MainActivity
 import com.intent.launcher.R
 import com.intent.launcher.engine.FloatingAgentRestartPolicy
+import com.intent.launcher.engine.FloaterSystemUiPolicy
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.TalkBackLabels
@@ -32,12 +35,17 @@ import com.intent.launcher.engine.TalkBackLabels
  * Sticky honesty (OS-155): [START_STICKY] only while overlay is granted.
  * Sticky restart re-checks overlay and never invents a grant; Home / Companion
  * menu / notification remain the Conversation path when denied or stopped.
+ * OS-156: [FloaterSystemUiPolicy] keeps the bubble out of recents / gesture /
+ * IME bands and uses NOT_FOCUSABLE|NOT_TOUCH_MODAL so system permission dialogs
+ * and the keyboard keep input. Additive with Gate D sticky honesty (PR #53).
  */
 class FloatingAgentService : Service() {
 
     private var windowManager: WindowManager? = null
     private var bubble: FrameLayout? = null
     private var labelView: TextView? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
+    private var bubbleSizePx: Int = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -115,7 +123,8 @@ class FloatingAgentService : Service() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager = wm
         val density = resources.displayMetrics.density
-        val size = (56 * density).toInt()
+        val size = FloaterSystemUiPolicy.bubbleSizePx(density)
+        bubbleSizePx = size
         val pad = (12 * density).toInt()
         val frame = FrameLayout(this).apply {
             setBackgroundColor(0xFF5459C9.toInt())
@@ -158,20 +167,91 @@ class FloatingAgentService : Service() {
             startActivity(launch)
             true
         }
+
+        val metrics = resources.displayMetrics
+        val screen = FloaterSystemUiPolicy.Screen(
+            widthPx = metrics.widthPixels,
+            heightPx = metrics.heightPixels,
+            density = density
+        )
+        // Conservative fallback insets until the first WindowInsets pass.
+        val fallback = FloaterSystemUiPolicy.Insets(
+            statusBar = (24 * density).toInt(),
+            navBar = FloaterSystemUiPolicy.minBottomClearancePx(density),
+            gestureBottom = FloaterSystemUiPolicy.minBottomClearancePx(density),
+            gestureRight = FloaterSystemUiPolicy.preferredMarginPx(density)
+        )
+        val placement = FloaterSystemUiPolicy.place(screen, fallback, bubbleSizePx = size)
         val params = WindowManager.LayoutParams(
             size,
             size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            FloaterSystemUiPolicy.overlayFlags(),
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            x = (16 * density).toInt()
-            y = (120 * density).toInt()
+            x = placement.xPx
+            y = placement.yPx
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Fit system bars + IME so the window reports those insets for OS-156.
+                setFitInsetsTypes(
+                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime()
+                )
+            }
+        }
+        layoutParams = params
+        frame.visibility = if (placement.visible) View.VISIBLE else View.GONE
+        // Never claim edge gesture exclusion — system nav / back gestures stay free.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            frame.systemGestureExclusionRects = emptyList()
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(frame) { _, insets ->
+            applySystemUiInsets(insets)
+            insets
         }
         wm.addView(frame, params)
         bubble = frame
         labelView = tv
+        ViewCompat.requestApplyInsets(frame)
+    }
+
+    private fun applySystemUiInsets(windowInsets: WindowInsetsCompat) {
+        val frame = bubble ?: return
+        val params = layoutParams ?: return
+        val wm = windowManager ?: return
+        val density = resources.displayMetrics.density
+        val metrics = resources.displayMetrics
+        val systemBars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+        val gestures = windowInsets.getInsets(WindowInsetsCompat.Type.systemGestures())
+        val ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+        val insets = FloaterSystemUiPolicy.Insets(
+            statusBar = systemBars.top,
+            navBar = systemBars.bottom,
+            gestureLeft = gestures.left,
+            gestureRight = gestures.right,
+            gestureBottom = gestures.bottom,
+            ime = ime.bottom
+        )
+        val screen = FloaterSystemUiPolicy.Screen(
+            widthPx = metrics.widthPixels,
+            heightPx = metrics.heightPixels,
+            density = density
+        )
+        val placement = FloaterSystemUiPolicy.place(
+            screen = screen,
+            insets = insets,
+            bubbleSizePx = bubbleSizePx
+        )
+        params.x = placement.xPx
+        params.y = placement.yPx
+        params.gravity = Gravity.TOP or Gravity.END
+        params.flags = FloaterSystemUiPolicy.overlayFlags()
+        frame.visibility = if (placement.visible) View.VISIBLE else View.GONE
+        try {
+            wm.updateViewLayout(frame, params)
+        } catch (_: Exception) {
+            // view may already be detached
+        }
     }
 
     private fun updateBubble(state: FloatingAgentState) {
@@ -197,6 +277,8 @@ class FloatingAgentService : Service() {
         }
         bubble = null
         labelView = null
+        layoutParams = null
+        bubbleSizePx = 0
     }
 
     companion object {
