@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static App Shortcuts for floater deep entries (Gate D1 leftover).
+  Labels: Ask / Today / Capture / History — same companion intents as
+  DeepLinkEntries / FloatingAgentService. No silence / quiet-mode shortcuts.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="ask"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_ask_short"
+        android:shortcutLongLabel="@string/shortcut_ask_long">
+        <intent
+            android:action="com.intent.launcher.OPEN_CONVERSATION"
+            android:targetPackage="com.intent.launcher"
+            android:targetClass="com.intent.launcher.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="today"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_today_short"
+        android:shortcutLongLabel="@string/shortcut_today_long">
+        <intent
+            android:action="com.intent.launcher.OPEN_TODAY"
+            android:targetPackage="com.intent.launcher"
+            android:targetClass="com.intent.launcher.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_capture_short"
+        android:shortcutLongLabel="@string/shortcut_capture_long">
+        <intent
+            android:action="com.intent.launcher.CAPTURE_THOUGHT"
+            android:targetPackage="com.intent.launcher"
+            android:targetClass="com.intent.launcher.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="history"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_history_short"
+        android:shortcutLongLabel="@string/shortcut_history_long">
+        <intent
+            android:action="com.intent.launcher.OPEN_HISTORY"
+            android:targetPackage="com.intent.launcher"
+            android:targetClass="com.intent.launcher.MainActivity" />
+    </shortcut>
+</shortcuts>

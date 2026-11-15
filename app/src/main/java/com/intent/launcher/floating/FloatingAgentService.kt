@@ -363,6 +363,10 @@ class FloatingAgentService : Service() {
         const val ACTION_OPEN_DRAWER = "com.intent.launcher.OPEN_FLOATER_DRAWER"
         /** Drawer Capture (or direct) → thought sheet. */
         const val ACTION_CAPTURE_THOUGHT = "com.intent.launcher.CAPTURE_THOUGHT"
+        /** App Shortcut / companion → Today (planned · completed · deferred). */
+        const val ACTION_OPEN_TODAY = "com.intent.launcher.OPEN_TODAY"
+        /** App Shortcut / companion → local History (undo) — not cloud sync. */
+        const val ACTION_OPEN_HISTORY = "com.intent.launcher.OPEN_HISTORY"
         const val EXTRA_STATE = "floating_state"
         const val EXTRA_PROVENANCE_LABEL = "intervention_provenance"
         const val EXTRA_ATTENTION_LABEL = "intervention_attention"

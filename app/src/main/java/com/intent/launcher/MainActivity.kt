@@ -953,6 +953,8 @@ class MainActivity : ComponentActivity() {
                 thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
                 showThoughtCapture = true
             }
+            FloatingAgentService.ACTION_OPEN_TODAY -> openTodayFromDrawerRequest++
+            FloatingAgentService.ACTION_OPEN_HISTORY -> openHistoryFromDrawerRequest++
         }
     }
 

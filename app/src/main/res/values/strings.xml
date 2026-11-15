@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">INTENT</string>
+    <!-- Static App Shortcuts — floater deep entries (Ask / Today / Capture / History). -->
+    <string name="shortcut_ask_short">Ask</string>
+    <string name="shortcut_ask_long">Ask — Conversation</string>
+    <string name="shortcut_today_short">Today</string>
+    <string name="shortcut_today_long">Today — planned · completed · deferred</string>
+    <string name="shortcut_capture_short">Capture</string>
+    <string name="shortcut_capture_long">Capture a thought</string>
+    <string name="shortcut_history_short">History</string>
+    <string name="shortcut_history_long">History — local undo</string>
 </resources>

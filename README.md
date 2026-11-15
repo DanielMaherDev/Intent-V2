@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.144** (this branch) · stacked on **v0.0.143** GatewayStatus remainder (#87) · main tip **v0.0.142** (#85).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.145** (this branch) · on tip **v0.0.144** high-contrast (#88) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.144** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.144.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.145.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.145:** Static Android App Shortcuts XML — Ask / Today / Capture / History wired to companion intents (`OPEN_CONVERSATION` / `OPEN_TODAY` / `CAPTURE_THOUGHT` / `OPEN_HISTORY`); no silence shortcuts; SCHEMA 10 unchanged
 - **v0.0.144:** High-contrast accessibility theme — Settings Appearance adds High contrast (follow device light/dark) with elevated HC light/dark tokens via `ThemePreference` / `HomeChromePrefs`; SCHEMA 10 unchanged
 - **v0.0.143:** Remaining GatewayStatus Conversation cards — PERMISSION_DENIED / UNSUPPORTED / NEEDS_APPROVAL via `CommandGateway.requestCapabilityAction` + `GatewayStatusCard`; SCHEMA 10 unchanged
 - **v0.0.142:** Quiet-mode + deep-link honesty — Settings states `quiet_mode` NOT_SUPPORTED (no fake silence toggle); documents floater Ask/Today/Capture/History companion intents; SCHEMA 10 unchanged
@@ -256,6 +257,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.144, release): [INTENT-v0.0.144.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/high-contrast-a11y-theme-bbb8/artifacts/INTENT-v0.0.144.apk)
+Sideload APK (v0.0.145, release): [INTENT-v0.0.145.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/app-shortcuts-xml-759f/artifacts/INTENT-v0.0.145.apk)
 
-(Prior stack: [INTENT-v0.0.143.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gateway-status-remaining-cards-be09/artifacts/INTENT-v0.0.143.apk). Main tip: [INTENT-v0.0.142.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.142.apk).)
+(Main tip prior: [INTENT-v0.0.144.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.144.apk).)

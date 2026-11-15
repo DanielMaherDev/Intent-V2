@@ -1,11 +1,12 @@
 package com.intent.launcher.engine
 
 /**
- * Shipped deep entries for floater / companion / system honesty docs (Gate D1 leftover).
+ * Shipped deep entries for floater / companion / App Shortcuts / system honesty
+ * (Gate D1 leftover).
  *
  * Not a typed NavArgs graph for every worksheet shortcut — companion + overlay
- * intents are the real deep entries. Safe fallbacks live in [MainActivity]
- * (`consumeCompanionIntent`) and [BackNavigationPolicy].
+ * intents + static App Shortcuts XML are the real deep entries. Safe fallbacks
+ * live in [MainActivity] (`consumeCompanionIntent`) and [BackNavigationPolicy].
  *
  * Pure inventory for JVM tests + docs; no Android framework deps.
  */
@@ -31,7 +32,7 @@ object DeepLinkEntries {
             honestyNote = "Same Conversation agent / chips path — not a second bot or live LLM."
         ),
         Entry(
-            action = "com.intent.launcher.OPEN_FLOATER_DRAWER→TODAY",
+            action = "com.intent.launcher.OPEN_TODAY",
             label = "Today",
             destination = FloaterActionDrawer.TODAY_ROUTE,
             honestyNote = "Opens Today planned/completed/deferred — not chat prose."
@@ -43,10 +44,41 @@ object DeepLinkEntries {
             honestyNote = "Raw SAID thought only — no summary, OCR, or lesson claim."
         ),
         Entry(
-            action = "com.intent.launcher.OPEN_FLOATER_DRAWER→HISTORY",
+            action = "com.intent.launcher.OPEN_HISTORY",
             label = "History",
             destination = FloaterActionDrawer.HISTORY_ROUTE,
             honestyNote = "Local transaction History / undo — not cloud sync."
+        )
+    )
+
+    /**
+     * Static Android App Shortcuts (`res/xml/shortcuts.xml`) — same four labels,
+     * wired to companion intents. No silence / quiet-mode shortcut.
+     */
+    val APP_SHORTCUTS: List<Entry> = listOf(
+        Entry(
+            action = "com.intent.launcher.OPEN_CONVERSATION",
+            label = "Ask",
+            destination = "conversation",
+            honestyNote = "Launcher long-press shortcut → Conversation; no live LLM unless LIVE."
+        ),
+        Entry(
+            action = "com.intent.launcher.OPEN_TODAY",
+            label = "Today",
+            destination = FloaterActionDrawer.TODAY_ROUTE,
+            honestyNote = "Launcher shortcut → Today view — not a silence or DND toggle."
+        ),
+        Entry(
+            action = "com.intent.launcher.CAPTURE_THOUGHT",
+            label = "Capture",
+            destination = "thought_capture_sheet",
+            honestyNote = "Launcher shortcut → thought sheet; SAID only."
+        ),
+        Entry(
+            action = "com.intent.launcher.OPEN_HISTORY",
+            label = "History",
+            destination = FloaterActionDrawer.HISTORY_ROUTE,
+            honestyNote = "Launcher shortcut → local History; not cloud sync."
         )
     )
 
@@ -69,6 +101,18 @@ object DeepLinkEntries {
             label = "Capture thought",
             destination = "thought_capture_sheet",
             honestyNote = "Direct Capture without opening the drawer first."
+        ),
+        Entry(
+            action = "com.intent.launcher.OPEN_TODAY",
+            label = "Open Today",
+            destination = FloaterActionDrawer.TODAY_ROUTE,
+            honestyNote = "App Shortcut / companion → Today planned·completed·deferred."
+        ),
+        Entry(
+            action = "com.intent.launcher.OPEN_HISTORY",
+            label = "Open History",
+            destination = FloaterActionDrawer.HISTORY_ROUTE,
+            honestyNote = "App Shortcut / companion → local undo History."
         )
     )
 
@@ -84,5 +128,8 @@ object DeepLinkEntries {
 
     fun floaterLabels(): List<String> = FLOATER_DRAWER.map { it.label }
 
-    fun allShipped(): List<Entry> = FLOATER_DRAWER + COMPANION_INTENTS + SYSTEM_HONESTY
+    fun appShortcutLabels(): List<String> = APP_SHORTCUTS.map { it.label }
+
+    fun allShipped(): List<Entry> =
+        FLOATER_DRAWER + APP_SHORTCUTS + COMPANION_INTENTS + SYSTEM_HONESTY
 }
