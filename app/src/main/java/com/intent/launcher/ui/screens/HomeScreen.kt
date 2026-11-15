@@ -12,11 +12,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.HourglassBottom
+import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Spa
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +41,8 @@ import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.domain.SessionElapsed
+import com.intent.launcher.ui.components.Callout
 import com.intent.launcher.ui.components.DateLabel
 import com.intent.launcher.ui.components.GlyphTone
 import com.intent.launcher.ui.components.HeroCard
@@ -47,6 +54,8 @@ import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.LineRow
 import com.intent.launcher.ui.components.SectionTitle
+import com.intent.launcher.ui.components.SessionMetaCell
+import com.intent.launcher.ui.components.SessionSummaryCard
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 import java.text.SimpleDateFormat
@@ -194,47 +203,87 @@ fun HomeScreen(
             DateLabel(dateLabel)
             Spacer(modifier = Modifier.height(14.dp))
 
-            AttentionStripCard(
-                nextAction = nextAction,
-                meta = stripMeta,
-                secondary = secondary,
-                deferPreviewLine = deferPreviewLine,
-                onContinueExploring = onContinueExploring,
-                onOpenIntention = onOpenIntention,
-                onReviewProposal = onReviewProposal,
-                onBegin = onBegin,
-                onDefer = onDefer,
-                onDiscuss = onDiscuss,
-                onCompleteSession = onCompleteSession,
-                onAbandonSession = onAbandonSession,
-                onOpenDestination = onOpenDestination,
-                onConfirmCheckIn = onConfirmCheckIn,
-                onCheckOutKeepSchedule = onCheckOutKeepSchedule,
-                onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
-                destinationLaunchNote = destinationLaunchNote,
-                showGrantUsageAccess = showGrantUsageAccess,
-                onGrantUsageAccess = onGrantUsageAccess,
-                observedEvidenceNote = observedEvidenceNote,
-                showDismissObserved = showDismissObserved,
-                onDismissObserved = onDismissObserved,
-                notificationNote = notificationNote,
-                showGrantNotificationAccess = showGrantNotificationAccess,
-                onGrantNotificationAccess = onGrantNotificationAccess,
-                quietNote = quietNote,
-                showRequestQuiet = showRequestQuiet,
-                onRequestQuiet = onRequestQuiet,
-                showOpenDndSettings = showOpenDndSettings,
-                onOpenDndSettings = onOpenDndSettings,
-                screenCaptureNote = screenCaptureNote,
-                showCaptureScreen = showCaptureScreen,
-                onCaptureScreen = onCaptureScreen,
-                sessionNotificationRows = sessionNotificationRows,
-                onDismissNotificationRow = onDismissNotificationRow,
-                sessionSoftPaused = sessionSoftPaused,
-                sessionPauseNote = sessionPauseNote,
-                showResumeSession = showResumeSession,
-                onResumeSession = onResumeSession
-            )
+            // Active session uses SessionSummaryCard (approval-mock language).
+            // Other next-action kinds keep the existing attention-strip hero.
+            if (nextAction.kind == NextActionKind.ACTIVE_SESSION) {
+                ActiveSessionCard(
+                    nextAction = nextAction,
+                    intentionTitle = intentionTitle,
+                    nowEpochMs = nowEpochMs,
+                    secondary = secondary,
+                    sessionSoftPaused = sessionSoftPaused,
+                    sessionPauseNote = sessionPauseNote,
+                    sessionPausedAtEpochMs = sessionPausedAtEpochMs,
+                    sessionAccumulatedPausedMs = sessionAccumulatedPausedMs,
+                    showResumeSession = showResumeSession,
+                    onResumeSession = onResumeSession,
+                    onDiscuss = onDiscuss,
+                    onCompleteSession = onCompleteSession,
+                    onAbandonSession = onAbandonSession,
+                    onOpenDestination = onOpenDestination,
+                    destinationLaunchNote = destinationLaunchNote,
+                    showGrantUsageAccess = showGrantUsageAccess,
+                    onGrantUsageAccess = onGrantUsageAccess,
+                    observedEvidenceNote = observedEvidenceNote,
+                    showDismissObserved = showDismissObserved,
+                    onDismissObserved = onDismissObserved,
+                    notificationNote = notificationNote,
+                    showGrantNotificationAccess = showGrantNotificationAccess,
+                    onGrantNotificationAccess = onGrantNotificationAccess,
+                    quietNote = quietNote,
+                    showRequestQuiet = showRequestQuiet,
+                    onRequestQuiet = onRequestQuiet,
+                    showOpenDndSettings = showOpenDndSettings,
+                    onOpenDndSettings = onOpenDndSettings,
+                    screenCaptureNote = screenCaptureNote,
+                    showCaptureScreen = showCaptureScreen,
+                    onCaptureScreen = onCaptureScreen,
+                    sessionNotificationRows = sessionNotificationRows,
+                    onDismissNotificationRow = onDismissNotificationRow
+                )
+            } else {
+                AttentionStripCard(
+                    nextAction = nextAction,
+                    meta = stripMeta,
+                    secondary = secondary,
+                    deferPreviewLine = deferPreviewLine,
+                    onContinueExploring = onContinueExploring,
+                    onOpenIntention = onOpenIntention,
+                    onReviewProposal = onReviewProposal,
+                    onBegin = onBegin,
+                    onDefer = onDefer,
+                    onDiscuss = onDiscuss,
+                    onCompleteSession = onCompleteSession,
+                    onAbandonSession = onAbandonSession,
+                    onOpenDestination = onOpenDestination,
+                    onConfirmCheckIn = onConfirmCheckIn,
+                    onCheckOutKeepSchedule = onCheckOutKeepSchedule,
+                    onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
+                    destinationLaunchNote = destinationLaunchNote,
+                    showGrantUsageAccess = showGrantUsageAccess,
+                    onGrantUsageAccess = onGrantUsageAccess,
+                    observedEvidenceNote = observedEvidenceNote,
+                    showDismissObserved = showDismissObserved,
+                    onDismissObserved = onDismissObserved,
+                    notificationNote = notificationNote,
+                    showGrantNotificationAccess = showGrantNotificationAccess,
+                    onGrantNotificationAccess = onGrantNotificationAccess,
+                    quietNote = quietNote,
+                    showRequestQuiet = showRequestQuiet,
+                    onRequestQuiet = onRequestQuiet,
+                    showOpenDndSettings = showOpenDndSettings,
+                    onOpenDndSettings = onOpenDndSettings,
+                    screenCaptureNote = screenCaptureNote,
+                    showCaptureScreen = showCaptureScreen,
+                    onCaptureScreen = onCaptureScreen,
+                    sessionNotificationRows = sessionNotificationRows,
+                    onDismissNotificationRow = onDismissNotificationRow,
+                    sessionSoftPaused = sessionSoftPaused,
+                    sessionPauseNote = sessionPauseNote,
+                    showResumeSession = showResumeSession,
+                    onResumeSession = onResumeSession
+                )
+            }
 
             QuietGrantStrip(
                 showGrantUsageAccess = showGrantUsageAccess &&
@@ -524,6 +573,297 @@ private fun attentionStripMeta(
             heroTone = HeroTone.Accent,
             title = nextAction.label.ifBlank { "Where would you like to begin?" },
             support = support.ifBlank { "Your space is ready when you are." }
+        )
+    }
+}
+
+
+/**
+ * Active SessionCard — SoftCard + 2×2 meta grid matching the approval weekly mock.
+ * Begin/Complete/Abandon/Open/Discuss/Resume and honesty strings stay intact;
+ * Home hero for other next-action kinds is unchanged.
+ */
+@Composable
+private fun ActiveSessionCard(
+    nextAction: NextAction,
+    intentionTitle: String,
+    nowEpochMs: Long,
+    secondary: AttentionStrip.SecondaryLine?,
+    sessionSoftPaused: Boolean,
+    sessionPauseNote: String?,
+    sessionPausedAtEpochMs: Long?,
+    sessionAccumulatedPausedMs: Long,
+    showResumeSession: Boolean,
+    onResumeSession: () -> Unit,
+    onDiscuss: () -> Unit,
+    onCompleteSession: () -> Unit,
+    onAbandonSession: () -> Unit,
+    onOpenDestination: () -> Unit,
+    destinationLaunchNote: String?,
+    showGrantUsageAccess: Boolean,
+    onGrantUsageAccess: () -> Unit,
+    observedEvidenceNote: String?,
+    showDismissObserved: Boolean,
+    onDismissObserved: () -> Unit,
+    notificationNote: String?,
+    showGrantNotificationAccess: Boolean,
+    onGrantNotificationAccess: () -> Unit,
+    quietNote: String?,
+    showRequestQuiet: Boolean,
+    onRequestQuiet: () -> Unit,
+    showOpenDndSettings: Boolean,
+    onOpenDndSettings: () -> Unit,
+    screenCaptureNote: String?,
+    showCaptureScreen: Boolean,
+    onCaptureScreen: () -> Unit,
+    sessionNotificationRows: List<Pair<String, String>>,
+    onDismissNotificationRow: ((String, String) -> Unit)?
+) {
+    val startedAt = nextAction.startedAtEpochMs
+    val elapsedMs = if (startedAt != null) {
+        SessionElapsed.activeElapsedMs(
+            startedAtEpochMs = startedAt,
+            nowEpochMs = nowEpochMs,
+            pausedAtEpochMs = sessionPausedAtEpochMs,
+            accumulatedPausedMs = sessionAccumulatedPausedMs
+        )
+    } else {
+        0L
+    }
+    val elapsedText = SessionElapsed.formatMs(elapsedMs)
+    val elapsedDesc = when {
+        startedAt == null -> "Elapsed time unavailable"
+        sessionSoftPaused || sessionPausedAtEpochMs != null ->
+            "Paused $elapsedText — soft-paused while away from the linked app, not lesson completion"
+        else -> "Elapsed $elapsedText"
+    }
+    val destinationValue = nextAction.destinationAppLabel?.takeIf { it.isNotBlank() } ?: "—"
+    val statusValue = when {
+        sessionSoftPaused -> "Away"
+        secondary is AttentionStrip.SecondaryLine.ObservedPackageMinutes -> "Observed"
+        else -> "In progress"
+    }
+    val sourceValue = when (secondary) {
+        is AttentionStrip.SecondaryLine.ObservedPackageMinutes -> secondary.text
+        is AttentionStrip.SecondaryLine.SessionElapsed ->
+            if (sessionSoftPaused) "Soft-paused" else "Local clock"
+        null -> if (sessionSoftPaused) "Soft-paused" else "Local clock"
+    }
+
+    SmallLabel(
+        text = if (sessionSoftPaused) "Away from app" else "In progress",
+        color = if (sessionSoftPaused) IntentColors.Warm else IntentColors.Success
+    )
+    Spacer(modifier = Modifier.height(7.dp))
+    Text(
+        text = if (sessionSoftPaused) "Session soft-paused." else "You're in a session.",
+        style = MaterialTheme.typography.displayLarge,
+        color = IntentColors.Ink
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    Text(
+        text = intentionTitle.ifBlank {
+            AttentionStrip.supportingSentence(nextAction).ifBlank {
+                "Complete when finished, or abandon if plans change."
+            }
+        },
+        style = MaterialTheme.typography.bodyLarge,
+        color = IntentColors.Lede
+    )
+    Spacer(modifier = Modifier.height(22.dp))
+
+    SessionSummaryCard(
+        title = nextAction.label.ifBlank { "Active session" },
+        headerIcon = Icons.Outlined.School,
+        cells = listOf(
+            SessionMetaCell(
+                icon = Icons.Outlined.HourglassBottom,
+                label = if (sessionSoftPaused) "Paused" else "Elapsed",
+                value = elapsedText,
+                contentDescription = elapsedDesc
+            ),
+            SessionMetaCell(
+                icon = Icons.Outlined.AccessTime,
+                label = "Status",
+                value = statusValue
+            ),
+            SessionMetaCell(
+                icon = Icons.Outlined.Widgets,
+                label = "Destination",
+                value = destinationValue
+            ),
+            SessionMetaCell(
+                icon = Icons.Outlined.PersonOutline,
+                label = "Source",
+                value = sourceValue
+            )
+        )
+    ) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = when {
+                sessionSoftPaused ->
+                    "Soft-paused while away from the linked app — not lesson completion."
+                secondary is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
+                    "Package foreground only — not lesson completion."
+                else ->
+                    "Local clock from Begin — not verified completion."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    Callout(
+        title = "While you're in it",
+        text = "Complete when you finish, or Abandon if plans change. Opening a destination app is not lesson completion."
+    )
+
+    if (sessionPauseNote != null) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = sessionPauseNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (sessionSoftPaused) IntentColors.Warm else IntentColors.Muted
+        )
+    }
+    if (destinationLaunchNote != null) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = destinationLaunchNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Warm
+        )
+    }
+    if (showGrantUsageAccess) {
+        Spacer(modifier = Modifier.height(6.dp))
+        IntentQuietButton(text = "Grant usage access", onClick = onGrantUsageAccess)
+    }
+    if (observedEvidenceNote != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = observedEvidenceNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        if (showDismissObserved) {
+            Spacer(modifier = Modifier.height(2.dp))
+            IntentQuietButton(
+                text = "Mark observation inaccurate",
+                onClick = onDismissObserved
+            )
+        }
+    }
+    if (notificationNote != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = notificationNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    }
+    if (showGrantNotificationAccess) {
+        Spacer(modifier = Modifier.height(4.dp))
+        IntentQuietButton(
+            text = "Grant notification access",
+            onClick = onGrantNotificationAccess
+        )
+    }
+    if (showRequestQuiet) {
+        Spacer(modifier = Modifier.height(4.dp))
+        IntentQuietButton(
+            text = "Request quiet for this session",
+            onClick = onRequestQuiet
+        )
+    }
+    if (quietNote != null && quietNote.isNotBlank()) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = quietNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    }
+    if (showOpenDndSettings) {
+        Spacer(modifier = Modifier.height(2.dp))
+        IntentQuietButton(
+            text = "Open system Do Not Disturb",
+            onClick = onOpenDndSettings
+        )
+    }
+    if (screenCaptureNote != null && screenCaptureNote.isNotBlank()) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = screenCaptureNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    }
+    if (showCaptureScreen) {
+        Spacer(modifier = Modifier.height(2.dp))
+        IntentQuietButton(text = "Capture screen", onClick = onCaptureScreen)
+    }
+    if (sessionNotificationRows.isNotEmpty()) {
+        sessionNotificationRows.forEach { (label, key) ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            if (onDismissNotificationRow != null) {
+                val parts = key.split("|", limit = 2)
+                if (parts.size == 2) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    IntentQuietButton(
+                        text = "Dismiss",
+                        onClick = { onDismissNotificationRow(parts[0], parts[1]) }
+                    )
+                }
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    if (showResumeSession) {
+        IntentPrimaryButton(
+            text = "Resume",
+            onClick = onResumeSession
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    if (nextAction.openDestinationLabel != null) {
+        IntentSecondaryButton(
+            text = nextAction.openDestinationLabel,
+            onClick = onOpenDestination
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (nextAction.completeLabel != null) {
+            IntentPrimaryButton(
+                text = nextAction.completeLabel,
+                onClick = onCompleteSession,
+                modifier = Modifier.weight(1.4f)
+            )
+        }
+        if (nextAction.abandonLabel != null) {
+            IntentSecondaryButton(
+                text = nextAction.abandonLabel,
+                onClick = onAbandonSession,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+    if (nextAction.discussLabel != null) {
+        Spacer(modifier = Modifier.height(2.dp))
+        IntentQuietButton(
+            text = nextAction.discussLabel,
+            onClick = onDiscuss
         )
     }
 }
