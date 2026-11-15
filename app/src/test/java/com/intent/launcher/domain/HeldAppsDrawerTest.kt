@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * Intention drawer reorder + hold-for-apps SAID bindings (v0.0.36).
+ * Intention drawer reorder + hold-for-apps SAID bindings (v0.0.49).
  */
 class HeldAppsDrawerTest {
 
