@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 0,
+  "intentions": [
+    {
+      "id": "intention-legacy-spanish",
+      "title": "Learn Spanish",
+      "statement": "Speak at work within a year",
+      "phase": "ACTIVE",
+      "createdAtEpochMs": 1690000000000,
+      "updatedAtEpochMs": 1690003600000,
+      "shapeTag": "language",
+      "parentIntentionId": null
+    },
+    {
+      "id": "intention-legacy-health",
+      "title": "Health",
+      "statement": "Stay healthy without a fabricated plan",
+      "phase": "EXPLORING",
+      "createdAtEpochMs": 1690000001000,
+      "updatedAtEpochMs": 1690000001000,
+      "shapeTag": "other",
+      "parentIntentionId": null
+    },
+    {
+      "id": "intention-legacy-run",
+      "title": "Running",
+      "statement": "Child of Health — local parent pointer only",
+      "phase": "ACTIVE",
+      "createdAtEpochMs": 1690000002000,
+      "updatedAtEpochMs": 1690001800000,
+      "shapeTag": "marathon",
+      "parentIntentionId": "intention-legacy-health"
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact-legacy-tutor",
+      "intentionId": "intention-legacy-spanish",
+      "text": "I meet a tutor on Thursdays at six",
+      "provenance": {
+        "kind": "SAID",
+        "learnedAtEpochMs": 1690000100000,
+        "sourceLabel": "user"
+      }
+    }
+  ],
+  "hypotheses": [],
+  "proposals": [
+    {
+      "id": "proposal-legacy-tutor",
+      "intentionId": "intention-legacy-spanish",
+      "title": "Weekly tutor session",
+      "summary": "Thursday 18:00 — approved historically on legacy export",
+      "proposedDayOfWeek": 4,
+      "proposedHour": 18,
+      "proposedMinute": 0,
+      "status": "APPROVED",
+      "basedOnFactIds": ["fact-legacy-tutor"],
+      "provenance": {
+        "kind": "INFERRED",
+        "learnedAtEpochMs": 1690000200000,
+        "sourceLabel": "agent"
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "id": "session-legacy-tutor",
+      "intentionId": "intention-legacy-spanish",
+      "title": "Weekly tutor session",
+      "dayOfWeek": 4,
+      "hour": 18,
+      "minute": 0,
+      "deferredUntilEpochMs": null
+    }
+  ],
+  "sessionRuns": [
+    {
+      "id": "run-legacy-tutor-done",
+      "sessionId": "session-legacy-tutor",
+      "intentionId": "intention-legacy-spanish",
+      "title": "Weekly tutor session",
+      "status": "COMPLETED",
+      "startedAtEpochMs": 1690001000000,
+      "endedAtEpochMs": 1690004600000
+    }
+  ],
+  "evidence": [],
+  "trackerEntries": [
+    {
+      "id": "trk-legacy-practice",
+      "intentionId": "intention-legacy-spanish",
+      "moduleId": "practice_log",
+      "valueText": "Spoke for 10 minutes",
+      "recordedAtEpochMs": 1690002000000,
+      "provenance": {
+        "kind": "SAID",
+        "learnedAtEpochMs": 1690002000000,
+        "sourceLabel": "user"
+      },
+      "status": "ACTIVE"
+    },
+    {
+      "id": "trk-legacy-run",
+      "intentionId": "intention-legacy-run",
+      "moduleId": "mileage",
+      "valueText": "Easy 5 km",
+      "recordedAtEpochMs": 1690002100000,
+      "provenance": {
+        "kind": "SAID",
+        "learnedAtEpochMs": 1690002100000,
+        "sourceLabel": "user"
+      },
+      "status": "ACTIVE"
+    },
+    {
+      "id": "trk-legacy-deleted",
+      "intentionId": "intention-legacy-spanish",
+      "moduleId": "confidence_note",
+      "valueText": "Mistaken note — soft-deleted in legacy",
+      "recordedAtEpochMs": 1690002200000,
+      "provenance": {
+        "kind": "SAID",
+        "learnedAtEpochMs": 1690002200000,
+        "sourceLabel": "user"
+      },
+      "status": "DELETED"
+    }
+  ],
+  "turns": [
+    {
+      "id": "turn-legacy-user-1",
+      "intentionId": "intention-legacy-spanish",
+      "role": "user",
+      "text": "I meet a tutor on Thursdays at six",
+      "atEpochMs": 1690000100000
+    },
+    {
+      "id": "turn-legacy-agent-1",
+      "intentionId": "intention-legacy-spanish",
+      "role": "agent",
+      "text": "Fact noted. Proposal pending approval.",
+      "atEpochMs": 1690000101000
+    }
+  ],
+  "thoughtCaptures": [],
+  "errandTodos": [
+    {
+      "id": "errand-legacy-milk",
+      "title": "Buy milk and eggs",
+      "firstAction": "Buy milk",
+      "reminderNote": "Tonight",
+      "status": "DONE",
+      "createdAtEpochMs": 1690000005000,
+      "completedAtEpochMs": 1690003000000,
+      "provenance": {
+        "kind": "SAID",
+        "learnedAtEpochMs": 1690000005000,
+        "sourceLabel": "user"
+      }
+    }
+  ],
+  "activeIntentionId": "intention-legacy-spanish",
+  "transactions": [],
+  "trash": [
+    {
+      "id": "trash-legacy-old-biz",
+      "kind": "INTENTION",
+      "entityId": "intention-legacy-old-biz",
+      "title": "Side hustle experiment",
+      "deletedAtEpochMs": 1690005000000,
+      "expiresAtEpochMs": null,
+      "parentIntentionId": null,
+      "pathLabel": "Side hustle experiment",
+      "payloadJson": "{\"intention\":{\"id\":\"intention-legacy-old-biz\",\"title\":\"Side hustle experiment\",\"statement\":\"Parked\",\"phase\":\"EXPLORING\",\"createdAtEpochMs\":1690000003000,\"updatedAtEpochMs\":1690000003000,\"shapeTag\":\"business\",\"parentIntentionId\":null},\"facts\":[],\"hypotheses\":[],\"proposals\":[],\"sessions\":[],\"sessionRuns\":[],\"turns\":[],\"thoughtCaptures\":[]}"
+    }
+  ],
+  "intentionOrder": [
+    "intention-legacy-spanish",
+    "intention-legacy-health",
+    "intention-legacy-run"
+  ]
+}
