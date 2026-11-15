@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.ThemePreference
 import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.components.IntentPrimaryButton
@@ -36,8 +37,9 @@ import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings — appearance theme + snapshot export/import + History + live OpenAI Discuss
- * (key never shown in full). Theme prefs are SharedPreferences only — not store/SCHEMA.
+ * Settings — appearance theme + quiet-mode honesty + snapshot export/import + History +
+ * live OpenAI Discuss (key never shown in full). Theme prefs are SharedPreferences only —
+ * not store/SCHEMA. Quiet mode never invents a silence Switch while NOT_SUPPORTED.
  */
 @Composable
 fun SettingsScreen(
@@ -50,6 +52,11 @@ fun SettingsScreen(
     onOpenConnections: () -> Unit = {},
     themePreference: ThemePreference = ThemePreference.SYSTEM,
     onThemePreferenceChange: (ThemePreference) -> Unit = {},
+    quietModeStatusLabel: String = "Not supported · quiet_mode",
+    quietModeHonestyNote: String = "",
+    showQuietSilenceToggle: Boolean = false,
+    showOpenDndSettings: Boolean = true,
+    onOpenDndSettings: () -> Unit = {},
     liveLlmKeyPresent: Boolean = false,
     liveLlmOptedIn: Boolean = false,
     liveLlmStatusLabel: String = "Local heuristics",
@@ -118,6 +125,43 @@ fun SettingsScreen(
             text = "Stored on device only · does not change schema or snapshot data",
             color = IntentColors.Muted
         )
+        Spacer(modifier = Modifier.height(28.dp))
+
+        SectionTitle(QuietModeProbe.SETTINGS_SECTION_TITLE)
+        Spacer(modifier = Modifier.height(10.dp))
+        SmallLabel(
+            text = quietModeStatusLabel,
+            color = IntentColors.AccentDark
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = quietModeHonestyNote.ifBlank {
+                "INTENT cannot silence all apps. quiet_mode stays not supported — " +
+                    "no Settings silence toggle. Open system Do Not Disturb for device quiet."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Muted
+        )
+        // Honesty: no silence Switch while quiet_mode is NOT_SUPPORTED (showQuietSilenceToggle=false).
+        if (showQuietSilenceToggle) {
+            Spacer(modifier = Modifier.height(8.dp))
+            SmallLabel(
+                text = "Silence toggle reserved for a future confirmed quiet adapter — not this build.",
+                color = IntentColors.Warm
+            )
+        }
+        if (showOpenDndSettings) {
+            Spacer(modifier = Modifier.height(12.dp))
+            IntentSecondaryButton(
+                text = "Open system Do Not Disturb",
+                onClick = onOpenDndSettings
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            SmallLabel(
+                text = "System DND only — INTENT does not claim silence was applied.",
+                color = IntentColors.Muted
+            )
+        }
         Spacer(modifier = Modifier.height(28.dp))
 
         SectionTitle("Local history")

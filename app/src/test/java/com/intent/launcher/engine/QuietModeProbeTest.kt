@@ -78,4 +78,46 @@ class QuietModeProbeTest {
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
         assertFalse(registry.canApplyQuietMode())
     }
+
+    @Test
+    fun settingsCopy_whenNotSupported_neverOffersSilenceToggle() {
+        val denied = QuietModeProbe.settingsCopy(
+            access = FakeQuietModeAccess(policyAccessGranted = false)
+        )
+        assertEquals(QuietModeProbe.SETTINGS_SECTION_TITLE, denied.sectionTitle)
+        assertEquals("Not supported · quiet_mode", denied.statusLabel)
+        assertFalse(denied.showSilenceToggle)
+        assertTrue(denied.canOpenDndSettings)
+        assertEquals(QuietModeProbe.DND_SETTINGS_ACTION, denied.dndSettingsAction)
+        assertTrue(denied.body.contains("not supported", ignoreCase = true))
+        assertTrue(denied.body.contains("silence", ignoreCase = true))
+        assertTrue(denied.body.contains("Do Not Disturb", ignoreCase = true))
+        assertFalse(denied.body.contains("silence applied", ignoreCase = true) &&
+            denied.body.contains("was applied", ignoreCase = true))
+
+        val granted = QuietModeProbe.settingsCopy(
+            access = FakeQuietModeAccess(policyAccessGranted = true)
+        )
+        assertFalse(granted.showSilenceToggle)
+        assertTrue(granted.statusLabel.contains("Not supported", ignoreCase = true))
+        assertTrue(
+            granted.body.contains("policy access is granted", ignoreCase = true)
+        )
+        assertTrue(granted.body.contains("does not mean INTENT can silence", ignoreCase = true))
+        assertTrue(granted.body.contains("no Settings silence toggle", ignoreCase = true))
+    }
+
+    @Test
+    fun settingsCopy_usesLiveRegistryLimitNotes() {
+        val live = QuietModeProbe.liveRegistry(
+            FakeQuietModeAccess(policyAccessGranted = true)
+        )
+        val copy = QuietModeProbe.settingsCopy(
+            access = FakeQuietModeAccess(policyAccessGranted = true),
+            registry = live
+        )
+        assertTrue(live.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
+        assertFalse(copy.showSilenceToggle)
+        assertEquals("Not supported · quiet_mode", copy.statusLabel)
+    }
 }

@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.141** (this branch) · main tip **v0.0.140** (#83 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.142** (this branch) · stacked on **v0.0.141** app-duration (#84) · main tip **v0.0.140** (#83).
 
 ## Build
 
@@ -8,12 +8,15 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.141** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.141.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.142.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.142:** Quiet-mode + deep-link honesty — Settings states `quiet_mode` NOT_SUPPORTED (no fake silence toggle); documents floater Ask/Today/Capture/History companion intents; SCHEMA 10 unchanged
+- **v0.0.141:** App-duration criterion UI — SessionCard / attention show completed/target minutes + soft-pause progress; never lesson completion; SCHEMA 10 unchanged
+- **v0.0.140:** GatewayStatus Conversation cards — CANCELLED / STALE_REVISION (+ Retry) / idempotent RETRY / FAILED beyond AMBIGUOUS CHOICE_SET; SCHEMA 10 unchanged
 - **v0.0.138:** Conversation AMBIGUOUS CHOICE_SET cards — GatewayStatus.AMBIGUOUS renders first-class chips for approval/tracker clarification (§17 case 33/21); SCHEMA 10 unchanged
 - **v0.0.01:** Spanish scripted E2E (explore → fact → proposal → approve → defer → restart)
 - **v0.0.02:** Marathon second shape on the same model/screens (`Explore a marathon` on Home)
@@ -83,8 +86,6 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.132:** Gate D2 — OBSERVED vs INFERRED on intervention UI
 - **v0.0.133:** Gate D3 — overlay/service interrupt → saved work + notification
 - **v0.0.134:** Gate C dedicated Today view — planned · completed · deferred from day cycle / occurrences / sessions; Floater Today + Home link → `TodayScreen` (not Home-only)
-- **v0.0.141:** App-duration criterion UI — Home SessionCard / attention path shows explicit completed/target minutes + soft-pause progress for timed sessions (e.g. 15-min Duolingo); never invents lesson completion; SCHEMA 10 unchanged
-- **v0.0.140:** GatewayStatus Conversation cards — CANCELLED / STALE_REVISION (+ Retry) / idempotent RETRY / FAILED beyond AMBIGUOUS CHOICE_SET; SCHEMA 10 unchanged
 - **v0.0.139:** Dark theme design tokens — `DarkIntentColors` + Material `darkColorScheme`, Settings System/Light/Dark (SharedPreferences; SCHEMA stays 10 / migrate stamp-only). Rebased onto 0.0.138 tip after #81; AMBIGUOUS ChoiceSet already on main.
 - **v0.0.137:** Gate E frontend leftovers — History NavHost route (Settings / Companion / overflow), local snapshot import UI (same export JSON; stamp migrate only), ParentRollup child-contributions section on Reports
 - **v0.0.136:** Gate E §17 remaining gaps — vague health, physical constraint, guided practice, spoken approval ambiguity, interrupted voice; tighten Duolingo approach / cross-intention link / tutor day change / 15-min app-duration
@@ -253,6 +254,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.141, release): [INTENT-v0.0.141.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/app-duration-criterion-ui-63ce/artifacts/INTENT-v0.0.141.apk)
+Sideload APK (v0.0.142, release): [INTENT-v0.0.142.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/quiet-mode-deeplink-honesty-2fb0/artifacts/INTENT-v0.0.142.apk)
 
-(Prior tip APK on main: [INTENT-v0.0.140.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.140.apk).)
+(Prior stack APK: [INTENT-v0.0.141.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/app-duration-criterion-ui-63ce/artifacts/INTENT-v0.0.141.apk). Main tip: [INTENT-v0.0.140.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.140.apk).)
