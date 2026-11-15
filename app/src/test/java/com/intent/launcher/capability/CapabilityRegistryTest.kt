@@ -42,6 +42,11 @@ class CapabilityRegistryTest {
         assertTrue(registry.isActionable(CapabilityRegistry.ID_LAUNCH_INSTALLED_APP))
         assertTrue(registry.canLaunchInstalledApp())
         assertFalse(registry.isActionable(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
+
+        val quickTodo = registry.get(CapabilityRegistry.ID_QUICK_TODO)!!
+        assertEquals(CapabilityStatus.AVAILABLE, quickTodo.status)
+        assertTrue(registry.canCaptureQuickTodo())
+        assertTrue(quickTodo.limitNote.contains("Intention", ignoreCase = true))
     }
 
     @Test

@@ -9,6 +9,8 @@ import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.DestinationApp
+import com.intent.launcher.domain.ErrandStatus
+import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
@@ -45,6 +47,7 @@ import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DailyCycle
 import com.intent.launcher.engine.DeferralPreview
 import com.intent.launcher.engine.DiscussFromHome
+import com.intent.launcher.engine.ErrandCapture
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
@@ -222,6 +225,10 @@ class LauncherViewModel(
 
     /** Live LLM / local-heuristic honesty for Discuss + Conversation. */
     var liveLlmObservation by mutableStateOf(LiveLlmProbe.observe(liveLlmAccess))
+        private set
+
+    /** Confirmation / honesty note after capturing or completing an errand. */
+    var errandNote by mutableStateOf<String?>(null)
         private set
 
     init {
@@ -1444,4 +1451,46 @@ class LauncherViewModel(
             shapeTag = activeIntention()?.shapeTag,
             registry = capabilityRegistry
         )
+
+    /** Open errands for the Home inbox (newest first). */
+    fun openErrands(): List<ErrandTodo> =
+        snapshot.errandTodos
+            .filter { it.status == ErrandStatus.OPEN }
+            .sortedByDescending { it.createdAtEpochMs }
+
+    fun canAddQuickTodo(): Boolean = capabilityRegistry.canCaptureQuickTodo()
+
+    /**
+     * Capture a lightweight errand. Never seeds an Intention.
+     */
+    fun captureQuickTodo(text: String): Boolean {
+        val result = ErrandCapture.capture(
+            store = store,
+            text = text,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        errandNote = result.confirmation
+        refresh()
+        return result.ok
+    }
+
+    /** Tap open → Done; tap Done (if shown) → reopen. Open list only shows OPEN. */
+    fun toggleErrand(todo: ErrandTodo) {
+        val now = System.currentTimeMillis()
+        val ok = when (todo.status) {
+            ErrandStatus.OPEN -> ErrandCapture.complete(store, todo.id, now)
+            ErrandStatus.DONE -> ErrandCapture.reopen(store, todo.id, now)
+        }
+        errandNote = when {
+            !ok -> "Could not update that to-do."
+            todo.status == ErrandStatus.OPEN -> "Done — “${todo.firstAction}”."
+            else -> "Reopened — “${todo.firstAction}”."
+        }
+        refresh()
+    }
+
+    fun clearErrandNote() {
+        errandNote = null
+    }
 }

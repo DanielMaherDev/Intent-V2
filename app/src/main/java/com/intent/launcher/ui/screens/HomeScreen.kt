@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,7 +30,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.AttentionStrip
+import com.intent.launcher.domain.ErrandStatus
+import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.ui.components.DateLabel
@@ -134,6 +140,11 @@ fun HomeScreen(
     onOpenTriage: (() -> Unit)? = null,
     rawThoughtCount: Int = 0,
     onSettings: (() -> Unit)? = null,
+    /** Open errands for the lightweight to-do inbox (OS-073). */
+    openErrands: List<ErrandTodo> = emptyList(),
+    errandNote: String? = null,
+    onAddQuickTodo: (() -> Unit)? = null,
+    onToggleErrand: (ErrandTodo) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
@@ -276,6 +287,51 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Errands")
+            Spacer(modifier = Modifier.height(9.dp))
+            if (onAddQuickTodo != null) {
+                LineRow(
+                    title = "Add a quick to-do",
+                    subtitle = "Small errand with a reminder — not an intention",
+                    onClick = onAddQuickTodo,
+                    glyphIcon = Icons.Outlined.AddTask,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            openErrands.forEach { errand ->
+                val subtitle = buildString {
+                    append(errand.firstAction)
+                    if (!errand.reminderNote.isNullOrBlank()) {
+                        append(" · ")
+                        append(errand.reminderNote)
+                    }
+                }
+                LineRow(
+                    title = errand.title,
+                    subtitle = subtitle,
+                    onClick = { onToggleErrand(errand) },
+                    glyphIcon = if (errand.status == ErrandStatus.DONE) {
+                        Icons.Outlined.CheckCircle
+                    } else {
+                        Icons.Outlined.RadioButtonUnchecked
+                    },
+                    glyphTone = if (errand.status == ErrandStatus.DONE) {
+                        GlyphTone.Success
+                    } else {
+                        GlyphTone.Accent
+                    }
+                )
+            }
+            if (errandNote != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = errandNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
             }
 
             Spacer(modifier = Modifier.height(26.dp))

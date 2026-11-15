@@ -56,6 +56,12 @@ object CommandReversibility {
                 Reversibility(true, "Added conversation turn ${command.turnId}")
             is FlowCommand.CaptureThought ->
                 Reversibility(true, "Captured thought ${command.thoughtId}")
+            is FlowCommand.CaptureErrand ->
+                Reversibility(true, "Captured errand ${command.todoId}")
+            is FlowCommand.CompleteErrand ->
+                Reversibility(true, "Completed errand ${command.todoId}")
+            is FlowCommand.ReopenErrand ->
+                Reversibility(true, "Reopened errand ${command.todoId}")
             is FlowCommand.RecordObservedEvidence ->
                 Reversibility(true, "Recorded observed evidence ${command.evidenceId}")
             is FlowCommand.DismissEvidence ->
