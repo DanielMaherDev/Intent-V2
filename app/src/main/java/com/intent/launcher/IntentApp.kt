@@ -81,7 +81,8 @@ class IntentApp : Application() {
             File(filesDir, "session_notification_review.json")
         )
         liveLlmAccess = AndroidLiveLlmAccess(this)
-        SpanishScenario.ensureSeeded(store)
+        // Parent + honest local child for Intention Space breadcrumb (OS-141).
+        SpanishScenario.ensureParentChildSeeded(store)
     }
 
     companion object {

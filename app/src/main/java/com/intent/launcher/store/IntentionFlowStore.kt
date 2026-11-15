@@ -38,6 +38,7 @@ import com.intent.launcher.domain.TriageItem
 import com.intent.launcher.domain.TriageItemStatus
 import com.intent.launcher.domain.TriageState
 import com.intent.launcher.engine.CommandReversibility
+import com.intent.launcher.engine.IntentionHierarchy
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -81,6 +82,10 @@ class IntentionFlowStore(
         val migrated = migrate(current)
         return when (command) {
             is FlowCommand.SeedExploring -> {
+                val parentId = command.parentIntentionId?.takeIf { candidate ->
+                    candidate != command.intentionId &&
+                        migrated.intentions.any { it.id == candidate }
+                }
                 val intention = Intention(
                     id = command.intentionId,
                     title = command.title,
@@ -88,7 +93,8 @@ class IntentionFlowStore(
                     phase = IntentionPhase.EXPLORING,
                     createdAtEpochMs = command.nowEpochMs,
                     updatedAtEpochMs = command.nowEpochMs,
-                    shapeTag = command.shapeTag
+                    shapeTag = command.shapeTag,
+                    parentIntentionId = parentId
                 )
                 val existingIds = migrated.intentions.map { it.id }
                 val nextOrder = when {
@@ -350,6 +356,29 @@ class IntentionFlowStore(
 
             is FlowCommand.SetActiveIntention -> {
                 migrated.copy(activeIntentionId = command.intentionId)
+            }
+
+            is FlowCommand.SetParentIntention -> {
+                if (!IntentionHierarchy.canSetParent(
+                        migrated,
+                        command.intentionId,
+                        command.parentIntentionId
+                    )
+                ) {
+                    return migrated
+                }
+                migrated.copy(
+                    intentions = migrated.intentions.map {
+                        if (it.id == command.intentionId) {
+                            it.copy(
+                                parentIntentionId = command.parentIntentionId,
+                                updatedAtEpochMs = command.nowEpochMs
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                )
             }
 
             is FlowCommand.MarkPhase -> {
@@ -849,8 +878,8 @@ class IntentionFlowStore(
             title = intention.title,
             deletedAtEpochMs = command.nowEpochMs,
             expiresAtEpochMs = command.expiresAtEpochMs,
-            parentIntentionId = null,
-            pathLabel = intention.title,
+            parentIntentionId = intention.parentIntentionId,
+            pathLabel = IntentionHierarchy.pathLabel(migrated, intention),
             payloadJson = gson.toJson(payload)
         )
         return migrated.copy(
@@ -1002,6 +1031,7 @@ class IntentionFlowStore(
                     is FlowCommand.AddConversationTurn -> command.nowEpochMs
                     is FlowCommand.ProposeRecurringSession -> command.nowEpochMs
                     is FlowCommand.SetActiveIntention -> command.nowEpochMs
+                    is FlowCommand.SetParentIntention -> command.nowEpochMs
                     is FlowCommand.MarkPhase -> command.nowEpochMs
                     is FlowCommand.CaptureThought -> command.nowEpochMs
                     is FlowCommand.CaptureErrand -> command.nowEpochMs
@@ -1052,6 +1082,7 @@ class IntentionFlowStore(
             is FlowCommand.AddConversationTurn -> command.nowEpochMs
             is FlowCommand.ProposeRecurringSession -> command.nowEpochMs
             is FlowCommand.SetActiveIntention -> command.nowEpochMs
+            is FlowCommand.SetParentIntention -> command.nowEpochMs
             is FlowCommand.MarkPhase -> command.nowEpochMs
             is FlowCommand.CaptureThought -> command.nowEpochMs
             is FlowCommand.CaptureErrand -> command.nowEpochMs
@@ -1453,7 +1484,8 @@ class IntentionFlowStore(
         val phase: String = IntentionPhase.EXPLORING.name,
         val createdAtEpochMs: Long = 0L,
         val updatedAtEpochMs: Long = 0L,
-        val shapeTag: String = "other"
+        val shapeTag: String = "other",
+        val parentIntentionId: String? = null
     ) {
         fun toDomain() = Intention(
             id = id,
@@ -1462,12 +1494,14 @@ class IntentionFlowStore(
             phase = IntentionPhase.valueOf(phase),
             createdAtEpochMs = createdAtEpochMs,
             updatedAtEpochMs = updatedAtEpochMs,
-            shapeTag = shapeTag
+            shapeTag = shapeTag,
+            parentIntentionId = parentIntentionId
         )
         companion object {
             fun from(it: Intention) = WireIntention(
                 it.id, it.title, it.statement, it.phase.name,
-                it.createdAtEpochMs, it.updatedAtEpochMs, it.shapeTag
+                it.createdAtEpochMs, it.updatedAtEpochMs, it.shapeTag,
+                it.parentIntentionId
             )
         }
     }

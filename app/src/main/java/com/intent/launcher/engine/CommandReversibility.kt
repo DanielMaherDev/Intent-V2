@@ -50,6 +50,15 @@ object CommandReversibility {
                 Reversibility(true, "Seeded intention ${command.intentionId}")
             is FlowCommand.SetActiveIntention ->
                 Reversibility(true, "Activated intention ${command.intentionId}")
+            is FlowCommand.SetParentIntention ->
+                Reversibility(
+                    true,
+                    if (command.parentIntentionId == null) {
+                        "Cleared parent for intention ${command.intentionId}"
+                    } else {
+                        "Linked intention ${command.intentionId} under ${command.parentIntentionId}"
+                    }
+                )
             is FlowCommand.MarkPhase ->
                 Reversibility(true, "Marked phase for ${command.intentionId}")
             is FlowCommand.AddConversationTurn ->

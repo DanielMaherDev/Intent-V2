@@ -11,12 +11,17 @@ import com.intent.launcher.store.IntentionFlowStore
  */
 object SpanishScenario {
     const val INTENTION_ID = "intention-spanish"
+    /** Local child of [INTENTION_ID] for OS-141 breadcrumb proof — not a dependency graph. */
+    const val CHILD_INTENTION_ID = "intention-spanish-conversation"
     const val FACT_TUTOR_ID = "fact-tutor-thu-1800"
     const val PROPOSAL_ID = "proposal-weekly-session"
     const val SESSION_ID = "session-weekly-spanish"
 
     const val TITLE = "Learn Spanish"
     const val STATEMENT = "I want to speak Spanish more confidently in everyday life."
+    const val CHILD_TITLE = "Everyday conversation practice"
+    const val CHILD_STATEMENT =
+        "Practice speaking Spanish in everyday conversations under Learn Spanish."
 
     /** Honest chips only — fake caps (e.g. lesson completion) stay out of this list. */
     val suggestedChips: List<SuggestedChip> = listOf(
@@ -55,10 +60,46 @@ object SpanishScenario {
         )
     }
 
+    /**
+     * Honest local child under Learn Spanish for breadcrumb navigation (OS-141).
+     * Kept out of [seed] so unit fixtures that count a single Spanish intention stay stable.
+     */
+    fun seedChild(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
+        if (store.snapshot().intentions.none { it.id == INTENTION_ID }) return
+        if (store.snapshot().intentions.any { it.id == CHILD_INTENTION_ID }) return
+        val previousActive = store.snapshot().activeIntentionId
+        store.apply(
+            FlowCommand.SeedExploring(
+                intentionId = CHILD_INTENTION_ID,
+                title = CHILD_TITLE,
+                statement = CHILD_STATEMENT,
+                shapeTag = "language",
+                nowEpochMs = now + 1,
+                parentIntentionId = INTENTION_ID
+            )
+        )
+        // SeedExploring activates the new row — restore prior focus for Spanish flow honesty.
+        store.apply(
+            FlowCommand.SetActiveIntention(
+                intentionId = previousActive ?: INTENTION_ID,
+                nowEpochMs = now + 2
+            )
+        )
+    }
+
     fun ensureSeeded(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
         if (store.snapshot().intentions.none { it.id == INTENTION_ID }) {
             seed(store, now)
         }
+    }
+
+    /**
+     * App-path helper: parent + honest local child for OS-141 breadcrumb demos.
+     * Tests that count a single Spanish intention should call [seed] / [ensureSeeded] only.
+     */
+    fun ensureParentChildSeeded(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
+        ensureSeeded(store, now)
+        seedChild(store, now)
     }
 
     fun onChip(
