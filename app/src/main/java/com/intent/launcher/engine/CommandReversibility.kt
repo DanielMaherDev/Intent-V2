@@ -30,6 +30,10 @@ object CommandReversibility {
                 Reversibility(true, "Completed session run ${command.runId}")
             is FlowCommand.AbandonSessionRun ->
                 Reversibility(true, "Abandoned session run ${command.runId}")
+            is FlowCommand.SoftPauseSessionRun ->
+                Reversibility(true, "Soft-paused session run ${command.runId}")
+            is FlowCommand.ResumeSessionRun ->
+                Reversibility(true, "Resumed session run ${command.runId}")
             is FlowCommand.SoftDeleteIntention ->
                 Reversibility(true, "Moved intention ${command.intentionId} to trash")
             is FlowCommand.SoftDeleteSession ->

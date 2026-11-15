@@ -101,6 +101,13 @@ fun HomeScreen(
     /** Privacy-safe session notification review rows (v0.0.31) — quiet, not first-viewport clutter. */
     sessionNotificationRows: List<Pair<String, String>> = emptyList(),
     onDismissNotificationRow: ((String, String) -> Unit)? = null,
+    /** Soft-pause honesty for app-linked sessions (Away from app). */
+    sessionSoftPaused: Boolean = false,
+    sessionPauseNote: String? = null,
+    sessionPausedAtEpochMs: Long? = null,
+    sessionAccumulatedPausedMs: Long = 0L,
+    showResumeSession: Boolean = false,
+    onResumeSession: () -> Unit = {},
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
@@ -128,13 +135,13 @@ fun HomeScreen(
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
         .format(Date())
-    val stripMeta = attentionStripMeta(nextAction, intentionTitle)
+    val stripMeta = attentionStripMeta(nextAction, intentionTitle, sessionSoftPaused)
 
     val startedAt = nextAction.startedAtEpochMs
-    var nowEpochMs by remember(startedAt) {
+    var nowEpochMs by remember(startedAt, sessionPausedAtEpochMs) {
         mutableLongStateOf(System.currentTimeMillis())
     }
-    LaunchedEffect(startedAt, nextAction.kind) {
+    LaunchedEffect(startedAt, nextAction.kind, sessionPausedAtEpochMs) {
         if (nextAction.kind != NextActionKind.ACTIVE_SESSION || startedAt == null) {
             return@LaunchedEffect
         }
@@ -149,7 +156,10 @@ fun HomeScreen(
         nowEpochMs = nowEpochMs,
         usageGranted = usageGranted,
         usageForegroundMs = usageForegroundMs,
-        usageAppLabel = usageAppLabel
+        usageAppLabel = usageAppLabel,
+        pausedAtEpochMs = sessionPausedAtEpochMs,
+        accumulatedPausedMs = sessionAccumulatedPausedMs,
+        softPaused = sessionSoftPaused
     )
 
     Column(
@@ -204,7 +214,11 @@ fun HomeScreen(
                 showCaptureScreen = showCaptureScreen,
                 onCaptureScreen = onCaptureScreen,
                 sessionNotificationRows = sessionNotificationRows,
-                onDismissNotificationRow = onDismissNotificationRow
+                onDismissNotificationRow = onDismissNotificationRow,
+                sessionSoftPaused = sessionSoftPaused,
+                sessionPauseNote = sessionPauseNote,
+                showResumeSession = showResumeSession,
+                onResumeSession = onResumeSession
             )
 
             QuietGrantStrip(
@@ -354,7 +368,8 @@ private data class AttentionStripMeta(
 
 private fun attentionStripMeta(
     nextAction: NextAction,
-    intentionTitle: String
+    intentionTitle: String,
+    sessionSoftPaused: Boolean = false
 ): AttentionStripMeta {
     val support = AttentionStrip.supportingSentence(nextAction)
     return when (nextAction.kind) {
@@ -383,8 +398,8 @@ private fun attentionStripMeta(
             support = support
         )
         NextActionKind.ACTIVE_SESSION -> AttentionStripMeta(
-            smallLabel = "In progress",
-            heroTone = HeroTone.Success,
+            smallLabel = if (sessionSoftPaused) "Away from app" else "In progress",
+            heroTone = if (sessionSoftPaused) HeroTone.Warm else HeroTone.Success,
             title = nextAction.label.ifBlank { "Active session" },
             support = intentionTitle.ifBlank { support }
         )
@@ -453,7 +468,11 @@ private fun AttentionStripCard(
     showCaptureScreen: Boolean,
     onCaptureScreen: () -> Unit,
     sessionNotificationRows: List<Pair<String, String>>,
-    onDismissNotificationRow: ((String, String) -> Unit)?
+    onDismissNotificationRow: ((String, String) -> Unit)?,
+    sessionSoftPaused: Boolean = false,
+    sessionPauseNote: String? = null,
+    showResumeSession: Boolean = false,
+    onResumeSession: () -> Unit = {}
 ) {
     val labelColor = when (meta.heroTone) {
         HeroTone.Warm -> IntentColors.Warm
@@ -498,7 +517,11 @@ private fun AttentionStripCard(
             Text(
                 text = when (secondary) {
                     is AttentionStrip.SecondaryLine.SessionElapsed ->
-                        "Local clock from Begin — not verified completion."
+                        if (sessionSoftPaused) {
+                            "Soft-paused while away from the linked app — not lesson completion."
+                        } else {
+                            "Local clock from Begin — not verified completion."
+                        }
                     is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
                         "Package foreground only — not lesson completion."
                 },
@@ -524,6 +547,15 @@ private fun AttentionStripCard(
                 text = destinationLaunchNote,
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Warm
+            )
+        }
+
+        if (sessionPauseNote != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = sessionPauseNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (sessionSoftPaused) IntentColors.Warm else IntentColors.Muted
             )
         }
 
@@ -644,7 +676,9 @@ private fun AttentionStripCard(
             onOpenDestination = onOpenDestination,
             onConfirmCheckIn = onConfirmCheckIn,
             onCheckOutKeepSchedule = onCheckOutKeepSchedule,
-            onCheckOutDeferTomorrow = onCheckOutDeferTomorrow
+            onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
+            showResumeSession = showResumeSession,
+            onResumeSession = onResumeSession
         )
     }
 }
@@ -664,7 +698,9 @@ private fun AttentionStripActions(
     onOpenDestination: () -> Unit,
     onConfirmCheckIn: () -> Unit,
     onCheckOutKeepSchedule: () -> Unit,
-    onCheckOutDeferTomorrow: () -> Unit
+    onCheckOutDeferTomorrow: () -> Unit,
+    showResumeSession: Boolean = false,
+    onResumeSession: () -> Unit = {}
 ) {
     when (nextAction.kind) {
         NextActionKind.CONTINUE_EXPLORING -> {
@@ -722,6 +758,13 @@ private fun AttentionStripActions(
             }
         }
         NextActionKind.ACTIVE_SESSION -> {
+            if (showResumeSession) {
+                IntentPrimaryButton(
+                    text = "Resume",
+                    onClick = onResumeSession
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             if (nextAction.openDestinationLabel != null) {
                 IntentSecondaryButton(
                     text = nextAction.openDestinationLabel,

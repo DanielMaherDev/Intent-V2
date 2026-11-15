@@ -333,6 +333,12 @@ class MainActivity : ComponentActivity() {
                                 onDismissNotificationRow = { pkg, category ->
                                     vm.dismissSessionNotificationRow(pkg, category)
                                 },
+                                sessionSoftPaused = vm.sessionPause?.softPaused == true,
+                                sessionPauseNote = vm.sessionPause?.note,
+                                sessionPausedAtEpochMs = vm.activeSessionPausedAtEpochMs(),
+                                sessionAccumulatedPausedMs = vm.activeSessionAccumulatedPausedMs(),
+                                showResumeSession = vm.sessionPause?.canResume == true,
+                                onResumeSession = { vm.resumeActiveSession() },
                                 overlayNote = vm.overlayObservation?.note,
                                 showGrantOverlay = vm.overlayObservation?.canOpenSettings == true,
                                 onGrantOverlay = {

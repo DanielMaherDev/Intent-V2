@@ -16,12 +16,30 @@ interface UsageStatsAccess {
         startEpochMs: Long,
         endEpochMs: Long
     ): Long?
+
+    /**
+     * Package currently in the foreground (most recent resume/move-to-foreground).
+     * Null when permission is missing, query fails, or no event is available.
+     */
+    fun currentForegroundPackage(): String?
+
+    /**
+     * Wall-clock when [packageName] last left the foreground inside the window,
+     * or null when unknown / still foreground / no events.
+     */
+    fun lastTimePackageLeftForeground(
+        packageName: String,
+        windowStartEpochMs: Long,
+        endEpochMs: Long
+    ): Long?
 }
 
 /** Test stub. */
 class FakeUsageStatsAccess(
     var granted: Boolean = false,
-    private val foregroundByPackage: Map<String, Long> = emptyMap()
+    private val foregroundByPackage: Map<String, Long> = emptyMap(),
+    var currentForeground: String? = null,
+    var lastLeftForegroundByPackage: Map<String, Long> = emptyMap()
 ) : UsageStatsAccess {
     override fun hasPermission(): Boolean = granted
 
@@ -32,5 +50,17 @@ class FakeUsageStatsAccess(
     ): Long? {
         if (!granted) return null
         return foregroundByPackage[packageName] ?: 0L
+    }
+
+    override fun currentForegroundPackage(): String? =
+        if (!granted) null else currentForeground
+
+    override fun lastTimePackageLeftForeground(
+        packageName: String,
+        windowStartEpochMs: Long,
+        endEpochMs: Long
+    ): Long? {
+        if (!granted) return null
+        return lastLeftForegroundByPackage[packageName]
     }
 }

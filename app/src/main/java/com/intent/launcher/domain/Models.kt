@@ -98,6 +98,9 @@ data class ScheduledSession(
  * One started occurrence of a [ScheduledSession].
  * Begin creates an IN_PROGRESS run; Complete / Abandon end it.
  * Completion remains user-reported via the command path — not calendar/LLM/UsageStats claims.
+ *
+ * Soft-pause ([pausedAtEpochMs]) freezes local elapsed when the user leaves the
+ * affinity package — it never Completes or invents lesson progress.
  */
 data class SessionRun(
     val id: String,
@@ -106,7 +109,14 @@ data class SessionRun(
     val title: String,
     val status: SessionRunStatus,
     val startedAtEpochMs: Long,
-    val endedAtEpochMs: Long? = null
+    val endedAtEpochMs: Long? = null,
+    /** Destination package this run is linked to (shape default or SAID). */
+    val affinityPackageName: String? = null,
+    val affinityAppLabel: String? = null,
+    /** Non-null while soft-paused — elapsed freezes at this wall clock. */
+    val pausedAtEpochMs: Long? = null,
+    /** Prior soft-pause durations already excluded from elapsed. */
+    val accumulatedPausedMs: Long = 0L
 )
 
 /**
@@ -400,11 +410,14 @@ sealed class FlowCommand {
     /**
      * Start a scheduled session as an in-progress [SessionRun].
      * Requires [CapabilityRegistry] begin_session to be actionable at the call site.
+     * Optional affinity links the run to a destination package for away-pause.
      */
     data class BeginSession(
         val runId: String,
         val sessionId: String,
-        val nowEpochMs: Long
+        val nowEpochMs: Long,
+        val affinityPackageName: String? = null,
+        val affinityAppLabel: String? = null
     ) : FlowCommand()
 
     data class CompleteSessionRun(
@@ -455,6 +468,22 @@ sealed class FlowCommand {
     /** Soft-delete a tracker row (command path; restore via undo when available). */
     data class DeleteTrackerEntry(
         val entryId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Soft-pause an in-progress run (away from affinity). Does not Complete.
+     */
+    data class SoftPauseSessionRun(
+        val runId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Resume a soft-paused run — unfreezes elapsed. Does not Complete.
+     */
+    data class ResumeSessionRun(
+        val runId: String,
         val nowEpochMs: Long
     ) : FlowCommand()
 

@@ -28,4 +28,44 @@ class SessionElapsedTest {
     fun label_prefixesElapsed() {
         assertEquals("Elapsed 5:03", SessionElapsed.label(0L, 303_000L))
     }
+
+    @Test
+    fun softPause_excludesPausedGap() {
+        val started = 1_000L
+        val pausedAt = 61_000L // 60s active
+        val now = 121_000L
+        assertEquals(
+            60_000L,
+            SessionElapsed.activeElapsedMs(started, now, pausedAt, 0L)
+        )
+        assertEquals("1:00", SessionElapsed.formatMs(60_000L))
+    }
+
+    @Test
+    fun accumulatedPause_subtractsPriorGaps() {
+        // 3 minutes wall from start, 30s previously paused, currently running
+        val started = 0L
+        val now = 180_000L
+        assertEquals(
+            150_000L,
+            SessionElapsed.activeElapsedMs(started, now, null, 30_000L)
+        )
+        assertEquals("2:30", SessionElapsed.formatMs(150_000L))
+    }
+
+    @Test
+    fun formatForRun_usesPauseFields() {
+        val run = SessionRun(
+            id = "r1",
+            sessionId = "s1",
+            intentionId = "i1",
+            title = "Practice",
+            status = SessionRunStatus.IN_PROGRESS,
+            startedAtEpochMs = 0L,
+            pausedAtEpochMs = 125_000L,
+            accumulatedPausedMs = 0L
+        )
+        assertEquals("2:05", SessionElapsed.formatForRun(run, 999_000L))
+        assertEquals("Paused 2:05", SessionElapsed.labelForRun(run, 999_000L))
+    }
 }

@@ -33,6 +33,7 @@ import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
+import com.intent.launcher.engine.AppLinkedSessionPause
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.ThoughtTriage
 import com.intent.launcher.engine.IntentionBuilder
@@ -144,6 +145,10 @@ class LauncherViewModel(
     var screenCaptureObservation by mutableStateOf<ScreenCaptureProbe.Observation?>(null)
         private set
 
+    /** App-linked soft-pause evaluation for the active SessionCard (never completion). */
+    var sessionPause by mutableStateOf<AppLinkedSessionPause.Evaluation?>(null)
+        private set
+
     /** Overlay permission honesty — floating companion when granted. */
     var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(
         OverlayPermissionProbe.observe(overlayPermissionAccess)
@@ -214,6 +219,7 @@ class LauncherViewModel(
         maybeRecordObservedEvidence(usageObservation)
         observedEvidence = resolveObservedEvidence()
         screenCaptureObservation = observeScreenCaptureIfActive()
+        applyPauseEvaluation()
         floatingPresence = resolveFloatingPresence()
         deferPreview = resolveDeferPreview()
         quietObservation = observeQuietIfActive()
@@ -372,6 +378,7 @@ class LauncherViewModel(
         snapshot = store.snapshot()
         observedEvidence = resolveObservedEvidence()
         screenCaptureObservation = observeScreenCaptureIfActive()
+        applyPauseEvaluation()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
         floatingPresence = resolveFloatingPresence()
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
@@ -614,6 +621,56 @@ class LauncherViewModel(
     fun onScreenCaptureConsentDenied() {
         screenCaptureAccess.recordConsentDenied()
         refresh()
+    }
+
+    private fun activeSessionRun() =
+        snapshot.sessionRuns.firstOrNull {
+            it.id == nextAction.sessionRunId && it.status == SessionRunStatus.IN_PROGRESS
+        } ?: snapshot.sessionRuns.firstOrNull {
+            it.intentionId == activeIntention()?.id && it.status == SessionRunStatus.IN_PROGRESS
+        }
+
+    private fun applyPauseEvaluation() {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) {
+            sessionPause = null
+            return
+        }
+        val run = activeSessionRun()
+        val destination = LaunchDestinationApp.resolve(activeIntention(), nextAction)
+            ?: SessionDestinations.forIntention(activeIntention())
+        val now = System.currentTimeMillis()
+        var evaluation = AppLinkedSessionPause.evaluate(
+            access = usageStatsAccess,
+            run = run,
+            destination = destination,
+            nowEpochMs = now
+        )
+        if (run != null && evaluation.shouldAutoPause) {
+            store.apply(
+                FlowCommand.SoftPauseSessionRun(runId = run.id, nowEpochMs = now)
+            )
+            snapshot = store.snapshot()
+            nextAction = recommend()
+            evaluation = AppLinkedSessionPause.evaluate(
+                access = usageStatsAccess,
+                run = activeSessionRun(),
+                destination = destination,
+                nowEpochMs = now
+            )
+        } else if (run != null && evaluation.shouldAutoResume) {
+            store.apply(
+                FlowCommand.ResumeSessionRun(runId = run.id, nowEpochMs = now)
+            )
+            snapshot = store.snapshot()
+            nextAction = recommend()
+            evaluation = AppLinkedSessionPause.evaluate(
+                access = usageStatsAccess,
+                run = activeSessionRun(),
+                destination = destination,
+                nowEpochMs = now
+            )
+        }
+        sessionPause = evaluation
     }
 
     fun activeIntention(): Intention? {
@@ -933,11 +990,16 @@ class LauncherViewModel(
         if (alreadyActive) return false
         val now = System.currentTimeMillis()
         val runId = "run-$id-$now"
+        val destination = SessionDestinations.forIntention(
+            snapshot.intentions.firstOrNull { it.id == intentionId } ?: activeIntention()
+        )
         store.apply(
             FlowCommand.BeginSession(
                 runId = runId,
                 sessionId = id,
-                nowEpochMs = now
+                nowEpochMs = now,
+                affinityPackageName = destination?.packageName,
+                affinityAppLabel = destination?.label
             )
         )
         sessionNotificationReviewStore.beginWindow(runId, now)
@@ -951,6 +1013,27 @@ class LauncherViewModel(
         }
         return started
     }
+
+    /**
+     * Manual Resume after soft-pause. Unfreezes elapsed; never Completes.
+     */
+    fun resumeActiveSession(): Boolean {
+        val run = activeSessionRun() ?: return false
+        if (run.pausedAtEpochMs == null) return false
+        store.apply(
+            FlowCommand.ResumeSessionRun(
+                runId = run.id,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+        return true
+    }
+
+    fun activeSessionPausedAtEpochMs(): Long? = activeSessionRun()?.pausedAtEpochMs
+
+    fun activeSessionAccumulatedPausedMs(): Long =
+        activeSessionRun()?.accumulatedPausedMs ?: 0L
 
     /**
      * Open / re-open the destination package for the current next-action intention.
