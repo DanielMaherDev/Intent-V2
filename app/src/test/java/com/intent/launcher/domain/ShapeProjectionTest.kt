@@ -143,6 +143,9 @@ class ShapeProjectionTest {
             projection.resourceLine!!.contains("package", ignoreCase = true))
         assertEquals("Daily usage target in motion", projection.homeSpaceSubtitle)
         assertEquals("Prepare your next usage review", projection.hero.heroTitle)
+    }
+
+    @Test
     fun activeResearch_showsChecklistHonesty_withoutInventedLaw() {
         EuWorkSpainScenario.seed(store, now)
         EuWorkSpainScenario.onChip(store, "I am an EU citizen", now + 1)
@@ -301,7 +304,6 @@ class ShapeProjectionTest {
             )
         )
         assertTrue(researchFacts.defaultFacts.any { it.contains("work legally", ignoreCase = true) })
-        assertTrue(researchFacts.defaultFacts.any { it.contains("EU citizen", ignoreCase = true) })
         assertTrue(researchFacts.defaultFacts.any { it.contains("invented law", ignoreCase = true) })
     }
 

@@ -168,6 +168,7 @@ object ShapeProjection {
             "app_use" -> listOf(
                 "Goal · Instagram & YouTube under 45 min/day",
                 "Limit · package foreground ≠ Shorts/Reels"
+            )
             "research" -> listOf(
                 "Goal · work legally in Spain",
                 "Honesty · official sources only — no invented law text"
