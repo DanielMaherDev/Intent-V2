@@ -468,6 +468,7 @@ class MainActivity : ComponentActivity() {
                                 sessionPauseNote = vm.sessionPause?.note,
                                 sessionPausedAtEpochMs = vm.activeSessionPausedAtEpochMs(),
                                 sessionAccumulatedPausedMs = vm.activeSessionAccumulatedPausedMs(),
+                                durationProgress = vm.activeDurationProgress(),
                                 showResumeSession = vm.sessionPause?.canResume == true,
                                 onResumeSession = { vm.resumeActiveSession() },
                                 overlayNote = vm.overlayObservation?.note,

@@ -3,9 +3,13 @@ package com.intent.launcher.domain
 /**
  * Home attention strip — one calm job: next action + optional secondary line.
  *
- * Secondary is **either** session elapsed (pause-aware) **or** OBSERVED package
- * minutes when UsageStats is granted — never both, and never invented minutes.
- * Soft-pause always wins the secondary slot so “Away from app” elapsed stays honest.
+ * Secondary priority for an active session:
+ * 1. Explicit [AppDurationCriterion] progress (soft-pause freezes the ratio)
+ * 2. Soft-paused local elapsed (“Away from app”)
+ * 3. OBSERVED package minutes when UsageStats is granted
+ * 4. Running local elapsed
+ *
+ * Never invents minutes or lesson completion.
  */
 object AttentionStrip {
 
@@ -19,6 +23,16 @@ object AttentionStrip {
             val text: String,
             val contentDescription: String
         ) : SecondaryLine()
+
+        /** Explicit completed / target minutes toward a declared duration criterion. */
+        data class DurationProgress(
+            val ratioLabel: String,
+            val fraction: Float,
+            val softPaused: Boolean,
+            val text: String,
+            val contentDescription: String,
+            val honestyNote: String
+        ) : SecondaryLine()
     }
 
     /**
@@ -28,6 +42,7 @@ object AttentionStrip {
      * @param pausedAtEpochMs soft-pause freeze instant, or null when running
      * @param accumulatedPausedMs prior soft-pause gaps already folded out
      * @param softPaused whether the strip should label elapsed as paused / away
+     * @param durationProgress explicit app-duration criterion when declared
      */
     fun secondaryLine(
         nextAction: NextAction,
@@ -37,11 +52,25 @@ object AttentionStrip {
         usageAppLabel: String?,
         pausedAtEpochMs: Long? = null,
         accumulatedPausedMs: Long = 0L,
-        softPaused: Boolean = false
+        softPaused: Boolean = false,
+        durationProgress: AppDurationCriterion.Progress? = null
     ): SecondaryLine? {
         val started = nextAction.startedAtEpochMs
         val activeWithClock =
             nextAction.kind == NextActionKind.ACTIVE_SESSION && started != null
+
+        // Explicit duration criterion wins — soft-pause freezes completed/target.
+        if (activeWithClock && durationProgress != null) {
+            val prefix = if (durationProgress.softPaused || softPaused) "Paused" else "Toward"
+            return SecondaryLine.DurationProgress(
+                ratioLabel = durationProgress.ratioLabel,
+                fraction = durationProgress.fraction,
+                softPaused = durationProgress.softPaused || softPaused,
+                text = "$prefix ${durationProgress.ratioLabel}",
+                contentDescription = durationProgress.contentDescription,
+                honestyNote = durationProgress.honestyNote
+            )
+        }
 
         // Soft-pause freezes elapsed — prefer that honesty over OBSERVED minutes.
         if (activeWithClock && (softPaused || pausedAtEpochMs != null)) {
