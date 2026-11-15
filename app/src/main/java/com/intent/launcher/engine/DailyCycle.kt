@@ -28,6 +28,17 @@ object DailyCycle {
         return "%04d-%02d-%02d".format(y, m, d)
     }
 
+    /** Local midnight for [nowEpochMs] — day window start for screen-time bar (OS-136). */
+    fun startOfLocalDayEpochMs(nowEpochMs: Long, timeZone: TimeZone): Long {
+        val cal = Calendar.getInstance(timeZone)
+        cal.timeInMillis = nowEpochMs
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
     fun localHour(nowEpochMs: Long, timeZone: TimeZone): Int {
         val cal = Calendar.getInstance(timeZone)
         cal.timeInMillis = nowEpochMs
