@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.intent.launcher.domain.HomeIntentionSwipe
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
@@ -47,6 +49,7 @@ import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.ErrandTodoDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
 import com.intent.launcher.ui.screens.HistoryScreen
+import com.intent.launcher.ui.screens.HomeIntentionPager
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionBuilderScreen
 import com.intent.launcher.ui.screens.IntentionDrawerScreen
@@ -331,19 +334,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    NavHost(navController = nav, startDestination = "home") {
-                        composable("home") {
-                            var showErrandDialog by remember { mutableStateOf(false) }
-                            if (showErrandDialog) {
-                                ErrandTodoDialog(
-                                    onDismiss = { showErrandDialog = false },
-                                    onSave = { text ->
-                                        vm.captureQuickTodo(text)
-                                        showErrandDialog = false
-                                    }
-                                )
-                            }
-                            HomeScreen(
+                    @Composable
+                    fun HomeIntentionSpace(initialPage: Int) {
+                        var showErrandDialog by remember { mutableStateOf(false) }
+                        if (showErrandDialog) {
+                            ErrandTodoDialog(
+                                onDismiss = { showErrandDialog = false },
+                                onSave = { text ->
+                                    vm.captureQuickTodo(text)
+                                    showErrandDialog = false
+                                }
+                            )
+                        }
+                        HomeIntentionPager(
+                            initialPage = initialPage,
+                            modifier = Modifier.fillMaxSize(),
+                            home = { openIntentions ->
+                                HomeScreen(
                                 nextAction = vm.nextAction,
                                 intentionHint = intentionHint,
                                 intentionTitle = intention?.title.orEmpty(),
@@ -351,7 +358,7 @@ class MainActivity : ComponentActivity() {
                                     nav.navigate("intention")
                                 },
                                 onOpenIntention = { nav.navigate("intention") },
-                                onOpenIntentionDrawer = { nav.navigate("drawer") },
+                                onOpenIntentionDrawer = openIntentions,
                                 onReviewProposal = { nav.navigate("proposal") },
                                 onBegin = { vm.beginSession() },
                                 onDefer = { vm.requestDefer() },
@@ -592,6 +599,39 @@ class MainActivity : ComponentActivity() {
                                 onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
+                            },
+                            drawer = { openHome ->
+                                IntentionDrawerScreen(
+                                intentions = vm.orderedIntentions(),
+                                activeIntentionId = vm.snapshot.activeIntentionId,
+                                onOpenIntention = { id ->
+                                    vm.openIntentionFromDrawer(id)
+                                    nav.navigate("intention") {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onMoveIntention = { id, direction ->
+                                    vm.moveIntentionInDrawer(id, direction)
+                                },
+                                onBackHome = openHome,
+                                onAgent = {
+                                    val route = vm.openDiscussFromHome()
+                                    if (route != null) {
+                                        nav.navigate(route)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            }
+                        )
+                    }
+
+                    NavHost(navController = nav, startDestination = "home") {
+                        composable("home") {
+                            HomeIntentionSpace(initialPage = HomeIntentionSwipe.PAGE_HOME)
+                        }
+                        composable("drawer") {
+                            HomeIntentionSpace(initialPage = HomeIntentionSwipe.PAGE_DRAWER)
                         }
                         composable("connections") {
                             ConnectionsScreen(
