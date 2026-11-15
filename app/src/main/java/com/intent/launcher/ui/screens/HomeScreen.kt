@@ -102,7 +102,11 @@ fun HomeScreen(
     floatingCompanionLabel: String? = null,
     /** Honest manual route when overlay is denied — no fake floating UI. */
     floatingManualRouteNote: String? = null,
+    /** Floater Today focus note for the next-action strip. */
+    floaterTodayNote: String? = null,
     onCaptureThought: () -> Unit = {},
+    /** Overlay-denied fallback: open Ask / Today / Capture drawer. */
+    onOpenFloaterDrawer: () -> Unit = {},
     thoughtCaptureNote: String? = null,
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
@@ -372,11 +376,19 @@ fun HomeScreen(
                     )
                 }
             }
+            if (floaterTodayNote != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = floaterTodayNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Warm
+                )
+            }
             if (floatingCompanionLabel != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. " +
-                        "Tap to Discuss · long-press to Capture thought.",
+                        "Tap to Ask · long-press for Ask / Today / Capture.",
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Muted
                 )
@@ -389,6 +401,11 @@ fun HomeScreen(
                 )
             }
             Spacer(modifier = Modifier.height(10.dp))
+            IntentQuietButton(
+                text = "Companion menu",
+                onClick = onOpenFloaterDrawer
+            )
+            Spacer(modifier = Modifier.height(6.dp))
             IntentQuietButton(
                 text = "Capture thought",
                 onClick = onCaptureThought
