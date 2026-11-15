@@ -46,13 +46,17 @@ import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
+import com.intent.launcher.engine.AppDurationTask
 import com.intent.launcher.engine.AppLinkedSessionPause
 import com.intent.launcher.engine.CaptureThought
+import com.intent.launcher.engine.CommandGateway
 import com.intent.launcher.engine.HistoryRow
 import com.intent.launcher.engine.HistoryTrashMenus
 import com.intent.launcher.engine.ThoughtTriage
 import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.engine.IntentionHierarchy
+import com.intent.launcher.engine.LongTermAdjustment
+import com.intent.launcher.engine.PhysicalConstraintChange
 import com.intent.launcher.engine.TrashRow
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
@@ -1208,8 +1212,14 @@ class LauncherViewModel(
         refresh()
     }
 
-    fun approveProposal() {
-        val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
+    fun approveProposal(explicitProposalId: String? = null) {
+        val now = System.currentTimeMillis()
+        val pendingList = snapshot.proposals.filter { it.status == ProposalStatus.PENDING }
+        if (pendingList.isEmpty()) return
+        val targetId = explicitProposalId
+            ?: pendingList.singleOrNull()?.id
+        val pending = pendingList.firstOrNull { it.id == targetId }
+            ?: pendingList.first()
         val sessionId = when (pending.id) {
             MarathonScenario.PROPOSAL_ID -> MarathonScenario.SESSION_ID
             BusinessScenario.PROPOSAL_ID -> BusinessScenario.SESSION_ID
@@ -1220,15 +1230,23 @@ class LauncherViewModel(
             EuWorkSpainScenario.PROPOSAL_ID -> EuWorkSpainScenario.SESSION_ID
             ChessScenario.PROPOSAL_ID -> ChessScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
+            AppDurationTask.DURATION_PROPOSAL_ID -> AppDurationTask.DURATION_SESSION_ID
+            LongTermAdjustment.SCHEDULE_CHANGE_PROPOSAL_ID -> SpanishScenario.SESSION_ID
+            PhysicalConstraintChange.PROPOSAL_ID -> MarathonScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
-        store.apply(
-            FlowCommand.ApproveProposal(
-                proposalId = pending.id,
-                sessionId = sessionId,
-                nowEpochMs = System.currentTimeMillis()
-            )
+        // §17 case 33 — bare approve with two+ pending → clarify, never arbitrary.
+        val result = CommandGateway.approveProposal(
+            store = store,
+            turnId = "turn-ui-approve-$now",
+            commandId = "cmd-ui-approve-$now",
+            sessionId = sessionId,
+            nowEpochMs = now,
+            utterance = if (explicitProposalId != null) pending.title else "Yes",
+            explicitProposalId = explicitProposalId
+                ?: pendingList.singleOrNull()?.id
         )
+        voicePathNote = result.message
         refresh()
     }
 

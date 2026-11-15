@@ -2,6 +2,7 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionSnapshot
+import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
@@ -225,5 +226,108 @@ object CommandGateway {
                 "Tracker entry applied"
             }
         )
+    }
+
+    /**
+     * §17 case 33 — approve a pending proposal with ambiguity guards.
+     * Bare “Yes” with two+ PENDING proposals → AMBIGUOUS, no write.
+     */
+    fun approveProposal(
+        store: IntentionFlowStore,
+        turnId: String,
+        commandId: String,
+        sessionId: String,
+        nowEpochMs: Long,
+        utterance: String = "Yes",
+        explicitProposalId: String? = null,
+        toolCallId: String? = null
+    ): GatewayResult {
+        val snap = store.snapshot()
+        if (AgentTurnLifecycle.isCancelled(snap, turnId)) {
+            return GatewayResult(
+                turnId = turnId,
+                toolCallId = toolCallId,
+                commandId = commandId,
+                status = GatewayStatus.CANCELLED,
+                message = "Refused approval after cancellation"
+            )
+        }
+        val outcome = ApprovalAmbiguityResolver.resolve(
+            snapshot = snap,
+            utterance = utterance,
+            explicitProposalId = explicitProposalId
+        )
+        when (outcome) {
+            is ApprovalAmbiguityResolver.Outcome.None ->
+                return GatewayResult(
+                    turnId = turnId,
+                    toolCallId = toolCallId,
+                    commandId = commandId,
+                    status = GatewayStatus.FAILED,
+                    message = outcome.message
+                )
+            is ApprovalAmbiguityResolver.Outcome.Ambiguous -> {
+                val intentionId = outcome.candidates.first().intentionId
+                val block = ResponseBlock(
+                    blockId = "block-approve-ambiguous-$commandId",
+                    type = ResponseBlockType.CHOICE_SET,
+                    title = "Which proposal?",
+                    body = outcome.message,
+                    sourceLabel = "approval_clarification",
+                    linkedObjectIds = outcome.candidates.map { it.proposalId },
+                    actions = outcome.candidates.map { it.title },
+                    active = true
+                )
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-approve-ambiguous-$commandId",
+                        intentionId = intentionId,
+                        role = "agent",
+                        text = outcome.message,
+                        nowEpochMs = nowEpochMs,
+                        blocks = listOf(block)
+                    )
+                )
+                val stillPending = store.snapshot().proposals.count {
+                    it.status == ProposalStatus.PENDING
+                }
+                check(stillPending >= 2) {
+                    "Ambiguous approval must not approve any pending proposal"
+                }
+                return GatewayResult(
+                    turnId = turnId,
+                    toolCallId = toolCallId,
+                    commandId = commandId,
+                    status = GatewayStatus.AMBIGUOUS,
+                    message = outcome.message,
+                    blocks = listOf(block)
+                )
+            }
+            is ApprovalAmbiguityResolver.Outcome.Single -> {
+                val proposalId = outcome.proposalId
+                store.apply(
+                    FlowCommand.ApproveProposal(
+                        proposalId = proposalId,
+                        sessionId = sessionId,
+                        nowEpochMs = nowEpochMs
+                    )
+                )
+                val after = store.snapshot()
+                val approved = after.proposals.firstOrNull { it.id == proposalId }
+                return GatewayResult(
+                    turnId = turnId,
+                    toolCallId = toolCallId,
+                    commandId = commandId,
+                    status = GatewayStatus.APPLIED,
+                    objectIds = listOf(proposalId, sessionId),
+                    revisionAfter = revisionOf(after),
+                    message = if (approved?.status == ProposalStatus.APPROVED) {
+                        "Proposal approved"
+                    } else {
+                        "Approve command applied"
+                    }
+                )
+            }
+        }
     }
 }

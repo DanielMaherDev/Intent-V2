@@ -131,6 +131,14 @@ object ConversationCoordinator {
                 sourceLabel = sourceLabel
             )
         }
+        dispatchGateEUtterance(
+            store = store,
+            trimmed = trimmed,
+            nowEpochMs = nowEpochMs,
+            registry = registry,
+            channel = Channel.VOICE_TRANSCRIPT,
+            sourceLabel = sourceLabel
+        )?.let { return it.copy(channel = Channel.VOICE_TRANSCRIPT) }
         // Unmatched STT free-text → identical OpenAI / local-heuristics path as typed send.
         return submitFreeText(
             store = store,
@@ -174,6 +182,17 @@ object ConversationCoordinator {
                 sourceLabel = sourceLabel
             )
         }
+
+        // Gate E scripted paths may seed their own intention (e.g. vague health).
+        dispatchGateEUtterance(
+            store = store,
+            trimmed = trimmed,
+            nowEpochMs = nowEpochMs,
+            registry = registry,
+            channel = Channel.FREE_TEXT,
+            sourceLabel = sourceLabel
+        )?.let { return it }
+
         val intentionId = intention?.id
             ?: store.snapshot().activeIntentionId
             ?: return SubmitResult(
@@ -383,5 +402,100 @@ object ConversationCoordinator {
             ChessScenario.SHAPE_TAG -> ChessScenario.onChip(store, chip, nowEpochMs, registry)
             else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry, modality)
         }
+    }
+
+    /**
+     * Gate E §17 scripted utterances (health, constraint, guided practice, Duolingo,
+     * tutor day change, bare spoken approval). Returns null when no match.
+     */
+    private fun dispatchGateEUtterance(
+        store: IntentionFlowStore,
+        trimmed: String,
+        nowEpochMs: Long,
+        registry: CapabilityRegistry,
+        channel: Channel,
+        sourceLabel: String
+    ): SubmitResult? {
+        if (VagueHealthGoal.looksLikeVagueHealth(trimmed)) {
+            val result = VagueHealthGoal.open(store, trimmed, nowEpochMs)
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (PhysicalConstraintChange.looksLikeConstraint(trimmed)) {
+            val result = PhysicalConstraintChange.apply(store, nowEpochMs, trimmed, registry)
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (GuidedPractice.looksLikeGuidedPractice(trimmed)) {
+            val result = GuidedPractice.start(store, nowEpochMs, trimmed)
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (LongTermAdjustment.looksLikeTutorDayChange(trimmed)) {
+            val result = LongTermAdjustment.applyTutorTuesday(store, nowEpochMs, trimmed, registry)
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (AppDurationTask.looksLikeDurationTask(trimmed)) {
+            val result = AppDurationTask.startFifteenMinutePractice(store, nowEpochMs, trimmed, registry)
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (AppDurationTask.looksLikeDuolingoApproach(trimmed)) {
+            val result = AppDurationTask.confirmDuolingoApproach(store, nowEpochMs, trimmed, registry)
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (ApprovalAmbiguityResolver.looksLikeBareApproval(trimmed) &&
+            ApprovalAmbiguityResolver.pendingProposals(store.snapshot()).size >= 2
+        ) {
+            val gateway = CommandGateway.approveProposal(
+                store = store,
+                turnId = "turn-voice-yes-$nowEpochMs",
+                commandId = "cmd-voice-yes-$nowEpochMs",
+                sessionId = "session-unresolved",
+                nowEpochMs = nowEpochMs,
+                utterance = trimmed
+            )
+            return SubmitResult(
+                channel = channel,
+                appliedChip = null,
+                storedTranscript = trimmed,
+                honestyNote = gateway.message
+                    ?: "Ambiguous spoken approval — clarification required.",
+                sourceLabel = sourceLabel
+            )
+        }
+        return null
     }
 }

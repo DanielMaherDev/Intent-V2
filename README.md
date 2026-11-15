@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.135** (this branch) · main tip **v0.0.134** (#76 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.136** (this branch) · Gate E base **v0.0.135** (#77) · main tip **v0.0.134** (#76 merged).
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.135** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.135.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.136.apk`
 
 ## Scope
 
@@ -82,6 +82,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.132:** Gate D2 — OBSERVED vs INFERRED on intervention UI
 - **v0.0.133:** Gate D3 — overlay/service interrupt → saved work + notification
 - **v0.0.134:** Gate C dedicated Today view — planned · completed · deferred from day cycle / occurrences / sessions; Floater Today + Home link → `TodayScreen` (not Home-only)
+- **v0.0.136:** Gate E §17 remaining gaps — vague health, physical constraint, guided practice, spoken approval ambiguity, interrupted voice; tighten Duolingo approach / cross-intention link / tutor day change / 15-min app-duration
 - **v0.0.135:** Gate E breadth + migration — scenario suite (ambiguous / legal research / stale connected data / parent rollups / cancel / retry / process death), real legacy export migrate fixture, deliverable pack
 
 ## Shapes
