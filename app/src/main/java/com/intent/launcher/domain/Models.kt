@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 6
+const val SCHEMA_VERSION: Int = 7
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -265,7 +265,12 @@ data class Intention(
     val phase: IntentionPhase,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    val shapeTag: String // language | marathon | business | move | decision | cessation | app_use | other
+    val shapeTag: String, // language | marathon | business | move | decision | cessation | app_use | other
+    /**
+     * Optional parent intention id (OS-141). Local pointer only —
+     * not a dependency / task graph. Null = root intention.
+     */
+    val parentIntentionId: String? = null
 )
 
 
@@ -372,7 +377,9 @@ sealed class FlowCommand {
         val title: String,
         val statement: String,
         val shapeTag: String,
-        val nowEpochMs: Long
+        val nowEpochMs: Long,
+        /** Optional local parent pointer (OS-141). Null = root. */
+        val parentIntentionId: String? = null
     ) : FlowCommand()
 
     data class AddUserFact(
@@ -516,6 +523,16 @@ sealed class FlowCommand {
 
     data class SetActiveIntention(
         val intentionId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Set or clear the local parent pointer for an intention (OS-141).
+     * Refuses cycles and unknown parent ids — never invents a graph.
+     */
+    data class SetParentIntention(
+        val intentionId: String,
+        val parentIntentionId: String?,
         val nowEpochMs: Long
     ) : FlowCommand()
 

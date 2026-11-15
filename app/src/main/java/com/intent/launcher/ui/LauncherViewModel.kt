@@ -42,6 +42,7 @@ import com.intent.launcher.engine.AppLinkedSessionPause
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.ThoughtTriage
 import com.intent.launcher.engine.IntentionBuilder
+import com.intent.launcher.engine.IntentionHierarchy
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DailyCycle
@@ -724,6 +725,15 @@ class LauncherViewModel(
             )
         )
         refresh()
+    }
+
+    /** OS-141 — breadcrumb / child navigation from Intention Space only. */
+    fun hierarchyForActive(): IntentionHierarchy.View =
+        IntentionHierarchy.build(snapshot, activeIntention())
+
+    fun openRelatedIntention(intentionId: String) {
+        if (snapshot.intentions.none { it.id == intentionId }) return
+        openIntentionFromDrawer(intentionId)
     }
 
     fun moveIntentionInDrawer(intentionId: String, direction: Int) {

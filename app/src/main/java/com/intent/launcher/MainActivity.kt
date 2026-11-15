@@ -559,6 +559,8 @@ class MainActivity : ComponentActivity() {
                                 onReleaseHeldApp = { id -> vm.releaseHeldApp(id) },
                                 connectionUsages = vm.connectionUsagesForActive(),
                                 onOpenConnections = { nav.navigate("connections") },
+                                hierarchy = vm.hierarchyForActive(),
+                                onOpenRelatedIntention = { id -> vm.openRelatedIntention(id) },
                                 onWorkThisOut = {
                                     when (active?.phase) {
                                         IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
