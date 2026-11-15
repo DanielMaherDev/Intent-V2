@@ -579,7 +579,7 @@ class IntentionFlowStoreTest {
         val againFile = tmp.newFile("cessation-again.json")
         againFile.writeText(encoded)
         val again = IntentionFlowStore(againFile).snapshot()
-        assertEquals(4, again.schemaVersion)
+        assertEquals(5, again.schemaVersion)
         assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
         assertEquals(deferUntil, again.sessions.first { it.id == QuitSmokingScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == QuitSmokingScenario.FACT_BASELINE_ID }.provenance.kind)
