@@ -30,7 +30,6 @@ import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
-import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.FactRow
@@ -40,6 +39,7 @@ import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.Lede
+import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
@@ -63,10 +63,9 @@ fun IntentionSpaceScreen(
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
     onMoveSessionToTrash: ((String) -> Unit)? = null,
-    trashItems: List<TrashEntry> = emptyList(),
-    onRestoreTrash: ((String) -> Unit)? = null,
-    onPurgeTrash: ((String) -> Unit)? = null,
     undoTrashNote: String? = null,
+    /** OS-143 — History / Trash via intention overflow menu, not an inline primary section. */
+    overflowItems: List<OverflowMenuItem> = emptyList(),
     onOpenTracker: (() -> Unit)? = null,
     onOpenReports: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -96,7 +95,11 @@ fun IntentionSpaceScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 19.dp, vertical = 15.dp)
     ) {
-        ScreenTopBar(contextLabel = "Intention", onBack = onBack)
+        ScreenTopBar(
+            contextLabel = "Intention",
+            onBack = onBack,
+            overflowItems = overflowItems
+        )
         Spacer(modifier = Modifier.height(23.dp))
         SmallLabel(text = projection.hero.phaseLabel, color = labelColor)
         Spacer(modifier = Modifier.height(7.dp))
@@ -353,46 +356,11 @@ fun IntentionSpaceScreen(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Soft-delete keeps child facts, proposals, and sessions recoverable until you purge.",
+                text = "Soft-delete keeps child facts, proposals, and sessions recoverable until you purge. " +
+                    "Open Trash from the intention menu (⋯) to restore or purge.",
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
-        }
-
-        if (trashItems.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(26.dp))
-            SectionTitle("Trash")
-            Spacer(modifier = Modifier.height(9.dp))
-            trashItems.forEach { item ->
-                Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = IntentColors.Ink
-                    )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = "${item.kind.name.lowercase()} · ${item.pathLabel}" +
-                            if (item.expiresAtEpochMs == null) " · until purge" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IntentColors.Muted
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    if (onRestoreTrash != null) {
-                        IntentSecondaryButton(
-                            text = "Restore",
-                            onClick = { onRestoreTrash(item.id) }
-                        )
-                    }
-                    if (onPurgeTrash != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        IntentQuietButton(
-                            text = "Purge permanently",
-                            onClick = { onPurgeTrash(item.id) }
-                        )
-                    }
-                }
-            }
         }
 
         if (undoTrashNote != null) {

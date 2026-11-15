@@ -34,11 +34,14 @@ import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
+import com.intent.launcher.engine.HistoryTrashMenus
+import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.ui.screens.ConnectionsScreen
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.ErrandTodoDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
+import com.intent.launcher.ui.screens.HistoryScreen
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionBuilderScreen
 import com.intent.launcher.ui.screens.IntentionDrawerScreen
@@ -48,6 +51,7 @@ import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
+import com.intent.launcher.ui.screens.TrashScreen
 import com.intent.launcher.ui.theme.IntentTheme
 
 class MainActivity : ComponentActivity() {
@@ -159,6 +163,14 @@ class MainActivity : ComponentActivity() {
                     val showJobOfferEntry = intention?.shapeTag != "decision"
                     val showQuitSmokingEntry = intention?.shapeTag != "cessation"
                     val showAppUseEntry = intention?.shapeTag != "app_use"
+                    val historyTrashOverflow = listOf(
+                        OverflowMenuItem(HistoryTrashMenus.MENU_HISTORY) {
+                            nav.navigate("history") { launchSingleTop = true }
+                        },
+                        OverflowMenuItem(HistoryTrashMenus.MENU_TRASH) {
+                            nav.navigate("trash") { launchSingleTop = true }
+                        }
+                    )
 
                     LaunchedEffect(openConversationRequest) {
                         if (openConversationRequest > 0) {
@@ -446,6 +458,26 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onToggleErrand = { vm.toggleErrand(it) },
                                 onSettings = { nav.navigate("connections") },
+                                overflowItems = historyTrashOverflow,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("history") {
+                            HistoryScreen(
+                                rows = vm.historyRows(),
+                                onUndoLast = vm.lastUndoableTransaction()?.let { { vm.undoLast() } },
+                                undoNote = vm.undoTrashNote,
+                                onBack = { nav.popBackStack() },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("trash") {
+                            TrashScreen(
+                                rows = vm.trashRows(),
+                                onRestore = { trashId -> vm.restoreTrashItem(trashId) },
+                                onPurge = { trashId -> vm.purgeTrashItem(trashId) },
+                                note = vm.undoTrashNote,
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -539,6 +571,7 @@ class MainActivity : ComponentActivity() {
                                         nav.navigate(route)
                                     }
                                 },
+                                overflowItems = historyTrashOverflow,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -568,10 +601,8 @@ class MainActivity : ComponentActivity() {
                                 onBack = { nav.popBackStack() },
                                 onMoveIntentionToTrash = { vm.softDeleteActiveIntention() },
                                 onMoveSessionToTrash = { sessionId -> vm.softDeleteSession(sessionId) },
-                                trashItems = vm.recoverableTrash(),
-                                onRestoreTrash = { trashId -> vm.restoreTrashItem(trashId) },
-                                onPurgeTrash = { trashId -> vm.purgeTrashItem(trashId) },
                                 undoTrashNote = vm.undoTrashNote,
+                                overflowItems = historyTrashOverflow,
                                 onOpenTracker = if (vm.canOpenTracker()) {
                                     { nav.navigate("tracker") }
                                 } else {
