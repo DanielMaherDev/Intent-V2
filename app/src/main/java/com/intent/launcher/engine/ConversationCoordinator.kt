@@ -5,6 +5,7 @@ import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
+import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.store.IntentionFlowStore
 
@@ -139,6 +140,7 @@ object ConversationCoordinator {
         when (intention?.shapeTag) {
             "marathon" -> MarathonScenario.onChip(store, chip, nowEpochMs, registry)
             "business" -> BusinessScenario.onChip(store, chip, nowEpochMs, registry)
+            "move" -> MoveScenario.onChip(store, chip, nowEpochMs, registry)
             else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry)
         }
     }

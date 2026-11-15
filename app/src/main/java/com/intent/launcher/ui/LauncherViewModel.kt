@@ -12,6 +12,7 @@ import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
+import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
@@ -444,6 +445,7 @@ class LauncherViewModel(
         when (activeIntention()?.shapeTag) {
             "marathon" -> MarathonScenario.conversationChips(capabilityRegistry)
             "business" -> BusinessScenario.conversationChips(capabilityRegistry)
+            "move" -> MoveScenario.conversationChips(capabilityRegistry)
             else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
@@ -494,6 +496,11 @@ class LauncherViewModel(
         refresh()
     }
 
+    fun startMoveExploration() {
+        MoveScenario.ensureSeeded(store)
+        refresh()
+    }
+
     fun activateSpanish() {
         SpanishScenario.ensureSeeded(store)
         store.apply(
@@ -510,6 +517,7 @@ class LauncherViewModel(
         val sessionId = when (pending.id) {
             MarathonScenario.PROPOSAL_ID -> MarathonScenario.SESSION_ID
             BusinessScenario.PROPOSAL_ID -> BusinessScenario.SESSION_ID
+            MoveScenario.PROPOSAL_ID -> MoveScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
@@ -539,6 +547,7 @@ class LauncherViewModel(
         val hour = when (pending.id) {
             MarathonScenario.PROPOSAL_ID -> 9
             BusinessScenario.PROPOSAL_ID -> 12
+            MoveScenario.PROPOSAL_ID -> 10
             else -> 18
         }
         store.apply(

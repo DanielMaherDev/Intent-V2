@@ -4,16 +4,19 @@ import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.MarathonScenario
+import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.SessionRunStatus
+import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
 import java.io.File
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -296,6 +299,98 @@ class IntentionFlowStoreTest {
         assertTrue(snap.intentions.any { it.shapeTag == "business" })
         // Same Intention / Fact / Hypothesis / Proposal / Session types — no shape-specific columns
         assertEquals(BusinessScenario.INTENTION_ID, snap.activeIntentionId)
+    }
+
+    @Test
+    fun fourShapes_shareCoreRecordsIncludingMove() {
+        SpanishScenario.seed(store, now)
+        MarathonScenario.seed(store, now + 1)
+        BusinessScenario.seed(store, now + 2)
+        MoveScenario.seed(store, now + 3)
+        val snap = store.snapshot()
+        assertEquals(4, snap.intentions.size)
+        assertTrue(snap.intentions.any { it.shapeTag == "move" })
+        assertEquals(MoveScenario.INTENTION_ID, snap.activeIntentionId)
+    }
+
+    @Test
+    fun moveFlow_noPlace_landlordStepsStayGated() {
+        MoveScenario.seed(store, now)
+        MoveScenario.onChip(store, "Six weeks — Barcelona to Valencia, renting", now + 10)
+        MoveScenario.onChip(store, "No place found yet", now + 20)
+        var snap = store.snapshot()
+
+        val intention = snap.intentions.first { it.id == MoveScenario.INTENTION_ID }
+        assertEquals("move", intention.shapeTag)
+        assertEquals(IntentionPhase.CLARIFYING, intention.phase)
+        assertEquals(ProvenanceKind.SAID, snap.facts.first { it.id == MoveScenario.FACT_DEADLINE_ID }.provenance.kind)
+        assertEquals(ProvenanceKind.SAID, snap.facts.first { it.id == MoveScenario.FACT_NO_PLACE_ID }.provenance.kind)
+        assertTrue(snap.hypotheses.any { it.id == MoveScenario.HYP_LEASE_ID && it.text.contains("Gated") })
+        assertTrue(snap.hypotheses.any { it.id == MoveScenario.HYP_SEARCH_ID && it.text.contains("Ready") })
+        assertFalse(MoveScenario.placeIsConfirmed(snap.facts))
+        assertTrue(snap.proposals.none { it.intentionId == MoveScenario.INTENTION_ID })
+
+        val projection = ShapeProjection.project(
+            intention = intention,
+            facts = snap.facts.filter { it.intentionId == intention.id },
+            hypotheses = snap.hypotheses.filter { it.intentionId == intention.id }
+        )
+        assertEquals("Your move plan", projection.approachSectionTitle)
+        assertTrue(projection.approachSteps.any { it.title.contains("Search") && !it.muted })
+        assertTrue(projection.approachSteps.any { it.title.contains("Sign lease") && it.muted })
+        assertTrue(projection.approachSteps.any { it.title.contains("movers") && it.muted })
+        assertTrue(projection.approachSteps.any { it.detail.contains("Gated", ignoreCase = true) })
+    }
+
+    @Test
+    fun moveFlow_searchProposal_approveDeferPersist_doesNotInventLease() {
+        MoveScenario.seed(store, now)
+        MoveScenario.onChip(store, "Six weeks — Barcelona to Valencia, renting", now + 10)
+        MoveScenario.onChip(store, "No place found yet", now + 15)
+        MoveScenario.onChip(store, "Budget is tight until the lease starts", now + 18)
+        MoveScenario.onChip(store, "Schedule weekly apartment search", now + 20)
+        var snap = store.snapshot()
+
+        val fact = snap.facts.first { it.id == MoveScenario.FACT_DEADLINE_ID }
+        val proposal = snap.proposals.first { it.id == MoveScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertNotEquals(fact.text, proposal.summary)
+        assertTrue(proposal.summary.contains("landlord", ignoreCase = true))
+        assertTrue(proposal.summary.contains("not a claim that a place exists", ignoreCase = true))
+        assertTrue(proposal.basedOnFactIds.contains(fact.id))
+        assertEquals(
+            IntentionPhase.PROPOSAL_PENDING,
+            snap.intentions.first { it.id == MoveScenario.INTENTION_ID }.phase
+        )
+
+        val review = NextActionEngine.recommend(snap, now + 30, tz)
+        assertEquals(NextActionKind.REVIEW_PROPOSAL, review.kind)
+
+        MoveScenario.approve(store, now + 40)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == MoveScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == MoveScenario.SESSION_ID })
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == MoveScenario.INTENTION_ID }.phase)
+        // Still no place invented after approve
+        assertFalse(MoveScenario.placeIsConfirmed(snap.facts))
+        assertTrue(snap.facts.any { it.id == MoveScenario.FACT_NO_PLACE_ID })
+
+        // Saturday apartment search is Sat 10:00 — pin Sat 18 Nov 2023 10:00 UTC
+        val saturdayDue = 1_700_301_600_000L
+        val next = NextActionEngine.recommend(snap, saturdayDue, tz)
+        assertEquals(NextActionKind.BEGIN, next.kind)
+
+        val deferUntil = saturdayDue + 3_600_000L
+        MoveScenario.deferSession(store, deferUntil, saturdayDue + 10)
+        snap = store.snapshot()
+        assertEquals(deferUntil, snap.sessions.first { it.id == MoveScenario.SESSION_ID }.deferredUntilEpochMs)
+
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == MoveScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == MoveScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals("move", again.intentions.first { it.id == MoveScenario.INTENTION_ID }.shapeTag)
+        assertFalse(MoveScenario.placeIsConfirmed(again.facts))
     }
 
     @Test

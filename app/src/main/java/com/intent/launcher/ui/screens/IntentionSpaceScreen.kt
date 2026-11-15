@@ -133,7 +133,7 @@ fun IntentionSpaceScreen(
                         Text(
                             text = step.title,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = IntentColors.Ink
+                            color = if (step.muted) IntentColors.Muted else IntentColors.Ink
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
