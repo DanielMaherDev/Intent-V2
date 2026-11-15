@@ -30,6 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.HomeIntentionSwipe
+import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
@@ -218,6 +219,7 @@ class MainActivity : ComponentActivity() {
                             nav.navigate("trash") { launchSingleTop = true }
                         }
                     )
+                    val showChessEntry = intention?.shapeTag != ChessScenario.SHAPE_TAG
 
                     LaunchedEffect(openConversationRequest) {
                         if (openConversationRequest > 0) {
@@ -604,6 +606,14 @@ class MainActivity : ComponentActivity() {
                                 onExploreEuWorkSpain = if (showEuWorkSpainEntry) {
                                     {
                                         vm.startEuWorkSpainExploration()
+                                        nav.navigate("intention")
+                                    }
+                                } else {
+                                    null
+                                },
+                                onExploreChess = if (showChessEntry) {
+                                    {
+                                        vm.startChessExploration()
                                         nav.navigate("intention")
                                     }
                                 } else {

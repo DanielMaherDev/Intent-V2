@@ -304,18 +304,6 @@ class IntentionFlowStore(
                 )
             }
 
-            is FlowCommand.DismissEvidence -> {
-                migrated.copy(
-                    evidence = migrated.evidence.map {
-                        if (it.id == command.evidenceId) {
-                            it.copy(accuracy = EvidenceAccuracy.DISMISSED)
-                        } else {
-                            it
-                        }
-                    }
-                )
-            }
-
             is FlowCommand.RecordTrackerEntry -> {
                 val entry = TrackerEntry(
                     id = command.entryId,
@@ -333,6 +321,18 @@ class IntentionFlowStore(
                 migrated.copy(
                     trackerEntries = migrated.trackerEntries.filterNot { it.id == entry.id } + entry,
                     intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.DismissEvidence -> {
+                migrated.copy(
+                    evidence = migrated.evidence.map {
+                        if (it.id == command.evidenceId) {
+                            it.copy(accuracy = EvidenceAccuracy.DISMISSED)
+                        } else {
+                            it
+                        }
+                    }
                 )
             }
 

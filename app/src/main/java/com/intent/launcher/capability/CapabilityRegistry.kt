@@ -211,6 +211,7 @@ class CapabilityRegistry(
         const val ID_DISCUSS = "discuss"
         const val ID_LAUNCH_INSTALLED_APP = "launch_installed_app"
         const val ID_OBSERVE_LESSON_COMPLETION = "observe_lesson_completion"
+        const val ID_OBSERVE_CHESS_RATING = "observe_chess_rating"
         const val ID_OBSERVE_APP_USAGE = "observe_app_usage"
         const val ID_OBSERVE_CESSATION = "observe_cessation"
         const val ID_USAGE_STATS = "usage_stats"
@@ -314,6 +315,12 @@ class CapabilityRegistry(
                 title = "Observe lesson completion",
                 status = CapabilityStatus.NOT_SUPPORTED,
                 limitNote = "Opening a learning app is observable; lesson completion is not unless a reliable source provides it."
+            ),
+            CapabilityEntry(
+                id = ID_OBSERVE_CHESS_RATING,
+                title = "Observe Chess.com rating",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Chess.com OAuth / rating scrape is not shipped. Use a manual SAID baseline and practice log — never invent partner games or auto-synced ratings."
             ),
             CapabilityEntry(
                 id = ID_OBSERVE_APP_USAGE,

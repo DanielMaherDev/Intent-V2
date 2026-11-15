@@ -286,6 +286,7 @@ data class Intention(
      * not a dependency / task graph. Null = root intention.
      */
     val parentIntentionId: String? = null
+    val shapeTag: String // language | marathon | business | move | decision | cessation | app_use | research | chess | other
 )
 
 

@@ -78,6 +78,7 @@ object ShapeProjection {
                 "cessation" -> "Baseline and support still open"
                 "app_use" -> "Usage target still taking shape"
                 "research" -> "Clarifying facts before research"
+                "chess" -> "Baseline and practice still open"
                 else -> "Open your intention"
             }
             IntentionPhase.PROPOSAL_PENDING -> when (shapeTag) {
@@ -88,6 +89,7 @@ object ShapeProjection {
                 "cessation" -> "An evening check-in is pending"
                 "app_use" -> "A usage review is pending"
                 "research" -> "A sourced checklist is pending"
+                "chess" -> "An evening practice block is pending"
                 else -> "Your approach is taking shape"
             }
             IntentionPhase.ACTIVE -> when (shapeTag) {
@@ -98,6 +100,7 @@ object ShapeProjection {
                 "cessation" -> "Self-report check-in in motion"
                 "app_use" -> "Daily usage target in motion"
                 "research" -> "Checklist research in motion"
+                "chess" -> "Practice and review in motion"
                 else -> "Speaking practice in motion"
             }
             IntentionPhase.PAUSED -> "Paused — facts kept"
@@ -114,6 +117,7 @@ object ShapeProjection {
             phase == IntentionPhase.ACTIVE && shapeTag == "cessation" -> "Baseline and reports"
             phase == IntentionPhase.ACTIVE && shapeTag == "app_use" -> "Usage facts"
             phase == IntentionPhase.ACTIVE && shapeTag == "research" -> "Confirmed facts"
+            phase == IntentionPhase.ACTIVE && shapeTag == "chess" -> "Baseline and reports"
             phase == IntentionPhase.ACTIVE -> "What we know"
             else -> "What we know"
         }
@@ -127,6 +131,7 @@ object ShapeProjection {
             "cessation" -> "Your first-phase support"
             "app_use" -> "Your usage approach"
             "research" -> "Your research checklist"
+            "chess" -> "Your practice approach"
             else -> "Your approach"
         }
 
@@ -147,6 +152,8 @@ object ShapeProjection {
                 "No blocking or auto-cap has been invented. Package time is a proxy — not Shorts or Reels identity."
             "research" ->
                 "No legal requirements have been invented. Confirm citizenship, arrangement, duration, and documents first — then a sourced checklist of research questions."
+            "chess" ->
+                "No Chess.com scrape or fabricated games. Manual baseline and self-report come first."
             else ->
                 "No tasks yet. This space is ready while you choose an approach."
         }
@@ -172,6 +179,11 @@ object ShapeProjection {
             "research" -> listOf(
                 "Goal · work legally in Spain",
                 "Honesty · official sources only — no invented law text"
+            )
+            "chess" -> listOf(
+                "Goal · Chess.com rapid toward 1200",
+                "Baseline · self-reported rapid rating",
+                "Partner sync · not supported"
             )
             else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
         }
@@ -202,6 +214,7 @@ object ShapeProjection {
                 "Destination · Instagram / YouTube — package foreground only; not Shorts/Reels identity."
             "research" ->
                 "Destination · official Spanish / EU portals — record source URL + retrieval date; not legal advice."
+            "chess" -> "Measures · SAID rating and practice only — Chess.com auto-sync not supported."
             else -> null
         }
     }
@@ -291,6 +304,17 @@ object ShapeProjection {
                 ApproachStep(
                     title = "Honesty limit",
                     detail = "No invented statutes. Live web research not shipped — verify on official portals yourself.",
+                    muted = true
+                )
+            )
+            "chess" -> listOf(
+                ApproachStep(
+                    title = session?.title ?: "Evening chess practice",
+                    detail = (whenLabel?.let { "$it · approved" } ?: "Approved practice / review rhythm")
+                ),
+                ApproachStep(
+                    title = "Log rating and practice",
+                    detail = "Self-reported SAID only — not a Chess.com scrape or fabricated games.",
                     muted = true
                 )
             )
@@ -389,6 +413,7 @@ object ShapeProjection {
                     "cessation" -> "What is your baseline?"
                     "app_use" -> "How will you hold the cap?"
                     "research" -> "What must we confirm first?"
+                    "chess" -> "What is your rating baseline?"
                     else -> "How will you practise?"
                 },
                 heroBody = when (shapeTag) {
@@ -407,6 +432,8 @@ object ShapeProjection {
                             "not Shorts or Reels identity."
                     "research" ->
                         "Citizenship, arrangement, duration, and documents — SAID facts only. No invented legal requirements."
+                    "chess" ->
+                        "Start with a manual rapid baseline (e.g. 900 → 1200). Chess.com sync is not available; practice stays self-reported."
                     else ->
                         "We can shape this around an app, a tutor, conversations with your agent, or a mix."
                 },
@@ -424,6 +451,7 @@ object ShapeProjection {
                     "cessation" -> "Add an evening check-in?"
                     "app_use" -> "Add an evening usage review?"
                     "research" -> "Add a sourced checklist review?"
+                    "chess" -> "Add evening practice?"
                     else -> "Add your session?"
                 },
                 heroBody = when (shapeTag) {
@@ -431,6 +459,8 @@ object ShapeProjection {
                         "INTENT will bring the search into your week once approved. Landlord-gated steps stay blocked."
                     "decision" ->
                         "A review block helps you weigh criteria before the deadline — not a choice made for you."
+                    "chess" ->
+                        "Evening practice stays optional until you approve. Rating stays manual SAID — never scraped."
                     else -> "INTENT will bring it into your week once approved."
                 },
                 heroCta = "Review details",
@@ -447,6 +477,7 @@ object ShapeProjection {
                     "cessation" -> "Prepare your evening check-in"
                     "app_use" -> "Prepare your next usage review"
                     "research" -> "Prepare your next checklist review"
+                    "chess" -> "Prepare your evening practice"
                     else -> "Prepare for your next session"
                 },
                 heroBody = when (shapeTag) {
@@ -461,6 +492,7 @@ object ShapeProjection {
                         "Compare package foreground to your 45-min target — never auto-Complete from UsageStats."
                     "research" ->
                         "Pick one research question and verify it on an official portal — record source + date."
+                    "chess" -> "Log rating and practice honestly — no invented Chess.com games."
                     else -> "Bring one situation you want to rehearse."
                 },
                 heroCta = "Begin preparation",
@@ -486,6 +518,7 @@ object ShapeProjection {
                 "cessation" -> "Contextual conversation · cessation support"
                 "app_use" -> "Contextual conversation · usage"
                 "research" -> "Contextual conversation · research checklist"
+                "chess" -> "Contextual conversation · chess practice"
                 else -> "Contextual conversation"
             }
             IntentionPhase.PROPOSAL_PENDING -> "Your ongoing conversation"
@@ -497,6 +530,7 @@ object ShapeProjection {
                 "cessation" -> "A conversation about quitting smoking"
                 "app_use" -> "A conversation about your usage target"
                 "research" -> "A conversation about working legally in Spain"
+                "chess" -> "A conversation about your chess rating"
                 else -> "A conversation about your goal"
             }
         }
@@ -511,6 +545,7 @@ object ShapeProjection {
                 "cessation" -> "Your evening check-in"
                 "app_use" -> "Your next usage review"
                 "research" -> "Your next checklist review"
+                "chess" -> "Your evening practice"
                 else -> "Your next session"
             }
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"
