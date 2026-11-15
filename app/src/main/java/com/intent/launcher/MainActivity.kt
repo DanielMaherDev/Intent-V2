@@ -2,21 +2,17 @@ package com.intent.launcher
 
 import android.Manifest
 import android.app.Activity
-import android.app.role.RoleManager
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -24,52 +20,37 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.intent.launcher.domain.HomeIntentionSwipe
 import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
-import com.intent.launcher.domain.ScreenTimeBar
 import com.intent.launcher.domain.ShapeProjection
-import com.intent.launcher.engine.BackNavigationPolicy
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.FloaterDrawerAction
-import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
-import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
-import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.LauncherViewModel
-import com.intent.launcher.engine.HistoryTrashMenus
-import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.ui.screens.ConnectionsScreen
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.ErrandTodoDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
-import com.intent.launcher.ui.screens.HistoryScreen
-import com.intent.launcher.ui.screens.HomeIntentionPager
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionBuilderScreen
 import com.intent.launcher.ui.screens.IntentionDrawerScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
-import com.intent.launcher.ui.screens.LeaveLiveDiscussDialog
 import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.CheckOutWhatHappenedDialog
 import com.intent.launcher.ui.screens.EveningThoughtTriageSheet
-import com.intent.launcher.ui.screens.SettingsScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
-import com.intent.launcher.ui.screens.TrashScreen
 import com.intent.launcher.ui.theme.IntentTheme
 
 class MainActivity : ComponentActivity() {
@@ -78,31 +59,17 @@ class MainActivity : ComponentActivity() {
     private var openConversationRequest by mutableIntStateOf(0)
     private var openAskFromDrawerRequest by mutableIntStateOf(0)
     private var openTodayFromDrawerRequest by mutableIntStateOf(0)
-    /** OS-134 — MAIN/HOME should pop Compose back to the Home route. */
-    private var homeRestoreRequest by mutableIntStateOf(0)
     private var showFloaterDrawer by mutableStateOf(false)
     private var showThoughtCapture by mutableStateOf(false)
     private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
     /** When true, STT result goes to CaptureThought instead of Conversation. */
     private var speechForThoughtCapture: Boolean = false
-    /**
-     * OS-144 — voice STT launched and awaiting a result (honest stand-in for a
-     * live Discuss call until a real call FGS exists). Back must confirm/minimize.
-     */
-    private var voiceCaptureInFlight by mutableStateOf(false)
-    private var showLeaveLiveDialog by mutableStateOf(false)
 
     /** Evening check-out: what-happened → optional thought triage → Keep/Defer commit. */
     private var showCheckOutWhatHappened by mutableStateOf(false)
     private var showEveningTriage by mutableStateOf(false)
     private var pendingCheckOutDefer by mutableStateOf(false)
     private var pendingWhatHappened by mutableStateOf("")
-    private val requestHomeRole = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        // Role grant is decided in the system UI; refresh probe after return.
-        vm.refresh()
-    }
 
     private val screenCaptureConsent = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -136,15 +103,6 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         val forThought = speechForThoughtCapture
         speechForThoughtCapture = false
-        val stillEngaged = voiceCaptureInFlight
-        voiceCaptureInFlight = false
-        if (!stillEngaged && !forThought) {
-            // User chose End on leave-live confirm while STT was away.
-            vm.onVoiceUnavailable(
-                "Discuss engagement ended before speech returned — use chips or mic again."
-            )
-            return@registerForActivityResult
-        }
         if (result.resultCode != Activity.RESULT_OK) {
             if (forThought) {
                 showThoughtCapture = true
@@ -211,14 +169,6 @@ class MainActivity : ComponentActivity() {
                     val showQuitSmokingEntry = intention?.shapeTag != "cessation"
                     val showAppUseEntry = intention?.shapeTag != "app_use"
                     val showEuWorkSpainEntry = intention?.shapeTag != "research"
-                    val historyTrashOverflow = listOf(
-                        OverflowMenuItem(HistoryTrashMenus.MENU_HISTORY) {
-                            nav.navigate("history") { launchSingleTop = true }
-                        },
-                        OverflowMenuItem(HistoryTrashMenus.MENU_TRASH) {
-                            nav.navigate("trash") { launchSingleTop = true }
-                        }
-                    )
                     val showChessEntry = intention?.shapeTag != ChessScenario.SHAPE_TAG
 
                     LaunchedEffect(openConversationRequest) {
@@ -246,16 +196,6 @@ class MainActivity : ComponentActivity() {
                             val route = vm.openTodayFromDrawer()
                             nav.navigate(route) {
                                 popUpTo("home") { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        }
-                    }
-                    LaunchedEffect(homeRestoreRequest) {
-                        if (homeRestoreRequest > 0) {
-                            nav.navigate("home") {
-                                popUpTo(nav.graph.startDestinationId) {
-                                    inclusive = true
-                                }
                                 launchSingleTop = true
                             }
                         }
@@ -357,55 +297,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    @Composable
-                    fun HomeIntentionSpace(initialPage: Int) {
-                        var showErrandDialog by remember { mutableStateOf(false) }
-                        if (showErrandDialog) {
-                            ErrandTodoDialog(
-                                onDismiss = { showErrandDialog = false },
-                                onSave = { text ->
-                                    vm.captureQuickTodo(text)
-                                    showErrandDialog = false
-                                }
-                            )
-                        }
-                        HomeIntentionPager(
-                            initialPage = initialPage,
-                            modifier = Modifier.fillMaxSize(),
-                            home = { openIntentions ->
-                                HomeScreen(
-                    if (showLeaveLiveDialog) {
-                        LeaveLiveDiscussDialog(
-                            onMinimize = {
-                                showLeaveLiveDialog = false
-                                // Keep voiceCaptureInFlight — STT may still return.
-                                leaveConversationUi(nav)
-                            },
-                            onEnd = {
-                                showLeaveLiveDialog = false
-                                voiceCaptureInFlight = false
-                                leaveConversationUi(nav)
-                            },
-                            onDismiss = { showLeaveLiveDialog = false }
-                        )
-                    }
-
-                    val navEntry by nav.currentBackStackEntryAsState()
-                    val currentRoute = navEntry?.destination?.route
-                    val overlayOpen = showFloaterDrawer ||
-                        showThoughtCapture ||
-                        vm.deferConfirmPending ||
-                        showLeaveLiveDialog
-                    BackHandler {
-                        applyBackAction(
-                            nav = nav,
-                            route = currentRoute,
-                            canPop = nav.previousBackStackEntry != null,
-                            overlayOpen = overlayOpen,
-                            liveEngagementActive = voiceCaptureInFlight
-                        )
-                    }
-
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
                             var showErrandDialog by remember { mutableStateOf(false) }
@@ -422,12 +313,11 @@ class MainActivity : ComponentActivity() {
                                 nextAction = vm.nextAction,
                                 intentionHint = intentionHint,
                                 intentionTitle = intention?.title.orEmpty(),
-                                homeAttention = vm.homeAttention(),
                                 onContinueExploring = {
                                     nav.navigate("intention")
                                 },
                                 onOpenIntention = { nav.navigate("intention") },
-                                onOpenIntentionDrawer = openIntentions,
+                                onOpenIntentionDrawer = { nav.navigate("drawer") },
                                 onReviewProposal = { nav.navigate("proposal") },
                                 onBegin = { vm.beginSession() },
                                 onDefer = { vm.requestDefer() },
@@ -453,15 +343,11 @@ class MainActivity : ComponentActivity() {
                                     showCheckOutWhatHappened = true
                                 },
                                 destinationLaunchNote = vm.destinationLaunchNote,
-                                screenTimeBarContent = vm.screenTimeBarObservation?.content
-                                    ?: ScreenTimeBar.Content.Hidden,
                                 usageNote = vm.usageObservation?.note,
                                 usageGranted = vm.usageObservation?.permissionGranted == true,
                                 usageForegroundMs = vm.usageObservation?.foregroundMs,
                                 usageAppLabel = vm.usageObservation?.appLabel,
-                                showGrantUsageAccess =
-                                    vm.usageObservation?.canOpenSettings == true ||
-                                        vm.screenTimeBarObservation?.canOpenSettings == true,
+                                showGrantUsageAccess = vm.usageObservation?.canOpenSettings == true,
                                 onGrantUsageAccess = {
                                     startActivity(
                                         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
@@ -539,11 +425,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 },
-                                homeRoleNote = vm.homeRoleObservation.note.takeIf {
-                                    !vm.homeRoleObservation.isDefaultHome
-                                },
-                                showSetAsHome = vm.homeRoleObservation.canOpenHomePicker,
-                                onSetAsHome = { requestDefaultHome() },
                                 floatingCompanionLabel = vm.floatingPresence.state?.let {
                                     vm.floatingPresence.label
                                 },
@@ -635,84 +516,9 @@ class MainActivity : ComponentActivity() {
                                     null
                                 },
                                 onToggleErrand = { vm.toggleErrand(it) },
-                                onSettings = { nav.navigate("settings") },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        composable("settings") {
-                            val versionName = try {
-                                packageManager.getPackageInfo(packageName, 0).versionName
-                            } catch (_: Exception) {
-                                null
-                            } ?: "0.0.107"
-                            SettingsScreen(
-                                versionName = versionName,
-                                schemaVersion = SCHEMA_VERSION,
-                                onExportSnapshot = {
-                                    val json = vm.exportSnapshotJson()
-                                    val file = SnapshotExport.writeExportFile(
-                                        cacheDir = cacheDir,
-                                        json = json
-                                    )
-                                    startActivity(SnapshotExport.shareIntent(this@MainActivity, file))
-                                },
-                                onOpenConnections = { nav.navigate("connections") },
                                 onSettings = { nav.navigate("connections") },
-                                overflowItems = historyTrashOverflow,
                                 modifier = Modifier.fillMaxSize()
                             )
-                        }
-                        composable("history") {
-                            HistoryScreen(
-                                rows = vm.historyRows(),
-                                onUndoLast = vm.lastUndoableTransaction()?.let { { vm.undoLast() } },
-                                undoNote = vm.undoTrashNote,
-                                onBack = { nav.popBackStack() },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        composable("trash") {
-                            TrashScreen(
-                                rows = vm.trashRows(),
-                                onRestore = { trashId -> vm.restoreTrashItem(trashId) },
-                                onPurge = { trashId -> vm.purgeTrashItem(trashId) },
-                                note = vm.undoTrashNote,
-                                onBack = { nav.popBackStack() },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            },
-                            drawer = { openHome ->
-                                IntentionDrawerScreen(
-                                intentions = vm.orderedIntentions(),
-                                activeIntentionId = vm.snapshot.activeIntentionId,
-                                onOpenIntention = { id ->
-                                    vm.openIntentionFromDrawer(id)
-                                    nav.navigate("intention") {
-                                        launchSingleTop = true
-                                    }
-                                },
-                                onMoveIntention = { id, direction ->
-                                    vm.moveIntentionInDrawer(id, direction)
-                                },
-                                onBackHome = openHome,
-                                onAgent = {
-                                    val route = vm.openDiscussFromHome()
-                                    if (route != null) {
-                                        nav.navigate(route)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            }
-                        )
-                    }
-
-                    NavHost(navController = nav, startDestination = "home") {
-                        composable("home") {
-                            HomeIntentionSpace(initialPage = HomeIntentionSwipe.PAGE_HOME)
-                        }
-                        composable("drawer") {
-                            HomeIntentionSpace(initialPage = HomeIntentionSwipe.PAGE_DRAWER)
                         }
                         composable("connections") {
                             ConnectionsScreen(
@@ -732,13 +538,9 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 },
-                                screenTimeBarVisible = vm.screenTimeBarPrefVisible,
-                                onScreenTimeBarVisibleChange = { visible ->
-                                    vm.setScreenTimeBarVisible(visible)
-                                },
                                 onBack = {
                                     vm.clearConnectionUnlinkNote()
-                                    safePopOrHome(nav)
+                                    nav.popBackStack()
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -759,9 +561,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onCancel = {
                                     vm.cancelBuilder()
-                                    safePopOrHome(nav)
+                                    nav.popBackStack()
                                 },
-                                onBack = { safePopOrHome(nav) },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -779,7 +581,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onReject = { id -> vm.rejectTriageItem(id) },
                                 onClear = { vm.clearTriage() },
-                                onBack = { safePopOrHome(nav) },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -806,14 +608,12 @@ class MainActivity : ComponentActivity() {
                                         launchSingleTop = true
                                     }
                                 },
-                                onBackHome = { navigateHome(nav) },
                                 onAgent = {
                                     val route = vm.openDiscussFromHome()
                                     if (route != null) {
                                         nav.navigate(route)
                                     }
                                 },
-                                overflowItems = historyTrashOverflow,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -834,8 +634,6 @@ class MainActivity : ComponentActivity() {
                                 onReleaseHeldApp = { id -> vm.releaseHeldApp(id) },
                                 connectionUsages = vm.connectionUsagesForActive(),
                                 onOpenConnections = { nav.navigate("connections") },
-                                coherence = vm.intentionDetailCoherence(),
-                                nextAction = vm.nextAction,
                                 hierarchy = vm.hierarchyForActive(),
                                 onOpenRelatedIntention = { id -> vm.openRelatedIntention(id) },
                                 onWorkThisOut = {
@@ -844,11 +642,13 @@ class MainActivity : ComponentActivity() {
                                         else -> nav.navigate("conversation")
                                     }
                                 },
-                                onBack = { safePopOrHome(nav) },
+                                onBack = { nav.popBackStack() },
                                 onMoveIntentionToTrash = { vm.softDeleteActiveIntention() },
                                 onMoveSessionToTrash = { sessionId -> vm.softDeleteSession(sessionId) },
+                                trashItems = vm.recoverableTrash(),
+                                onRestoreTrash = { trashId -> vm.restoreTrashItem(trashId) },
+                                onPurgeTrash = { trashId -> vm.purgeTrashItem(trashId) },
                                 undoTrashNote = vm.undoTrashNote,
-                                overflowItems = historyTrashOverflow,
                                 onOpenTracker = if (vm.canOpenTracker()) {
                                     { nav.navigate("tracker") }
                                 } else {
@@ -873,7 +673,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onDelete = { entryId -> vm.deleteTrackerEntry(entryId) },
                                 onOpenReports = { nav.navigate("reports") },
-                                onBack = { safePopOrHome(nav) },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -881,7 +681,7 @@ class MainActivity : ComponentActivity() {
                             ReportScreen(
                                 pathSummary = vm.pathSummary(),
                                 progressProof = vm.progressProof(),
-                                onBack = { safePopOrHome(nav) },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -908,22 +708,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 },
-                                onBack = {
-                                    applyBackAction(
-                                        nav = nav,
-                                        route = BackNavigationPolicy.ROUTE_CONVERSATION,
-                                        canPop = nav.previousBackStackEntry != null,
-                                        overlayOpen = false,
-                                        liveEngagementActive = voiceCaptureInFlight
-                                    )
-                                },
+                                onBack = { nav.popBackStack() },
                                 onOpenProposal = { nav.navigate("proposal") },
                                 hasPendingProposal = pending != null,
                                 conversationEyebrow = convProjection.conversationEyebrow,
                                 conversationHeadline = convProjection.conversationHeadline,
                                 discussSourceLabel = vm.discussSourceLabel(),
                                 discussHonestyNote = vm.discussHonestyNote(),
-                                intentionStatement = active?.statement.orEmpty(),
                                 voiceNote = vm.voicePathNote ?: vm.voiceObservation.note,
                                 voiceEnabled = vm.canStartVoiceCapture(),
                                 onMicClick = { onConversationMicClick() },
@@ -942,14 +733,18 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onApprove = {
                                     vm.approveProposal()
-                                    navigateHome(nav)
+                                    nav.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
                                 },
                                 onEdit = { vm.editProposalToFriday() },
                                 onDecline = {
                                     vm.declineProposal()
-                                    navigateHome(nav)
+                                    nav.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
                                 },
-                                onBack = { safePopOrHome(nav) },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -959,66 +754,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** OS-144 — shared system / chrome back path. */
-    private fun applyBackAction(
-        nav: NavHostController,
-        route: String?,
-        canPop: Boolean,
-        overlayOpen: Boolean,
-        liveEngagementActive: Boolean
-    ) {
-        when (
-            BackNavigationPolicy.resolve(
-                BackNavigationPolicy.Context(
-                    route = route,
-                    canPopBackStack = canPop,
-                    overlayOpen = overlayOpen,
-                    liveEngagementActive = liveEngagementActive
-                )
-            )
-        ) {
-            BackNavigationPolicy.Action.CONSUME_STAY -> Unit
-            BackNavigationPolicy.Action.DISMISS_OVERLAY -> dismissTopOverlay()
-            BackNavigationPolicy.Action.POP_BACK_STACK -> safePopOrHome(nav)
-            BackNavigationPolicy.Action.NAVIGATE_HOME -> navigateHome(nav)
-            BackNavigationPolicy.Action.CONFIRM_LEAVE_LIVE -> showLeaveLiveDialog = true
-        }
-    }
-
-    private fun dismissTopOverlay() {
-        when {
-            showLeaveLiveDialog -> showLeaveLiveDialog = false
-            showThoughtCapture -> showThoughtCapture = false
-            showFloaterDrawer -> showFloaterDrawer = false
-            vm.deferConfirmPending -> vm.cancelDefer()
-        }
-    }
-
-    private fun navigateHome(nav: NavHostController) {
-        nav.navigate(BackNavigationPolicy.ROUTE_HOME) {
-            popUpTo(BackNavigationPolicy.ROUTE_HOME) { inclusive = true }
-            launchSingleTop = true
-        }
-    }
-
-    private fun safePopOrHome(nav: NavHostController) {
-        if (!nav.popBackStack()) {
-            navigateHome(nav)
-        }
-    }
-
-    /** Leave Conversation UI without finishing the activity or killing the floater. */
-    private fun leaveConversationUi(nav: NavHostController) {
-        navigateHome(nav)
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (isHomeLaunchIntent(intent)) {
-            // OS-134: unlock / HOME / recents must not leave Compose on a deep route.
-            homeRestoreRequest++
-        }
         consumeCompanionIntent(intent)
     }
 
@@ -1047,53 +785,6 @@ class MainActivity : ComponentActivity() {
         )
         pendingWhatHappened = ""
         pendingCheckOutDefer = false
-    private fun isHomeLaunchIntent(intent: Intent?): Boolean {
-        if (intent == null) return false
-        return HomeRoleProbe.isHomeLaunchIntent(
-            action = intent.action,
-            categories = intent.categories
-        )
-    }
-
-    /**
-     * Prefer RoleManager ROLE_HOME request (API 29+); fall back to Settings Home picker.
-     * Does not invent OEM-privileged hooks — user confirms in system UI.
-     */
-    private fun requestDefaultHome() {
-        val obs = vm.homeRoleObservation
-        if (obs.canRequestRole && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(RoleManager::class.java)
-            if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
-                try {
-                    requestHomeRole.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
-                    return
-                } catch (_: Exception) {
-                    // Fall through to Settings.
-                }
-            }
-        }
-        openHomeSettingsFallback(obs.preferredSettingsAction)
-    }
-
-    private fun openHomeSettingsFallback(preferredAction: String) {
-        val actions = listOf(
-            preferredAction,
-            HomeRoleProbe.HOME_SETTINGS_ACTION,
-            HomeRoleProbe.DEFAULT_APPS_SETTINGS_ACTION,
-            Settings.ACTION_SETTINGS
-        ).distinct()
-        for (action in actions) {
-            try {
-                startActivity(
-                    Intent(action).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                )
-                return
-            } catch (_: Exception) {
-                // Try next deep link.
-            }
-        }
     }
 
     private fun onConversationMicClick() {
@@ -1130,12 +821,10 @@ class MainActivity : ComponentActivity() {
 
     private fun launchSpeechRecognition(prompt: String = "Speak a conversation choice") {
         try {
-            voiceCaptureInFlight = true
             speechRecognition.launch(
                 AndroidSpeechToTextAccess.listenIntent(prompt = prompt)
             )
         } catch (_: Exception) {
-            voiceCaptureInFlight = false
             if (speechForThoughtCapture) {
                 speechForThoughtCapture = false
                 showThoughtCapture = true
