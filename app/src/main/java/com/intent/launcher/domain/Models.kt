@@ -360,6 +360,19 @@ data class HeldApp(
     val provenance: Provenance
 )
 
+/**
+ * Drawer card chrome for one intention (OS-139).
+ * [spanColumns] is 1 (half / two-column cell) or 2 (full width).
+ * [priorityBorder] is user SAID chrome — not UsageStats ranking.
+ * [imageKey] selects a local shape cover; never a remote/mini-app asset.
+ */
+data class DrawerCardLayout(
+    val intentionId: String,
+    val spanColumns: Int = 1,
+    val priorityBorder: Boolean = false,
+    val imageKey: String = "shape"
+)
+
 data class IntentionSnapshot(
     val schemaVersion: Int = SCHEMA_VERSION,
     val intentions: List<Intention> = emptyList(),
@@ -383,7 +396,9 @@ data class IntentionSnapshot(
     /** Drawer display order (intention ids). Missing ids append after. */
     val intentionOrder: List<String> = emptyList(),
     /** User-confirmed hold-for-apps bindings (SAID). */
-    val heldApps: List<HeldApp> = emptyList()
+    val heldApps: List<HeldApp> = emptyList(),
+    /** Per-intention drawer card span / priority / cover key (OS-139). */
+    val drawerCardLayouts: List<DrawerCardLayout> = emptyList()
 )
 
 sealed class FlowCommand {
@@ -777,6 +792,16 @@ sealed class FlowCommand {
         val nowEpochMs: Long
     ) : FlowCommand()
 
+    /**
+     * Persist drawer card chrome (span / priority border / cover key). Reversible when undo LIVE.
+     */
+    data class UpdateDrawerCardLayout(
+        val intentionId: String,
+        val spanColumns: Int,
+        val priorityBorder: Boolean,
+        val imageKey: String = "shape",
+        val nowEpochMs: Long
+    ) : FlowCommand()
 }
 
 

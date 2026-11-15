@@ -39,6 +39,55 @@ object IntentionOrdering {
     }
 }
 
+/**
+ * Drawer card layout helpers (OS-139).
+ * Defaults are honest chrome from phase / active — not UsageStats priority.
+ */
+object DrawerCards {
+
+    fun normalizeSpan(spanColumns: Int): Int = if (spanColumns >= 2) 2 else 1
+
+    fun layoutFor(
+        snapshot: IntentionSnapshot,
+        intention: Intention
+    ): DrawerCardLayout {
+        val stored = snapshot.drawerCardLayouts.firstOrNull { it.intentionId == intention.id }
+        if (stored != null) {
+            return stored.copy(spanColumns = normalizeSpan(stored.spanColumns))
+        }
+        return defaultLayout(intention, snapshot.activeIntentionId)
+    }
+
+    /**
+     * Default: proposal-pending or active intention → full-width + priority border;
+     * otherwise half-width. Cover key follows shapeTag.
+     */
+    fun defaultLayout(
+        intention: Intention,
+        activeIntentionId: String?
+    ): DrawerCardLayout {
+        val elevated =
+            intention.phase == IntentionPhase.PROPOSAL_PENDING ||
+                intention.phase == IntentionPhase.ACTIVE ||
+                intention.id == activeIntentionId
+        return DrawerCardLayout(
+            intentionId = intention.id,
+            spanColumns = if (elevated) 2 else 1,
+            priorityBorder = elevated,
+            imageKey = coverKeyForShape(intention.shapeTag)
+        )
+    }
+
+    fun coverKeyForShape(shapeTag: String): String =
+        when (shapeTag.lowercase()) {
+            "language" -> "language"
+            "marathon" -> "marathon"
+            "business" -> "business"
+            "move" -> "move"
+            else -> "shape"
+        }
+}
+
 object HeldApps {
 
     fun forIntention(snapshot: IntentionSnapshot, intentionId: String?): List<HeldApp> {

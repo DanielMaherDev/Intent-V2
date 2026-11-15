@@ -1,7 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.115**.
-
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.116**.
 
 ## Build
 
@@ -9,8 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.115**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.115.apk`
-
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.116.apk`
 
 ## Scope
 
@@ -71,6 +69,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.111:** Intention detail coherence (OS-142) — next action, active paths, plan, track, reports, and resources in one coherent Intention Space layout; existing registry/path model only (reclaimed from 0.0.96 / 0.0.78)
 - **v0.0.112:** Parent/child intention breadcrumb (OS-141) — Intention Space Path crumbs + child links from local `parentIntentionId` only; no invented dependency graph; drawer card layout left to 0.0.76/0.0.99 (reclaimed from 0.0.77 → 0.0.97 → 0.0.112)
 
+- **v0.0.99:** Intention drawer card layout (OS-139) — reorder, one/two-column width, local shape cover image, priority border, readable title overlay; not mini-apps (OS-140)
 
 ## Shapes
 
@@ -172,17 +171,15 @@ Home **Start a new intention** opens a guided builder (heuristic shape suggestio
 
 One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Optional secondary line is session elapsed **or** OBSERVED package minutes when UsageStats is granted — never both, never invented. Grant prompts, companion menu, and session notification rows stay quiet; builder/triage/move explore stay under Your space.
 
-## Intention drawer / hold-for-apps (v0.0.49)
+## Intention drawer / hold-for-apps (v0.0.49) · card chrome (v0.0.99)
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.115–v0.0.115)
+**v0.0.116 (OS-139):** Drawer cards support one/two-column width, local shape cover image, priority border, and a readable title overlay. Card chrome persists via `FlowCommand.UpdateDrawerCardLayout`. Generated mini-apps (OS-140) stay out of scope.
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.115.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+## Sideload packaging (v0.0.116–v0.0.116)
 
-## Parent/child breadcrumb (v0.0.115 / OS-141)
-
-Intention Space shows a **Path** breadcrumb when ancestors exist, and a **Child intentions** list for direct local children. Links use only stored `parentIntentionId` — no invented dependency graph. `SetParentIntention` refuses cycles and unknown parents. App path seeds an honest Spanish child via `ensureParentChildSeeded`; unit `seed()` stays single-intention. IntentionDrawerScreen card layout is owned by drawer OS-139 and was not rewritten here.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.116.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
