@@ -16,6 +16,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
@@ -24,6 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
@@ -32,12 +34,17 @@ import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
+import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.theme.IntentTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: LauncherViewModel by viewModels()
 
     private var openConversationRequest by mutableIntStateOf(0)
+    private var showThoughtCapture by mutableStateOf(false)
+    private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
+    /** When true, STT result goes to CaptureThought instead of Conversation. */
+    private var speechForThoughtCapture: Boolean = false
 
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -45,6 +52,12 @@ class MainActivity : ComponentActivity() {
         vm.refresh()
         if (granted && vm.canStartVoiceCapture()) {
             launchSpeechRecognition()
+        } else if (speechForThoughtCapture) {
+            speechForThoughtCapture = false
+            showThoughtCapture = true
+            vm.onVoiceUnavailable(
+                "Microphone needed for voice capture — type the thought instead."
+            )
         } else {
             vm.onMicDenied()
         }
@@ -53,10 +66,17 @@ class MainActivity : ComponentActivity() {
     private val speechRecognition = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        val forThought = speechForThoughtCapture
+        speechForThoughtCapture = false
         if (result.resultCode != Activity.RESULT_OK) {
-            vm.onVoiceUnavailable(
-                "Speech capture cancelled — use chips for the same Conversation path."
-            )
+            if (forThought) {
+                showThoughtCapture = true
+                vm.onVoiceUnavailable("Speech cancelled — type the thought instead.")
+            } else {
+                vm.onVoiceUnavailable(
+                    "Speech capture cancelled — use chips for the same Conversation path."
+                )
+            }
             return@registerForActivityResult
         }
         val matches = result.data
@@ -64,7 +84,15 @@ class MainActivity : ComponentActivity() {
             .orEmpty()
         val best = matches.firstOrNull().orEmpty()
         if (best.isBlank()) {
-            vm.onVoiceUnavailable("No speech recognized — try again or tap a chip.")
+            if (forThought) {
+                showThoughtCapture = true
+                vm.onVoiceUnavailable("No speech recognized — type the thought instead.")
+            } else {
+                vm.onVoiceUnavailable("No speech recognized — try again or tap a chip.")
+            }
+        } else if (forThought) {
+            vm.captureThought(best, CaptureThought.SOURCE_VOICE)
+            showThoughtCapture = false
         } else {
             vm.onVoiceTranscript(best)
             val after = vm.snapshot
@@ -116,6 +144,23 @@ class MainActivity : ComponentActivity() {
                         if (pendingOpenProposalAfterVoice > 0) {
                             nav.navigate("proposal")
                         }
+                    }
+
+                    if (showThoughtCapture) {
+                        ThoughtCaptureDialog(
+                            voiceAvailable = vm.canStartVoiceCapture() || vm.voiceNeedsPermission(),
+                            onDismiss = {
+                                showThoughtCapture = false
+                            },
+                            onSaveText = { text ->
+                                vm.captureThought(text, thoughtCaptureSource)
+                                showThoughtCapture = false
+                            },
+                            onCaptureVoice = {
+                                showThoughtCapture = false
+                                startThoughtVoiceCapture()
+                            }
+                        )
                     }
 
                     NavHost(navController = nav, startDestination = "home") {
@@ -180,6 +225,11 @@ class MainActivity : ComponentActivity() {
                                     vm.floatingPresence.label
                                 },
                                 floatingManualRouteNote = vm.floatingPresence.manualRouteNote,
+                                onCaptureThought = {
+                                    thoughtCaptureSource = CaptureThought.SOURCE_HOME
+                                    showThoughtCapture = true
+                                },
+                                thoughtCaptureNote = vm.thoughtCaptureNote,
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
                                         vm.startMarathonExploration()
@@ -291,12 +341,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun consumeCompanionIntent(intent: Intent?) {
-        if (intent?.action == FloatingAgentService.ACTION_OPEN_CONVERSATION) {
-            openConversationRequest++
+        when (intent?.action) {
+            FloatingAgentService.ACTION_OPEN_CONVERSATION -> openConversationRequest++
+            FloatingAgentService.ACTION_CAPTURE_THOUGHT -> {
+                thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
+                showThoughtCapture = true
+            }
         }
     }
 
     private fun onConversationMicClick() {
+        speechForThoughtCapture = false
         vm.refresh()
         when {
             vm.canStartVoiceCapture() -> launchSpeechRecognition()
@@ -310,17 +365,40 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchSpeechRecognition() {
+    private fun startThoughtVoiceCapture() {
+        speechForThoughtCapture = true
+        vm.refresh()
+        when {
+            vm.canStartVoiceCapture() -> launchSpeechRecognition(prompt = "Speak your thought")
+            vm.voiceNeedsPermission() ->
+                requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+            else -> {
+                speechForThoughtCapture = false
+                showThoughtCapture = true
+                vm.onVoiceUnavailable(
+                    "Voice isn’t available — type the thought instead."
+                )
+            }
+        }
+    }
+
+    private fun launchSpeechRecognition(prompt: String = "Speak a conversation choice") {
         try {
             speechRecognition.launch(
-                AndroidSpeechToTextAccess.listenIntent(
-                    prompt = "Speak a conversation choice"
-                )
+                AndroidSpeechToTextAccess.listenIntent(prompt = prompt)
             )
         } catch (_: Exception) {
-            vm.onVoiceUnavailable(
-                "Could not start speech recognition — use chips instead."
-            )
+            if (speechForThoughtCapture) {
+                speechForThoughtCapture = false
+                showThoughtCapture = true
+                vm.onVoiceUnavailable(
+                    "Could not start speech recognition — type the thought instead."
+                )
+            } else {
+                vm.onVoiceUnavailable(
+                    "Could not start speech recognition — use chips instead."
+                )
+            }
         }
     }
 }

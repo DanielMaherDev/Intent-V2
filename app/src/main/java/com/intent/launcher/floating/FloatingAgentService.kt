@@ -126,6 +126,16 @@ class FloatingAgentService : Service() {
             }
             startActivity(launch)
         }
+        frame.setOnLongClickListener {
+            val launch = Intent(this, MainActivity::class.java).apply {
+                action = ACTION_CAPTURE_THOUGHT
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(launch)
+            true
+        }
         val params = WindowManager.LayoutParams(
             size,
             size,
@@ -168,6 +178,8 @@ class FloatingAgentService : Service() {
 
     companion object {
         const val ACTION_OPEN_CONVERSATION = "com.intent.launcher.OPEN_CONVERSATION"
+        /** Long-press bubble → open Home capture sheet (text or voice). */
+        const val ACTION_CAPTURE_THOUGHT = "com.intent.launcher.CAPTURE_THOUGHT"
         const val EXTRA_STATE = "floating_state"
         private const val NOTIFICATION_ID = 1601
 
