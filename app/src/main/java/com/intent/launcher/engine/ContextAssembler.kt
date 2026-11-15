@@ -45,7 +45,7 @@ object ContextAssembler {
         sb.appendLine("## SAID facts (capped $MAX_FACTS)")
         val facts = snapshot.facts
             .filter { it.intentionId == intentionId && it.provenance.kind == ProvenanceKind.SAID }
-            .sortedByDescending { it.provenance.atEpochMs }
+            .sortedByDescending { it.provenance.learnedAtEpochMs }
             .take(MAX_FACTS)
         if (facts.isEmpty()) sb.appendLine("(none)")
         else facts.forEach { sb.appendLine("- [${it.id}] ${it.text}") }
