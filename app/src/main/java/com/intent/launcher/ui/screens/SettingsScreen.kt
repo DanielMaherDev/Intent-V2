@@ -35,13 +35,16 @@ import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings — snapshot export + live OpenAI Discuss opt-in (key never shown in full).
+ * Settings — snapshot export/import + History + live OpenAI Discuss opt-in (key never shown in full).
  */
 @Composable
 fun SettingsScreen(
     versionName: String,
     schemaVersion: Int,
     onExportSnapshot: () -> Unit,
+    onImportSnapshot: () -> Unit = {},
+    snapshotImportNote: String? = null,
+    onOpenHistory: () -> Unit = {},
     onOpenConnections: () -> Unit = {},
     liveLlmKeyPresent: Boolean = false,
     liveLlmOptedIn: Boolean = false,
@@ -72,10 +75,18 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
         Lede(
             "Local device tools only. Connections inventory partners; " +
-                "snapshot export shares a file you save yourself. " +
+                "snapshot export/import stays on this device. " +
                 "Live OpenAI stays off until you opt in with a key on this device."
         )
         Spacer(modifier = Modifier.height(22.dp))
+
+        SectionTitle("Local history")
+        Spacer(modifier = Modifier.height(10.dp))
+        IntentSecondaryButton(
+            text = "Open History",
+            onClick = onOpenHistory
+        )
+        Spacer(modifier = Modifier.height(28.dp))
 
         SectionTitle("Live OpenAI Discuss")
         Spacer(modifier = Modifier.height(10.dp))
@@ -161,10 +172,23 @@ fun SettingsScreen(
             onClick = onExportSnapshot
         )
         Spacer(modifier = Modifier.height(10.dp))
-        SmallLabel(
-            text = "Import and restore are not available yet.",
+        Text(
+            text = SnapshotExport.IMPORT_HONESTY_NOTE,
+            style = MaterialTheme.typography.bodyMedium,
             color = IntentColors.Muted
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        IntentSecondaryButton(
+            text = "Import snapshot",
+            onClick = onImportSnapshot
+        )
+        if (!snapshotImportNote.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            SmallLabel(
+                text = snapshotImportNote,
+                color = IntentColors.Warm
+            )
+        }
         Spacer(modifier = Modifier.height(28.dp))
         SectionTitle("About")
         Spacer(modifier = Modifier.height(10.dp))

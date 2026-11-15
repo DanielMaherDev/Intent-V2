@@ -5,13 +5,14 @@ import com.intent.launcher.domain.NextAction
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
- * Floater long-press drawer — Ask / Today / Capture.
+ * Floater long-press drawer — Ask / Today / Capture / History.
  * Same agent as Conversation; not a second bot. No LLM unless live_llm LIVE.
  */
 enum class FloaterDrawerAction {
     ASK,
     TODAY,
-    CAPTURE
+    CAPTURE,
+    HISTORY
 }
 
 object FloaterActionDrawer {
@@ -53,6 +54,11 @@ object FloaterActionDrawer {
             action = FloaterDrawerAction.CAPTURE,
             label = "Capture",
             detail = "Save a raw thought (SAID) — no summary."
+        ),
+        Item(
+            action = FloaterDrawerAction.HISTORY,
+            label = "History",
+            detail = "Open local transaction History — same undo model; not a cloud sync."
         )
     )
 
@@ -93,4 +99,5 @@ object FloaterActionDrawer {
 
     const val HOME_ROUTE = "home"
     const val TODAY_ROUTE = "today"
+    const val HISTORY_ROUTE = "history"
 }

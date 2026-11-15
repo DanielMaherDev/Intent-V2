@@ -28,7 +28,10 @@ class SnapshotExportTest {
         val note = SnapshotExport.HONESTY_NOTE.lowercase()
         assertTrue(note.contains("local"))
         assertTrue(note.contains("not a cloud backup"))
-        assertTrue(note.contains("import/restore is not available"))
+        assertTrue(note.contains("import"))
+        val importNote = SnapshotExport.IMPORT_HONESTY_NOTE.lowercase()
+        assertTrue(importNote.contains("replaces"))
+        assertTrue(importNote.contains("no cloud"))
     }
 
     @Test

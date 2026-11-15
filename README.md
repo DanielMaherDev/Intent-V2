@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.136** (this branch) · Gate E base **v0.0.135** (#77) · main tip **v0.0.134** (#76 merged).
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.137** (this branch) · main tip **v0.0.136** (#78 merged).
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.136** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.136.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.137.apk`
 
 ## Scope
 
@@ -82,6 +82,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.132:** Gate D2 — OBSERVED vs INFERRED on intervention UI
 - **v0.0.133:** Gate D3 — overlay/service interrupt → saved work + notification
 - **v0.0.134:** Gate C dedicated Today view — planned · completed · deferred from day cycle / occurrences / sessions; Floater Today + Home link → `TodayScreen` (not Home-only)
+- **v0.0.137:** Gate E frontend leftovers — History NavHost route (Settings / Companion / overflow), local snapshot import UI (same export JSON; stamp migrate only), ParentRollup child-contributions section on Reports
 - **v0.0.136:** Gate E §17 remaining gaps — vague health, physical constraint, guided practice, spoken approval ambiguity, interrupted voice; tighten Duolingo approach / cross-intention link / tutor day change / 15-min app-duration
 - **v0.0.135:** Gate E breadth + migration — scenario suite (ambiguous / legal research / stale connected data / parent rollups / cancel / retry / process death), real legacy export migrate fixture, deliverable pack
 
@@ -248,6 +249,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.134, release): [INTENT-v0.0.134.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-c-today-view-4797/artifacts/INTENT-v0.0.134.apk)
+Sideload APK (v0.0.137, release): [INTENT-v0.0.137.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-e-history-import-reports-24cc/artifacts/INTENT-v0.0.137.apk)
 
-(Prior tip: [INTENT-v0.0.133.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.133.apk); earlier [INTENT-v0.0.132.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.132.apk))
+(Prior tip APK on main: [INTENT-v0.0.135.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.135.apk) — 0.0.136 was JVM-only on tip without a new artifacts APK.)
