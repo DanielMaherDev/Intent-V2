@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 2
+const val SCHEMA_VERSION: Int = 3
 
 enum class ProvenanceKind {
     SAID,
@@ -118,6 +118,29 @@ data class Intention(
     val shapeTag: String // language | marathon | business | other
 )
 
+/** Lightweight errand / quick to-do — not an Intention (OS-073 / CASE-01). */
+enum class ErrandStatus {
+    OPEN,
+    DONE
+}
+
+/**
+ * Separate inbox item for small errands (e.g. “Buy milk tonight”).
+ * Lives beside the intention model; never seeds EXPLORING.
+ */
+data class ErrandTodo(
+    val id: String,
+    val title: String,
+    /** Concrete first step, often the verb phrase (e.g. “Buy milk”). */
+    val firstAction: String,
+    /** Human reminder / due hint (e.g. “Tonight”). */
+    val reminderNote: String?,
+    val status: ErrandStatus,
+    val createdAtEpochMs: Long,
+    val completedAtEpochMs: Long? = null,
+    val provenance: Provenance
+)
+
 data class IntentionSnapshot(
     val schemaVersion: Int = SCHEMA_VERSION,
     val intentions: List<Intention> = emptyList(),
@@ -127,6 +150,8 @@ data class IntentionSnapshot(
     val sessions: List<ScheduledSession> = emptyList(),
     val sessionRuns: List<SessionRun> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
+    /** Lightweight errands — OS-073 inbox, not intentions. */
+    val errandTodos: List<ErrandTodo> = emptyList(),
     val activeIntentionId: String? = null
 )
 
@@ -226,6 +251,29 @@ sealed class FlowCommand {
     data class MarkPhase(
         val intentionId: String,
         val phase: IntentionPhase,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Capture a lightweight errand / quick to-do (OS-073).
+     * Does not create or activate an Intention.
+     */
+    data class CaptureErrand(
+        val todoId: String,
+        val title: String,
+        val firstAction: String,
+        val reminderNote: String?,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class CompleteErrand(
+        val todoId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Reversible completion (OS-075 light) — tap again / undo Done. */
+    data class ReopenErrand(
+        val todoId: String,
         val nowEpochMs: Long
     ) : FlowCommand()
 }

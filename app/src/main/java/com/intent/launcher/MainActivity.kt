@@ -16,6 +16,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
@@ -29,6 +31,7 @@ import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
+import com.intent.launcher.ui.screens.ErrandTodoDialog
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
@@ -120,6 +123,16 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
+                            var showErrandDialog by remember { mutableStateOf(false) }
+                            if (showErrandDialog) {
+                                ErrandTodoDialog(
+                                    onDismiss = { showErrandDialog = false },
+                                    onSave = { text ->
+                                        vm.captureQuickTodo(text)
+                                        showErrandDialog = false
+                                    }
+                                )
+                            }
                             HomeScreen(
                                 nextAction = vm.nextAction,
                                 intentionHint = intentionHint,
@@ -186,6 +199,14 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     null
                                 },
+                                openErrands = vm.openErrands(),
+                                errandNote = vm.errandNote,
+                                onAddQuickTodo = if (vm.canAddQuickTodo()) {
+                                    { showErrandDialog = true }
+                                } else {
+                                    null
+                                },
+                                onToggleErrand = { vm.toggleErrand(it) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

@@ -3,6 +3,8 @@ package com.intent.launcher.store
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.ConversationTurn
+import com.intent.launcher.domain.ErrandStatus
+import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Hypothesis
@@ -251,6 +253,57 @@ class IntentionFlowStore(
                     )
                 )
             }
+
+            is FlowCommand.CaptureErrand -> {
+                val todo = ErrandTodo(
+                    id = command.todoId,
+                    title = command.title,
+                    firstAction = command.firstAction,
+                    reminderNote = command.reminderNote,
+                    status = ErrandStatus.OPEN,
+                    createdAtEpochMs = command.nowEpochMs,
+                    completedAtEpochMs = null,
+                    provenance = Provenance(
+                        kind = ProvenanceKind.SAID,
+                        learnedAtEpochMs = command.nowEpochMs,
+                        sourceLabel = "user"
+                    )
+                )
+                // Errands never touch intentions / activeIntentionId.
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.filterNot { it.id == todo.id } + todo
+                )
+            }
+
+            is FlowCommand.CompleteErrand -> {
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.map {
+                        if (it.id == command.todoId && it.status == ErrandStatus.OPEN) {
+                            it.copy(
+                                status = ErrandStatus.DONE,
+                                completedAtEpochMs = command.nowEpochMs
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                )
+            }
+
+            is FlowCommand.ReopenErrand -> {
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.map {
+                        if (it.id == command.todoId && it.status == ErrandStatus.DONE) {
+                            it.copy(
+                                status = ErrandStatus.OPEN,
+                                completedAtEpochMs = null
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                )
+            }
         }
     }
 
@@ -383,6 +436,17 @@ class IntentionFlowStore(
         val atEpochMs: Long = 0L
     )
 
+    data class WireErrandTodo(
+        val id: String = "",
+        val title: String = "",
+        val firstAction: String = "",
+        val reminderNote: String? = null,
+        val status: String = ErrandStatus.OPEN.name,
+        val createdAtEpochMs: Long = 0L,
+        val completedAtEpochMs: Long? = null,
+        val provenance: WireProvenance = WireProvenance()
+    )
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -392,6 +456,7 @@ class IntentionFlowStore(
         val sessions: List<WireSession> = emptyList(),
         val sessionRuns: List<WireSessionRun> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
+        val errandTodos: List<WireErrandTodo> = emptyList(),
         val activeIntentionId: String? = null
     ) {
         fun toDomain() = IntentionSnapshot(
@@ -452,6 +517,18 @@ class IntentionFlowStore(
             turns = turns.map {
                 ConversationTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
             },
+            errandTodos = errandTodos.map {
+                ErrandTodo(
+                    id = it.id,
+                    title = it.title,
+                    firstAction = it.firstAction,
+                    reminderNote = it.reminderNote,
+                    status = ErrandStatus.valueOf(it.status),
+                    createdAtEpochMs = it.createdAtEpochMs,
+                    completedAtEpochMs = it.completedAtEpochMs,
+                    provenance = it.provenance.toDomain()
+                )
+            },
             activeIntentionId = activeIntentionId
         )
 
@@ -491,6 +568,18 @@ class IntentionFlowStore(
                 },
                 turns = s.turns.map {
                     WireTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
+                },
+                errandTodos = s.errandTodos.map {
+                    WireErrandTodo(
+                        id = it.id,
+                        title = it.title,
+                        firstAction = it.firstAction,
+                        reminderNote = it.reminderNote,
+                        status = it.status.name,
+                        createdAtEpochMs = it.createdAtEpochMs,
+                        completedAtEpochMs = it.completedAtEpochMs,
+                        provenance = WireProvenance.from(it.provenance)
+                    )
                 },
                 activeIntentionId = s.activeIntentionId
             )

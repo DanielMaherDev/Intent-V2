@@ -97,6 +97,10 @@ class CapabilityRegistry(
     fun canUseVoiceInput(): Boolean =
         isActionable(ID_VOICE_INPUT)
 
+    /** Lightweight errand / quick to-do inbox (OS-073) — not Intention builder. */
+    fun canCaptureQuickTodo(): Boolean =
+        isActionable(ID_QUICK_TODO)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -114,6 +118,7 @@ class CapabilityRegistry(
         const val ID_EXTERNAL_CALENDAR = "external_calendar_sync"
         const val ID_FLOATING_OVERLAY = "floating_overlay"
         const val ID_VOICE_INPUT = "voice_input"
+        const val ID_QUICK_TODO = "quick_todo"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -215,6 +220,13 @@ class CapabilityRegistry(
                 status = CapabilityStatus.PERMISSION_NEEDED,
                 limitNote = "Requires microphone permission and platform speech recognition. " +
                     "Use conversation chips without it — same command path, no live LLM."
+            ),
+            CapabilityEntry(
+                id = ID_QUICK_TODO,
+                title = "Quick to-do / errand",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Lightweight errand inbox with optional reminder — " +
+                    "does not create an exploring Intention (CASE-01 / OS-073)."
             )
         )
 

@@ -175,7 +175,7 @@ class SessionBeginExecutionTest {
         SpanishScenario.beginSession(store, dueNow, runId = "run-persist")
         val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
         val snap = restarted.snapshot()
-        assertEquals(2, snap.schemaVersion)
+        assertEquals(3, snap.schemaVersion)
         assertEquals(SessionRunStatus.IN_PROGRESS, snap.sessionRuns.single().status)
         val next = NextActionEngine.recommend(snap, dueNow + 1, tz, registry)
         assertEquals(NextActionKind.ACTIVE_SESSION, next.kind)
