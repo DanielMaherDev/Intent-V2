@@ -271,6 +271,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 destinationLaunchNote = vm.destinationLaunchNote,
                                 usageNote = vm.usageObservation?.note,
+                                usageGranted = vm.usageObservation?.permissionGranted == true,
+                                usageForegroundMs = vm.usageObservation?.foregroundMs,
+                                usageAppLabel = vm.usageObservation?.appLabel,
                                 showGrantUsageAccess = vm.usageObservation?.canOpenSettings == true,
                                 onGrantUsageAccess = {
                                     startActivity(

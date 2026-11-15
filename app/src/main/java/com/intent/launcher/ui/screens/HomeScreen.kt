@@ -27,23 +27,19 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.intent.launcher.domain.AttentionStrip
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
-import com.intent.launcher.domain.SessionElapsed
 import com.intent.launcher.ui.components.DateLabel
 import com.intent.launcher.ui.components.GlyphTone
 import com.intent.launcher.ui.components.HeroCard
 import com.intent.launcher.ui.components.HeroTone
 import com.intent.launcher.ui.components.HomeBottomNav
 import com.intent.launcher.ui.components.HomeBrandRow
-import com.intent.launcher.ui.components.IntentPill
 import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
-import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.LineRow
-import com.intent.launcher.ui.components.PillTone
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
@@ -52,6 +48,11 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 
+/**
+ * Home — one calm attention strip (OS-135–136): brand, next action, optional
+ * secondary timer/usage line, quiet grant prompts. No competing headline stack
+ * or multi-stat first viewport. Thought capture stays a quiet control (v0.0.23).
+ */
 @Composable
 fun HomeScreen(
     nextAction: NextAction,
@@ -73,6 +74,9 @@ fun HomeScreen(
     onCheckOutDeferTomorrow: () -> Unit = {},
     destinationLaunchNote: String? = null,
     usageNote: String? = null,
+    usageGranted: Boolean = false,
+    usageForegroundMs: Long? = null,
+    usageAppLabel: String? = null,
     showGrantUsageAccess: Boolean = false,
     onGrantUsageAccess: () -> Unit = {},
     /** Durable OBSERVED evidence summary (package foreground ≠ lesson completion). */
@@ -93,6 +97,7 @@ fun HomeScreen(
     screenCaptureNote: String? = null,
     showCaptureScreen: Boolean = false,
     onCaptureScreen: () -> Unit = {},
+    /** Privacy-safe session notification review rows (v0.0.31) — quiet, not first-viewport clutter. */
     sessionNotificationRows: List<Pair<String, String>> = emptyList(),
     onDismissNotificationRow: ((String, String) -> Unit)? = null,
     overlayNote: String? = null,
@@ -121,7 +126,29 @@ fun HomeScreen(
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
         .format(Date())
-    val (headline, lede, heroTone, smallLabel, pills) = homeCopy(nextAction, intentionTitle)
+    val stripMeta = attentionStripMeta(nextAction, intentionTitle)
+
+    val startedAt = nextAction.startedAtEpochMs
+    var nowEpochMs by remember(startedAt) {
+        mutableLongStateOf(System.currentTimeMillis())
+    }
+    LaunchedEffect(startedAt, nextAction.kind) {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION || startedAt == null) {
+            return@LaunchedEffect
+        }
+        while (true) {
+            nowEpochMs = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
+
+    val secondary = AttentionStrip.secondaryLine(
+        nextAction = nextAction,
+        nowEpochMs = nowEpochMs,
+        usageGranted = usageGranted,
+        usageForegroundMs = usageForegroundMs,
+        usageAppLabel = usageAppLabel
+    )
 
     Column(
         modifier = modifier
@@ -136,290 +163,100 @@ fun HomeScreen(
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
             HomeBrandRow()
-            Spacer(modifier = Modifier.height(37.dp))
+            Spacer(modifier = Modifier.height(22.dp))
             DateLabel(dateLabel)
-            Spacer(modifier = Modifier.height(11.dp))
-            Text(
-                text = headline,
-                style = MaterialTheme.typography.displayLarge,
-                color = IntentColors.Ink,
-                fontWeight = FontWeight.Bold
+            Spacer(modifier = Modifier.height(14.dp))
+
+            AttentionStripCard(
+                nextAction = nextAction,
+                meta = stripMeta,
+                secondary = secondary,
+                deferPreviewLine = deferPreviewLine,
+                onContinueExploring = onContinueExploring,
+                onOpenIntention = onOpenIntention,
+                onReviewProposal = onReviewProposal,
+                onBegin = onBegin,
+                onDefer = onDefer,
+                onDiscuss = onDiscuss,
+                onCompleteSession = onCompleteSession,
+                onAbandonSession = onAbandonSession,
+                onOpenDestination = onOpenDestination,
+                onConfirmCheckIn = onConfirmCheckIn,
+                onCheckOutKeepSchedule = onCheckOutKeepSchedule,
+                onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
+                destinationLaunchNote = destinationLaunchNote,
+                showGrantUsageAccess = showGrantUsageAccess,
+                onGrantUsageAccess = onGrantUsageAccess,
+                observedEvidenceNote = observedEvidenceNote,
+                showDismissObserved = showDismissObserved,
+                onDismissObserved = onDismissObserved,
+                notificationNote = notificationNote,
+                showGrantNotificationAccess = showGrantNotificationAccess,
+                onGrantNotificationAccess = onGrantNotificationAccess,
+                quietNote = quietNote,
+                showRequestQuiet = showRequestQuiet,
+                onRequestQuiet = onRequestQuiet,
+                showOpenDndSettings = showOpenDndSettings,
+                onOpenDndSettings = onOpenDndSettings,
+                screenCaptureNote = screenCaptureNote,
+                showCaptureScreen = showCaptureScreen,
+                onCaptureScreen = onCaptureScreen,
+                sessionNotificationRows = sessionNotificationRows,
+                onDismissNotificationRow = onDismissNotificationRow
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            Lede(lede)
-            Spacer(modifier = Modifier.height(26.dp))
 
-            if (checkoutObservationNote != null && nextAction.kind != NextActionKind.ACTIVE_SESSION) {
-                HeroCard(tone = HeroTone.Accent) {
-                    SmallLabel(text = "Check-out", color = IntentColors.Accent)
-                    Spacer(modifier = Modifier.height(7.dp))
-                    Text(
-                        text = checkoutObservationNote,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = IntentColors.Ink
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    IntentQuietButton(
-                        text = "Dismiss note",
-                        onClick = onClearCheckoutNote
-                    )
-                }
+            QuietGrantStrip(
+                showGrantUsageAccess = showGrantUsageAccess &&
+                    nextAction.kind != NextActionKind.ACTIVE_SESSION,
+                onGrantUsageAccess = onGrantUsageAccess,
+                usageNote = if (
+                    showGrantUsageAccess && nextAction.kind != NextActionKind.ACTIVE_SESSION
+                ) {
+                    usageNote
+                } else {
+                    null
+                },
+                checkoutObservationNote = if (
+                    nextAction.kind != NextActionKind.ACTIVE_SESSION
+                ) {
+                    checkoutObservationNote
+                } else {
+                    null
+                },
+                onClearCheckoutNote = onClearCheckoutNote,
+                overlayNote = overlayNote,
+                showGrantOverlay = showGrantOverlay,
+                onGrantOverlay = onGrantOverlay,
+                floatingCompanionLabel = floatingCompanionLabel,
+                floatingManualRouteNote = floatingManualRouteNote,
+                floaterTodayNote = floaterTodayNote,
+                onOpenFloaterDrawer = onOpenFloaterDrawer,
+                onCaptureThought = onCaptureThought,
+                thoughtCaptureNote = thoughtCaptureNote
+            )
+
+            if (nextAction.kind != NextActionKind.ACTIVE_SESSION &&
+                sessionNotificationRows.isNotEmpty()
+            ) {
                 Spacer(modifier = Modifier.height(14.dp))
-            }
-
-            if (nextAction.kind == NextActionKind.ACTIVE_SESSION) {
-                ActiveSessionCard(
-                    nextAction = nextAction,
-                    intentionTitle = intentionTitle,
-                    onCompleteSession = onCompleteSession,
-                    onAbandonSession = onAbandonSession,
-                    onDiscuss = onDiscuss,
-                    onOpenDestination = onOpenDestination,
-                    destinationLaunchNote = destinationLaunchNote,
-                    usageNote = usageNote,
-                    showGrantUsageAccess = showGrantUsageAccess,
-                    onGrantUsageAccess = onGrantUsageAccess,
-                    observedEvidenceNote = observedEvidenceNote,
-                    showDismissObserved = showDismissObserved,
-                    onDismissObserved = onDismissObserved,
-                    notificationNote = notificationNote,
-                    showGrantNotificationAccess = showGrantNotificationAccess,
-                    onGrantNotificationAccess = onGrantNotificationAccess,
-                    quietNote = quietNote,
-                    showRequestQuiet = showRequestQuiet,
-                    onRequestQuiet = onRequestQuiet,
-                    showOpenDndSettings = showOpenDndSettings,
-                    onOpenDndSettings = onOpenDndSettings,
-                    screenCaptureNote = screenCaptureNote,
-                    showCaptureScreen = showCaptureScreen,
-                    onCaptureScreen = onCaptureScreen,
-                    sessionNotificationRows = sessionNotificationRows,
-                    onDismissNotificationRow = onDismissNotificationRow
-                )
-            } else {
-                val cardTitle = when (nextAction.kind) {
-                    NextActionKind.CONTINUE_EXPLORING ->
-                        if (intentionTitle.contains("Spanish", ignoreCase = true)) {
-                            "Speak Spanish at work"
-                        } else {
-                            intentionTitle.ifBlank { nextAction.label }
-                        }
-                    else -> nextAction.label
-                }
-                val cardDetail = when {
-                    nextAction.reason.isNotBlank() -> nextAction.reason
-                    nextAction.kind == NextActionKind.CONTINUE_EXPLORING ->
-                        "We know what matters to you. Let's decide how you want to practise."
-                    else -> nextAction.detail
-                }
-
-                HeroCard(tone = heroTone) {
-                    SmallLabel(
-                        text = smallLabel,
-                        color = when (heroTone) {
-                            HeroTone.Warm -> IntentColors.Warm
-                            HeroTone.Success -> IntentColors.Success
-                            HeroTone.Accent -> IntentColors.Accent
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(7.dp))
+                sessionNotificationRows.forEach { (label, key) ->
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = cardTitle,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = IntentColors.Ink
-                    )
-                    Spacer(modifier = Modifier.height(7.dp))
-                    Text(
-                        text = cardDetail,
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
                         color = IntentColors.Muted
                     )
-                    if (nextAction.reason.isNotBlank() &&
-                        nextAction.detail.isNotBlank() &&
-                        nextAction.detail != nextAction.reason
-                    ) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = nextAction.detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = IntentColors.Muted
-                        )
-                    }
-                    if (pills.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            pills.forEach { (text, tone) ->
-                                IntentPill(text = text, tone = tone)
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(15.dp))
-                    when (nextAction.kind) {
-                        NextActionKind.CONTINUE_EXPLORING -> {
-                            IntentPrimaryButton(
-                                text = "Continue exploring",
-                                onClick = onContinueExploring
-                            )
-                        }
-                        NextActionKind.REVIEW_PROPOSAL -> {
-                            IntentPrimaryButton(
-                                text = "Review proposal",
-                                onClick = onReviewProposal
-                            )
-                        }
-                        NextActionKind.BEGIN -> {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                IntentPrimaryButton(
-                                    text = nextAction.beginLabel ?: "Begin",
-                                    onClick = onBegin,
-                                    modifier = Modifier.weight(1.4f)
-                                )
-                                IntentSecondaryButton(
-                                    text = nextAction.deferLabel ?: "Later",
-                                    onClick = onDefer,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (deferPreviewLine != null) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = deferPreviewLine,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = IntentColors.Muted
-                                )
-                            }
-                            if (nextAction.openDestinationLabel != null) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Begin also opens ${nextAction.destinationAppLabel ?: "the destination app"} when installed — opening an app is not lesson completion.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = IntentColors.Muted
-                                )
-                            }
-                            if (destinationLaunchNote != null) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = destinationLaunchNote,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = IntentColors.Warm
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            IntentSecondaryButton(
-                                text = nextAction.discussLabel ?: "Discuss",
-                                onClick = onDiscuss
-                            )
-                        }
-                        NextActionKind.DISCUSS -> {
-                            IntentPrimaryButton(text = "Discuss", onClick = onDiscuss)
-                        }
-                        NextActionKind.CHECK_IN -> {
-                            IntentPrimaryButton(
-                                text = nextAction.confirmLabel ?: "Confirm focus",
-                                onClick = onConfirmCheckIn
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            IntentSecondaryButton(
-                                text = nextAction.adjustLabel ?: nextAction.discussLabel
-                                    ?: "Adjust in Discuss",
-                                onClick = onDiscuss
-                            )
-                        }
-                        NextActionKind.CHECK_OUT -> {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                IntentPrimaryButton(
-                                    text = nextAction.confirmLabel ?: "Keep schedule",
-                                    onClick = onCheckOutKeepSchedule,
-                                    modifier = Modifier.weight(1.4f)
-                                )
-                                if (nextAction.adjustLabel != null || nextAction.deferLabel != null) {
-                                    IntentSecondaryButton(
-                                        text = nextAction.adjustLabel
-                                            ?: nextAction.deferLabel
-                                            ?: "Defer tomorrow",
-                                        onClick = onCheckOutDeferTomorrow,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
+                    if (onDismissNotificationRow != null) {
+                        val parts = key.split("|", limit = 2)
+                        if (parts.size == 2) {
+                            Spacer(modifier = Modifier.height(2.dp))
                             IntentQuietButton(
-                                text = nextAction.discussLabel ?: "Discuss",
-                                onClick = onDiscuss
-                            )
-                        }
-                        else -> {
-                            IntentPrimaryButton(
-                                text = "Open your intention",
-                                onClick = onOpenIntention
+                                text = "Dismiss",
+                                onClick = { onDismissNotificationRow(parts[0], parts[1]) }
                             )
                         }
                     }
                 }
-            }
-
-            if (overlayNote != null) {
-                Spacer(modifier = Modifier.height(18.dp))
-                Text(
-                    text = overlayNote,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Muted
-                )
-                if (showGrantOverlay) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    IntentQuietButton(
-                        text = "Grant overlay permission",
-                        onClick = onGrantOverlay
-                    )
-                }
-            }
-            if (floaterTodayNote != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = floaterTodayNote,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Warm
-                )
-            }
-            if (floatingCompanionLabel != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. " +
-                        "Tap to Ask · long-press for Ask / Today / Capture.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Muted
-                )
-            } else if (floatingManualRouteNote != null && overlayNote == null) {
-                Spacer(modifier = Modifier.height(18.dp))
-                Text(
-                    text = floatingManualRouteNote,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Muted
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            IntentQuietButton(
-                text = "Companion menu",
-                onClick = onOpenFloaterDrawer
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            IntentQuietButton(
-                text = "Capture thought",
-                onClick = onCaptureThought
-            )
-            if (thoughtCaptureNote != null) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = thoughtCaptureNote,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Success
-                )
             }
 
             Spacer(modifier = Modifier.height(26.dp))
@@ -495,38 +332,6 @@ fun HomeScreen(
                     color = IntentColors.Warm
                 )
             }
-
-            if (nextAction.kind != NextActionKind.ACTIVE_SESSION &&
-                sessionNotificationRows.isNotEmpty()
-            ) {
-                Spacer(modifier = Modifier.height(26.dp))
-                SectionTitle("Session notifications")
-                Spacer(modifier = Modifier.height(9.dp))
-                if (notificationNote != null) {
-                    Text(
-                        text = notificationNote,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IntentColors.Muted
-                    )
-                }
-                sessionNotificationRows.forEach { (label, key) ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = IntentColors.Ink
-                    )
-                    if (onDismissNotificationRow != null) {
-                        val parts = key.split("|", limit = 2)
-                        if (parts.size == 2) {
-                            IntentQuietButton(
-                                text = "Dismiss",
-                                onClick = { onDismissNotificationRow(parts[0], parts[1]) }
-                            )
-                        }
-                    }
-                }
-            }
         }
 
         HomeBottomNav(
@@ -538,199 +343,179 @@ fun HomeScreen(
     }
 }
 
-private data class HomeCopy(
-    val headline: String,
-    val lede: String,
-    val heroTone: HeroTone,
+private data class AttentionStripMeta(
     val smallLabel: String,
-    val pills: List<Pair<String, PillTone>>
+    val heroTone: HeroTone,
+    val title: String,
+    val support: String
 )
 
-private fun homeCopy(nextAction: NextAction, intentionTitle: String): HomeCopy =
-    when (nextAction.kind) {
-        NextActionKind.CONTINUE_EXPLORING -> HomeCopy(
-            headline = "Where would you like to begin?",
-            lede = "One goal is ready for a little more thought.",
-            heroTone = HeroTone.Accent,
+private fun attentionStripMeta(
+    nextAction: NextAction,
+    intentionTitle: String
+): AttentionStripMeta {
+    val support = AttentionStrip.supportingSentence(nextAction)
+    return when (nextAction.kind) {
+        NextActionKind.CONTINUE_EXPLORING -> AttentionStripMeta(
             smallLabel = "Still taking shape",
-            pills = listOf("Exploring" to PillTone.Accent, "No plan yet" to PillTone.Neutral)
+            heroTone = HeroTone.Accent,
+            title = if (intentionTitle.contains("Spanish", ignoreCase = true)) {
+                "Speak Spanish at work"
+            } else {
+                intentionTitle.ifBlank { nextAction.label }
+            },
+            support = support.ifBlank {
+                "We know what matters to you. Let's decide how you want to practise."
+            }
         )
-        NextActionKind.REVIEW_PROPOSAL -> HomeCopy(
-            headline = "You're finding your rhythm.",
-            lede = "One useful decision is waiting for you.",
-            heroTone = HeroTone.Warm,
+        NextActionKind.REVIEW_PROPOSAL -> AttentionStripMeta(
             smallLabel = "Ready for your review",
-            pills = listOf("Needs approval" to PillTone.Warm)
+            heroTone = HeroTone.Warm,
+            title = nextAction.label.ifBlank { "Review proposal" },
+            support = support
         )
-        NextActionKind.BEGIN -> HomeCopy(
-            headline = "One small step today.",
-            lede = nextAction.reason.ifBlank {
-                nextAction.detail.ifBlank { "Something useful is ready." }
-            },
-            heroTone = HeroTone.Success,
+        NextActionKind.BEGIN -> AttentionStripMeta(
             smallLabel = "Relevant now",
-            pills = listOf(
-                intentionTitle.ifBlank { "In motion" } to PillTone.Success
-            )
-        )
-        NextActionKind.ACTIVE_SESSION -> HomeCopy(
-            headline = "You're in a session.",
-            lede = "Mark complete when finished, or abandon if you stop.",
             heroTone = HeroTone.Success,
+            title = nextAction.label,
+            support = support
+        )
+        NextActionKind.ACTIVE_SESSION -> AttentionStripMeta(
             smallLabel = "In progress",
-            pills = emptyList()
+            heroTone = HeroTone.Success,
+            title = nextAction.label.ifBlank { "Active session" },
+            support = intentionTitle.ifBlank { support }
         )
-        NextActionKind.DISCUSS -> HomeCopy(
-            headline = "Not due just yet.",
-            lede = nextAction.reason.ifBlank { "Talk it through when you are ready." },
-            heroTone = HeroTone.Warm,
+        NextActionKind.DISCUSS -> AttentionStripMeta(
             smallLabel = "Upcoming",
-            pills = listOf(intentionTitle.ifBlank { "Planned" } to PillTone.Warm)
-        )
-        NextActionKind.CHECK_IN -> HomeCopy(
-            headline = "Good morning.",
-            lede = nextAction.reason.ifBlank {
-                "Confirm today’s focus, or adjust it in Discuss."
-            },
-            heroTone = HeroTone.Accent,
-            smallLabel = "Morning check-in",
-            pills = listOf(
-                intentionTitle.ifBlank { "Today’s focus" } to PillTone.Accent,
-                "Confirm or adjust" to PillTone.Neutral
-            )
-        )
-        NextActionKind.CHECK_OUT -> HomeCopy(
-            headline = "How did today go?",
-            lede = nextAction.reason.ifBlank {
-                "Report what happened, then keep the schedule or defer tomorrow."
-            },
             heroTone = HeroTone.Warm,
-            smallLabel = "Evening check-out",
-            pills = listOf(
-                intentionTitle.ifBlank { "Review" } to PillTone.Warm,
-                "User-reported" to PillTone.Neutral
-            )
+            title = nextAction.label,
+            support = support.ifBlank { "Talk it through when you are ready." }
         )
-        else -> HomeCopy(
-            headline = "Where would you like to begin?",
-            lede = nextAction.reason.ifBlank { "Your space is ready when you are." },
+        NextActionKind.CHECK_IN -> AttentionStripMeta(
+            smallLabel = "Morning check-in",
             heroTone = HeroTone.Accent,
+            title = nextAction.label.ifBlank { "Today's focus" },
+            support = support.ifBlank { "Confirm today's focus, or adjust it in Discuss." }
+        )
+        NextActionKind.CHECK_OUT -> AttentionStripMeta(
+            smallLabel = "Evening check-out",
+            heroTone = HeroTone.Warm,
+            title = nextAction.label.ifBlank { "How did today go?" },
+            support = support.ifBlank {
+                "Report what happened, then keep the schedule or defer tomorrow."
+            }
+        )
+        else -> AttentionStripMeta(
             smallLabel = "Your space",
-            pills = emptyList()
+            heroTone = HeroTone.Accent,
+            title = nextAction.label.ifBlank { "Where would you like to begin?" },
+            support = support.ifBlank { "Your space is ready when you are." }
         )
     }
+}
 
-/**
- * In-progress SessionCard on Home: title, intention label, status, honest local
- * elapsed clock, and always-reachable Complete / Abandon (Discuss stays quiet).
- */
 @Composable
-private fun ActiveSessionCard(
+private fun AttentionStripCard(
     nextAction: NextAction,
-    intentionTitle: String,
+    meta: AttentionStripMeta,
+    secondary: AttentionStrip.SecondaryLine?,
+    deferPreviewLine: String?,
+    onContinueExploring: () -> Unit,
+    onOpenIntention: () -> Unit,
+    onReviewProposal: () -> Unit,
+    onBegin: () -> Unit,
+    onDefer: () -> Unit,
+    onDiscuss: () -> Unit,
     onCompleteSession: () -> Unit,
     onAbandonSession: () -> Unit,
-    onDiscuss: () -> Unit,
-    onOpenDestination: () -> Unit = {},
-    destinationLaunchNote: String? = null,
-    usageNote: String? = null,
-    showGrantUsageAccess: Boolean = false,
-    onGrantUsageAccess: () -> Unit = {},
-    observedEvidenceNote: String? = null,
-    showDismissObserved: Boolean = false,
-    onDismissObserved: () -> Unit = {},
-    notificationNote: String? = null,
-    showGrantNotificationAccess: Boolean = false,
-    onGrantNotificationAccess: () -> Unit = {},
-    quietNote: String? = null,
-    showRequestQuiet: Boolean = false,
-    onRequestQuiet: () -> Unit = {},
-    showOpenDndSettings: Boolean = false,
-    onOpenDndSettings: () -> Unit = {},
-    screenCaptureNote: String? = null,
-    showCaptureScreen: Boolean = false,
-    onCaptureScreen: () -> Unit = {},
-    sessionNotificationRows: List<Pair<String, String>> = emptyList(),
-    onDismissNotificationRow: ((String, String) -> Unit)? = null
+    onOpenDestination: () -> Unit,
+    onConfirmCheckIn: () -> Unit,
+    onCheckOutKeepSchedule: () -> Unit,
+    onCheckOutDeferTomorrow: () -> Unit,
+    destinationLaunchNote: String?,
+    showGrantUsageAccess: Boolean,
+    onGrantUsageAccess: () -> Unit,
+    observedEvidenceNote: String?,
+    showDismissObserved: Boolean,
+    onDismissObserved: () -> Unit,
+    notificationNote: String?,
+    showGrantNotificationAccess: Boolean,
+    onGrantNotificationAccess: () -> Unit,
+    quietNote: String?,
+    showRequestQuiet: Boolean,
+    onRequestQuiet: () -> Unit,
+    showOpenDndSettings: Boolean,
+    onOpenDndSettings: () -> Unit,
+    screenCaptureNote: String?,
+    showCaptureScreen: Boolean,
+    onCaptureScreen: () -> Unit,
+    sessionNotificationRows: List<Pair<String, String>>,
+    onDismissNotificationRow: ((String, String) -> Unit)?
 ) {
-    val startedAt = nextAction.startedAtEpochMs
-    var nowEpochMs by remember(startedAt) {
-        mutableLongStateOf(System.currentTimeMillis())
+    val labelColor = when (meta.heroTone) {
+        HeroTone.Warm -> IntentColors.Warm
+        HeroTone.Success -> IntentColors.Success
+        HeroTone.Accent -> IntentColors.Accent
     }
-    LaunchedEffect(startedAt) {
-        if (startedAt == null) return@LaunchedEffect
-        while (true) {
-            nowEpochMs = System.currentTimeMillis()
-            delay(1_000L)
-        }
-    }
-    val elapsedText = if (startedAt != null) {
-        SessionElapsed.format(startedAt, nowEpochMs)
-    } else {
-        "—"
-    }
-    val elapsedLabel = if (startedAt != null) {
-        SessionElapsed.label(startedAt, nowEpochMs)
-    } else {
-        "Elapsed unavailable"
-    }
-    val intentionLabel = intentionTitle.ifBlank { "Your intention" }
 
-    HeroCard(tone = HeroTone.Success) {
-        SmallLabel(text = "In progress", color = IntentColors.Success)
+    HeroCard(tone = meta.heroTone) {
+        SmallLabel(text = meta.smallLabel, color = labelColor)
         Spacer(modifier = Modifier.height(7.dp))
         Text(
-            text = nextAction.label.ifBlank { "Active session" },
+            text = meta.title,
             style = MaterialTheme.typography.headlineSmall,
             color = IntentColors.Ink
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = intentionLabel,
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IntentPill(text = "In progress", tone = PillTone.Success)
-            IntentPill(text = intentionLabel, tone = PillTone.Neutral)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "ELAPSED",
-            style = MaterialTheme.typography.labelMedium,
-            color = IntentColors.Section,
-            letterSpacing = 1.1.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = elapsedText,
-            modifier = Modifier.semantics { contentDescription = elapsedLabel },
-            style = MaterialTheme.typography.displayLarge,
-            color = IntentColors.Ink,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "From when you tapped Begin — local clock only.",
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.Muted
-        )
-        if (nextAction.destinationAppLabel != null) {
-            Spacer(modifier = Modifier.height(10.dp))
+        if (meta.support.isNotBlank()) {
+            Spacer(modifier = Modifier.height(7.dp))
             Text(
-                text = "Destination · ${nextAction.destinationAppLabel}",
+                text = meta.support,
                 style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Ink
+                color = IntentColors.Muted
             )
-            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        // One secondary line only — elapsed XOR OBSERVED minutes (never both).
+        if (secondary != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            val (lineText, lineDesc) = when (secondary) {
+                is AttentionStrip.SecondaryLine.SessionElapsed ->
+                    secondary.text to secondary.contentDescription
+                is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
+                    secondary.text to secondary.contentDescription
+            }
             Text(
-                text = "Opening an app is not lesson completion.",
+                text = lineText,
+                modifier = Modifier.semantics { contentDescription = lineDesc },
+                style = MaterialTheme.typography.titleMedium,
+                color = IntentColors.Ink,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = when (secondary) {
+                    is AttentionStrip.SecondaryLine.SessionElapsed ->
+                        "Local clock from Begin — not verified completion."
+                    is AttentionStrip.SecondaryLine.ObservedPackageMinutes ->
+                        "Package foreground only — not lesson completion."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
         }
+
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION &&
+            nextAction.destinationAppLabel != null
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Destination · ${nextAction.destinationAppLabel}",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+
         if (destinationLaunchNote != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -739,37 +524,31 @@ private fun ActiveSessionCard(
                 color = IntentColors.Warm
             )
         }
-        if (usageNote != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = usageNote,
-                style = MaterialTheme.typography.bodySmall,
-                color = IntentColors.Muted
+
+        // Quiet grants inside the strip for active sessions only.
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && showGrantUsageAccess) {
+            Spacer(modifier = Modifier.height(6.dp))
+            IntentQuietButton(
+                text = "Grant usage access",
+                onClick = onGrantUsageAccess
             )
         }
-        if (observedEvidenceNote != null) {
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && observedEvidenceNote != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = observedEvidenceNote,
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Ink
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
             )
             if (showDismissObserved) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 IntentQuietButton(
                     text = "Mark observation inaccurate",
                     onClick = onDismissObserved
                 )
             }
         }
-        if (showGrantUsageAccess) {
-            Spacer(modifier = Modifier.height(8.dp))
-            IntentQuietButton(
-                text = "Grant usage access",
-                onClick = onGrantUsageAccess
-            )
-        }
-        if (notificationNote != null) {
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && notificationNote != null) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = notificationNote,
@@ -777,100 +556,363 @@ private fun ActiveSessionCard(
                 color = IntentColors.Muted
             )
         }
-        if (showGrantNotificationAccess) {
-            Spacer(modifier = Modifier.height(8.dp))
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && showGrantNotificationAccess) {
+            Spacer(modifier = Modifier.height(4.dp))
             IntentQuietButton(
                 text = "Grant notification access",
                 onClick = onGrantNotificationAccess
             )
         }
-        if (showRequestQuiet) {
-            Spacer(modifier = Modifier.height(8.dp))
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && showRequestQuiet) {
+            Spacer(modifier = Modifier.height(4.dp))
             IntentQuietButton(
                 text = "Request quiet for this session",
                 onClick = onRequestQuiet
             )
         }
-        if (quietNote != null && quietNote.isNotBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION &&
+            quietNote != null && quietNote.isNotBlank()
+        ) {
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = quietNote,
                 style = MaterialTheme.typography.bodySmall,
-                color = IntentColors.Warm
+                color = IntentColors.Muted
             )
         }
-        if (showOpenDndSettings) {
-            Spacer(modifier = Modifier.height(8.dp))
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && showOpenDndSettings) {
+            Spacer(modifier = Modifier.height(2.dp))
             IntentQuietButton(
                 text = "Open system Do Not Disturb",
                 onClick = onOpenDndSettings
             )
         }
-        if (screenCaptureNote != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION &&
+            screenCaptureNote != null && screenCaptureNote.isNotBlank()
+        ) {
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = screenCaptureNote,
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
         }
-        if (showCaptureScreen) {
-            Spacer(modifier = Modifier.height(8.dp))
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION && showCaptureScreen) {
+            Spacer(modifier = Modifier.height(2.dp))
             IntentQuietButton(
                 text = "Capture screen",
                 onClick = onCaptureScreen
             )
         }
-        sessionNotificationRows.forEach { (label, key) ->
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Ink
-            )
-            if (onDismissNotificationRow != null) {
-                val parts = key.split("|", limit = 2)
-                if (parts.size == 2) {
-                    IntentQuietButton(
-                        text = "Dismiss",
-                        onClick = { onDismissNotificationRow(parts[0], parts[1]) }
-                    )
+        if (nextAction.kind == NextActionKind.ACTIVE_SESSION &&
+            sessionNotificationRows.isNotEmpty()
+        ) {
+            sessionNotificationRows.forEach { (label, key) ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+                if (onDismissNotificationRow != null) {
+                    val parts = key.split("|", limit = 2)
+                    if (parts.size == 2) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        IntentQuietButton(
+                            text = "Dismiss",
+                            onClick = { onDismissNotificationRow(parts[0], parts[1]) }
+                        )
+                    }
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(15.dp))
-        if (nextAction.openDestinationLabel != null) {
-            IntentSecondaryButton(
-                text = nextAction.openDestinationLabel,
-                onClick = onOpenDestination
+        AttentionStripActions(
+            nextAction = nextAction,
+            deferPreviewLine = deferPreviewLine,
+            onContinueExploring = onContinueExploring,
+            onOpenIntention = onOpenIntention,
+            onReviewProposal = onReviewProposal,
+            onBegin = onBegin,
+            onDefer = onDefer,
+            onDiscuss = onDiscuss,
+            onCompleteSession = onCompleteSession,
+            onAbandonSession = onAbandonSession,
+            onOpenDestination = onOpenDestination,
+            onConfirmCheckIn = onConfirmCheckIn,
+            onCheckOutKeepSchedule = onCheckOutKeepSchedule,
+            onCheckOutDeferTomorrow = onCheckOutDeferTomorrow
+        )
+    }
+}
+
+@Composable
+private fun AttentionStripActions(
+    nextAction: NextAction,
+    deferPreviewLine: String?,
+    onContinueExploring: () -> Unit,
+    onOpenIntention: () -> Unit,
+    onReviewProposal: () -> Unit,
+    onBegin: () -> Unit,
+    onDefer: () -> Unit,
+    onDiscuss: () -> Unit,
+    onCompleteSession: () -> Unit,
+    onAbandonSession: () -> Unit,
+    onOpenDestination: () -> Unit,
+    onConfirmCheckIn: () -> Unit,
+    onCheckOutKeepSchedule: () -> Unit,
+    onCheckOutDeferTomorrow: () -> Unit
+) {
+    when (nextAction.kind) {
+        NextActionKind.CONTINUE_EXPLORING -> {
+            IntentPrimaryButton(
+                text = "Continue exploring",
+                onClick = onContinueExploring
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (nextAction.completeLabel != null) {
+        NextActionKind.REVIEW_PROPOSAL -> {
+            IntentPrimaryButton(
+                text = "Review proposal",
+                onClick = onReviewProposal
+            )
+        }
+        NextActionKind.BEGIN -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 IntentPrimaryButton(
-                    text = nextAction.completeLabel,
-                    onClick = onCompleteSession,
+                    text = nextAction.beginLabel ?: "Begin",
+                    onClick = onBegin,
                     modifier = Modifier.weight(1.4f)
                 )
+                if (nextAction.deferLabel != null) {
+                    IntentSecondaryButton(
+                        text = nextAction.deferLabel,
+                        onClick = onDefer,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
-            if (nextAction.abandonLabel != null) {
+            if (deferPreviewLine != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = deferPreviewLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
+            if (nextAction.openDestinationLabel != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Begin also opens ${nextAction.destinationAppLabel ?: "the destination app"} when installed — opening an app is not lesson completion.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
+            if (nextAction.discussLabel != null) {
+                Spacer(modifier = Modifier.height(4.dp))
                 IntentSecondaryButton(
-                    text = nextAction.abandonLabel,
-                    onClick = onAbandonSession,
-                    modifier = Modifier.weight(1f)
+                    text = nextAction.discussLabel,
+                    onClick = onDiscuss
                 )
             }
         }
-        if (nextAction.discussLabel != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-            IntentQuietButton(
-                text = nextAction.discussLabel,
+        NextActionKind.ACTIVE_SESSION -> {
+            if (nextAction.openDestinationLabel != null) {
+                IntentSecondaryButton(
+                    text = nextAction.openDestinationLabel,
+                    onClick = onOpenDestination
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (nextAction.completeLabel != null) {
+                    IntentPrimaryButton(
+                        text = nextAction.completeLabel,
+                        onClick = onCompleteSession,
+                        modifier = Modifier.weight(1.4f)
+                    )
+                }
+                if (nextAction.abandonLabel != null) {
+                    IntentSecondaryButton(
+                        text = nextAction.abandonLabel,
+                        onClick = onAbandonSession,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            if (nextAction.discussLabel != null) {
+                Spacer(modifier = Modifier.height(2.dp))
+                IntentQuietButton(
+                    text = nextAction.discussLabel,
+                    onClick = onDiscuss
+                )
+            }
+        }
+        NextActionKind.DISCUSS -> {
+            IntentPrimaryButton(
+                text = nextAction.discussLabel ?: "Discuss",
                 onClick = onDiscuss
             )
         }
+        NextActionKind.CHECK_IN -> {
+            IntentPrimaryButton(
+                text = nextAction.confirmLabel ?: "Confirm focus",
+                onClick = onConfirmCheckIn
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentSecondaryButton(
+                text = nextAction.adjustLabel ?: nextAction.discussLabel
+                    ?: "Adjust in Discuss",
+                onClick = onDiscuss
+            )
+        }
+        NextActionKind.CHECK_OUT -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IntentPrimaryButton(
+                    text = nextAction.confirmLabel ?: "Keep schedule",
+                    onClick = onCheckOutKeepSchedule,
+                    modifier = Modifier.weight(1.4f)
+                )
+                if (nextAction.adjustLabel != null || nextAction.deferLabel != null ||
+                    nextAction.deferTomorrowLabel != null
+                ) {
+                    IntentSecondaryButton(
+                        text = nextAction.adjustLabel
+                            ?: nextAction.deferTomorrowLabel
+                            ?: nextAction.deferLabel
+                            ?: "Defer tomorrow",
+                        onClick = onCheckOutDeferTomorrow,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentQuietButton(
+                text = nextAction.discussLabel ?: "Discuss",
+                onClick = onDiscuss
+            )
+        }
+        else -> {
+            IntentPrimaryButton(
+                text = "Open your intention",
+                onClick = onOpenIntention
+            )
+        }
+    }
+}
+
+/**
+ * Quiet grant / companion / capture notes below the strip — never competing cards.
+ */
+@Composable
+private fun QuietGrantStrip(
+    showGrantUsageAccess: Boolean,
+    onGrantUsageAccess: () -> Unit,
+    usageNote: String?,
+    checkoutObservationNote: String?,
+    onClearCheckoutNote: () -> Unit,
+    overlayNote: String?,
+    showGrantOverlay: Boolean,
+    onGrantOverlay: () -> Unit,
+    floatingCompanionLabel: String?,
+    floatingManualRouteNote: String?,
+    floaterTodayNote: String?,
+    onOpenFloaterDrawer: () -> Unit,
+    onCaptureThought: () -> Unit,
+    thoughtCaptureNote: String?
+) {
+    if (checkoutObservationNote != null) {
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = checkoutObservationNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        IntentQuietButton(
+            text = "Dismiss note",
+            onClick = onClearCheckoutNote
+        )
+    }
+    if (usageNote != null) {
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = usageNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    }
+    if (showGrantUsageAccess) {
+        Spacer(modifier = Modifier.height(4.dp))
+        IntentQuietButton(
+            text = "Grant usage access",
+            onClick = onGrantUsageAccess
+        )
+    }
+    if (overlayNote != null) {
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = overlayNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        if (showGrantOverlay) {
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentQuietButton(
+                text = "Grant overlay permission",
+                onClick = onGrantOverlay
+            )
+        }
+    }
+    if (floaterTodayNote != null) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = floaterTodayNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Warm
+        )
+    }
+    if (floatingCompanionLabel != null) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. " +
+                "Tap to Ask · long-press for Ask / Today / Capture.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    } else if (floatingManualRouteNote != null && overlayNote == null) {
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = floatingManualRouteNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+    }
+    Spacer(modifier = Modifier.height(10.dp))
+    IntentQuietButton(
+        text = "Companion menu",
+        onClick = onOpenFloaterDrawer
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    IntentQuietButton(
+        text = "Capture thought",
+        onClick = onCaptureThought
+    )
+    if (thoughtCaptureNote != null) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = thoughtCaptureNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Success
+        )
     }
 }
