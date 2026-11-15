@@ -25,15 +25,22 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,12 +52,20 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.ui.theme.IntentColors
+
+/** One overflow / intention-menu entry (OS-143 History + Trash). */
+data class OverflowMenuItem(
+    val label: String,
+    val onClick: () -> Unit
+)
 
 enum class HeroTone { Accent, Warm, Success }
 
@@ -83,6 +98,7 @@ fun IntentBrandMark(
 @Composable
 fun HomeBrandRow(
     onSettings: (() -> Unit)? = null,
+    overflowItems: List<OverflowMenuItem> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -91,23 +107,34 @@ fun HomeBrandRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IntentBrandMark()
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .border(1.dp, IntentColors.Line, CircleShape)
-                .clip(CircleShape)
-                .background(IntentColors.Card)
-                .then(
-                    if (onSettings != null) Modifier.clickable(onClick = onSettings) else Modifier
-                ),
-            contentAlignment = Alignment.Center
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
-                contentDescription = "Settings",
-                tint = IntentColors.Ink,
-                modifier = Modifier.size(18.dp)
-            )
+            if (overflowItems.isNotEmpty()) {
+                OverflowMenuButton(
+                    items = overflowItems,
+                    contentDescription = "More — History and Trash"
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .border(1.dp, IntentColors.Line, CircleShape)
+                    .clip(CircleShape)
+                    .background(IntentColors.Card)
+                    .then(
+                        if (onSettings != null) Modifier.clickable(onClick = onSettings) else Modifier
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "Settings",
+                    tint = IntentColors.Ink,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -116,6 +143,7 @@ fun HomeBrandRow(
 fun ScreenTopBar(
     contextLabel: String,
     onBack: () -> Unit,
+    overflowItems: List<OverflowMenuItem> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -132,11 +160,76 @@ fun ScreenTopBar(
                 .clickable(onClick = onBack)
         )
         IntentBrandMark(compact = true)
-        Text(
-            text = contextLabel,
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.Muted
-        )
+        if (overflowItems.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = contextLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+                OverflowMenuButton(
+                    items = overflowItems,
+                    contentDescription = "Intention menu — History and Trash"
+                )
+            }
+        } else {
+            Text(
+                text = contextLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+    }
+}
+
+@Composable
+fun OverflowMenuButton(
+    items: List<OverflowMenuItem>,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .border(1.dp, IntentColors.Line, CircleShape)
+                .clip(CircleShape)
+                .background(IntentColors.Card)
+                .semantics { this.contentDescription = contentDescription }
+                .clickable { expanded = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.MoreVert,
+                contentDescription = contentDescription,
+                tint = IntentColors.Ink,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            items.forEach { item ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = item.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = IntentColors.Ink
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        item.onClick()
+                    }
+                )
+            }
+        }
     }
 }
 

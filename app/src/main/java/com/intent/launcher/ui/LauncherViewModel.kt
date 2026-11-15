@@ -45,9 +45,12 @@ import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.engine.AppLinkedSessionPause
 import com.intent.launcher.engine.CaptureThought
+import com.intent.launcher.engine.HistoryRow
+import com.intent.launcher.engine.HistoryTrashMenus
 import com.intent.launcher.engine.ThoughtTriage
 import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.engine.IntentionHierarchy
+import com.intent.launcher.engine.TrashRow
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DailyCycle
@@ -416,7 +419,7 @@ class LauncherViewModel(
         refresh()
     }
 
-        fun lastUndoableTransaction(): FlowTransaction? =
+    fun lastUndoableTransaction(): FlowTransaction? =
         CommandReversibility.lastUndoable(snapshot.transactions)
 
     fun recoverableTrash(nowEpochMs: Long = System.currentTimeMillis()): List<TrashEntry> =
@@ -426,6 +429,15 @@ class LauncherViewModel(
 
     /** Wire JSON of the current snapshot for local export/share (OS-004). */
     fun exportSnapshotJson(): String = store.encode(store.snapshot())
+    /** OS-143 — newest-first local history for the menu-opened History screen. */
+    fun historyRows(): List<HistoryRow> {
+        val raw = HistoryTrashMenus.historyRows(snapshot.transactions)
+        return HistoryTrashMenus.withUndoTarget(raw, lastUndoableTransaction()?.id)
+    }
+
+    /** OS-143 — recoverable trash rows for the menu-opened Trash screen. */
+    fun trashRows(nowEpochMs: Long = System.currentTimeMillis()): List<TrashRow> =
+        HistoryTrashMenus.trashRows(snapshot.trash, nowEpochMs)
 
     fun refresh() {
         capabilityRegistry =

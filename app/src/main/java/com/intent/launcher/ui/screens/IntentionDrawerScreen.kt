@@ -42,6 +42,7 @@ import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.HomeBottomNav
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.Lede
+import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
@@ -61,6 +62,8 @@ fun IntentionDrawerScreen(
     onUpdateCardLayout: (intentionId: String, spanColumns: Int, priorityBorder: Boolean) -> Unit,
     onBackHome: () -> Unit,
     onAgent: () -> Unit,
+    /** OS-143 — History / Trash via drawer overflow, not a primary tab. */
+    overflowItems: List<OverflowMenuItem> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var reorderId by remember { mutableStateOf<String?>(null) }
@@ -86,7 +89,11 @@ fun IntentionDrawerScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
-            ScreenTopBar(contextLabel = "Drawer", onBack = onBackHome)
+            ScreenTopBar(
+                contextLabel = "Drawer",
+                onBack = onBackHome,
+                overflowItems = overflowItems
+            )
             Spacer(modifier = Modifier.height(23.dp))
             SmallLabel(text = "Your intentions", color = IntentColors.Accent)
             Spacer(modifier = Modifier.height(7.dp))
