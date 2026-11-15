@@ -724,6 +724,7 @@ class MainActivity : ComponentActivity() {
                                 conversationHeadline = convProjection.conversationHeadline,
                                 discussSourceLabel = vm.discussSourceLabel(),
                                 discussHonestyNote = vm.discussHonestyNote(),
+                                intentionStatement = active?.statement.orEmpty(),
                                 voiceNote = vm.voicePathNote ?: vm.voiceObservation.note,
                                 voiceEnabled = vm.canStartVoiceCapture(),
                                 onMicClick = { onConversationMicClick() },
