@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Gate D / OS-155 — sticky resume honesty without a device.
+ * Gate D / OS-155 / D3 — sticky resume honesty + interrupt takeover policy.
  */
 class FloatingAgentRestartPolicyTest {
 
@@ -23,6 +23,7 @@ class FloatingAgentRestartPolicyTest {
         assertNotNull(d.fallbackNote)
         assertTrue(d.fallbackNote!!.contains("no floating bubble", ignoreCase = true))
         assertFalse(d.fallbackNote!!.contains("showing over", ignoreCase = true))
+        assertFalse(d.postTakeoverNotification)
     }
 
     @Test
@@ -34,6 +35,7 @@ class FloatingAgentRestartPolicyTest {
         assertEquals(FloatingAgentRestartPolicy.StartMode.STICKY_WITH_OVERLAY, d.mode)
         assertEquals(FloatingAgentState.ACTIVE_SESSION, d.resolvedState)
         assertNull(d.fallbackNote)
+        assertFalse(d.postTakeoverNotification)
     }
 
     @Test
@@ -52,12 +54,37 @@ class FloatingAgentRestartPolicyTest {
         // Service killed while granted, then overlay revoked before restart.
         val d = FloatingAgentRestartPolicy.decide(
             overlayGranted = false,
-            requestedState = null
+            requestedState = null,
+            stickyRestart = true,
+            notificationsPermitted = true
         )
         assertEquals(FloatingAgentRestartPolicy.StartMode.STOP_NOT_STICKY, d.mode)
         assertNull(d.resolvedState)
         assertNotNull(d.fallbackNote)
-        assertTrue(d.fallbackNote!!.contains("Settings", ignoreCase = true))
+        assertTrue(d.fallbackNote!!.contains("not running", ignoreCase = true) ||
+            d.fallbackNote!!.contains("Settings", ignoreCase = true))
+        assertTrue(d.postTakeoverNotification)
+        assertEquals(
+            FloatingAgentRestartPolicy.InterruptReason.PROCESS_DEATH_OVERLAY_DENIED,
+            d.interruptReason
+        )
+    }
+
+    @Test
+    fun revokeWhileRunning_postsPermittedNotification() {
+        val d = FloatingAgentRestartPolicy.decide(
+            overlayGranted = false,
+            requestedState = FloatingAgentState.ATTENTION_NEEDED,
+            wasRunningWithOverlay = true,
+            notificationsPermitted = true,
+            interventionJobId = "j1",
+            interventionTurnId = "t1"
+        )
+        assertTrue(d.postTakeoverNotification)
+        assertEquals("j1", d.deepLink.jobId)
+        assertEquals("t1", d.deepLink.turnId)
+        assertNotNull(d.notificationTitle)
+        assertNotNull(d.notificationText)
     }
 
     @Test
@@ -67,6 +94,7 @@ class FloatingAgentRestartPolicyTest {
         assertTrue(doc.contains("START_NOT_STICKY"))
         assertTrue(doc.contains("re-checked") || doc.contains("re-check"))
         assertTrue(doc.contains("IDLE"))
+        assertTrue(doc.contains("notification", ignoreCase = true))
         assertFalse(doc.contains("always restarts with bubble", ignoreCase = true))
     }
 

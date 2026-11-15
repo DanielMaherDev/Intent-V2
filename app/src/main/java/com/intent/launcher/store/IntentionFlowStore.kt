@@ -64,11 +64,45 @@ class IntentionFlowStore(
     private val state = AtomicReference(IntentionSnapshot())
 
     init {
-        if (file.exists() && file.length() > 0L) {
-            state.set(decode(file.readText()))
-        } else {
+        state.set(loadFromDiskOrEmpty())
+        // Ensure durable file exists after recovery / first boot.
+        if (!file.exists() || file.length() == 0L) {
             persist(state.get())
         }
+    }
+
+    /**
+     * Gate D3 — survive process kill mid-write.
+     * Prefer the primary file; if missing/empty/corrupt, recover a complete
+     * sibling `.tmp` written by [persist] before the atomic rename.
+     */
+    private fun loadFromDiskOrEmpty(): IntentionSnapshot {
+        val primary = readDecodable(file)
+        if (primary != null) return primary
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        val recovered = readDecodable(tmp)
+        if (recovered != null) {
+            // Promote recovered tmp so the next process sees the durable primary.
+            runCatching {
+                file.parentFile?.mkdirs()
+                tmp.copyTo(file, overwrite = true)
+            }
+            return recovered
+        }
+        return IntentionSnapshot()
+    }
+
+    private fun readDecodable(candidate: File): IntentionSnapshot? {
+        if (!candidate.exists() || candidate.length() == 0L) return null
+        return runCatching { decode(candidate.readText()) }.getOrNull()
+    }
+
+    /** Test / recovery helper — reload from disk (primary, then tmp). */
+    @Synchronized
+    fun reloadFromDisk(): IntentionSnapshot {
+        val loaded = loadFromDiskOrEmpty()
+        state.set(loaded)
+        return loaded
     }
 
     fun snapshot(): IntentionSnapshot = state.get()

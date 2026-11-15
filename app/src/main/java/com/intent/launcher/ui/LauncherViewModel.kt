@@ -611,6 +611,15 @@ class LauncherViewModel(
         InterventionProvenance.activePrompt(snapshot)
 
     /**
+     * Gate D3 — notification takeover already carries intervention ids; prefer them
+     * when opening Conversation so floater/Conversation stay on the same turn/job.
+     */
+    fun focusInterventionFromNotification(jobId: String?, turnId: String?) {
+        if (!jobId.isNullOrBlank()) focusInterventionJobId = jobId
+        if (!turnId.isNullOrBlank()) focusInterventionTurnId = turnId
+    }
+
+    /**
      * Companion press / notification — same Discuss → Conversation path as Home.
      * Captures shared intervention turn/job ids when a prompt is queued.
      */
@@ -622,8 +631,9 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         askContextChip = null
-        focusInterventionTurnId = result.interventionTurnId
-        focusInterventionJobId = result.interventionJobId
+        // Gate D3 notification extras win when already focused; else Discuss ids.
+        focusInterventionTurnId = focusInterventionTurnId ?: result.interventionTurnId
+        focusInterventionJobId = focusInterventionJobId ?: result.interventionJobId
         refresh()
         return result.navigateTo
     }

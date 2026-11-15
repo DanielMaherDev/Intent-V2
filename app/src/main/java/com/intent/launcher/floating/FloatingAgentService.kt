@@ -20,6 +20,7 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.intent.launcher.IntentApp
 import com.intent.launcher.MainActivity
 import com.intent.launcher.R
 import com.intent.launcher.engine.FloatingAgentRestartPolicy
@@ -27,17 +28,21 @@ import com.intent.launcher.engine.FloaterSystemUiPolicy
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.TalkBackLabels
+import com.intent.launcher.engine.TriggerCooldownPolicy
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Overlay bubble for the floating companion — same agent as Conversation.
  * Only runs when [Settings.canDrawOverlays] is true; otherwise stay stopped.
  *
- * Sticky honesty (OS-155): [START_STICKY] only while overlay is granted.
- * Sticky restart re-checks overlay and never invents a grant; Home / Companion
- * menu / notification remain the Conversation path when denied or stopped.
+ * Sticky honesty (OS-155 / Gate D3): [START_STICKY] only while overlay is granted.
+ * Sticky restart re-checks overlay and never invents a grant. When overlay is
+ * revoked (or denied after process death), the bubble stops and a **permitted**
+ * notification opens Conversation — reusing intervention turn/job ids when active.
+ * IntentionFlowStore mutations survive; Home / Companion menu remain the path.
  * OS-156: [FloaterSystemUiPolicy] keeps the bubble out of recents / gesture /
  * IME bands and uses NOT_FOCUSABLE|NOT_TOUCH_MODAL so system permission dialogs
- * and the keyboard keep input. Additive with Gate D sticky honesty (PR #53).
+ * and the keyboard keep input.
  */
 class FloatingAgentService : Service() {
 
@@ -46,43 +51,86 @@ class FloatingAgentService : Service() {
     private var labelView: TextView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var bubbleSizePx: Int = 0
+    /** True after we successfully showed the bubble / FGS in this process. */
+    private var runningWithOverlay: Boolean = false
+    private var lastInterventionJobId: String? = null
+    private var lastInterventionTurnId: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val overlayGranted = Settings.canDrawOverlays(this)
+        val stickyRestart = intent == null
         val requested = intent?.getStringExtra(EXTRA_STATE)?.let { name ->
             runCatching { FloatingAgentState.valueOf(name) }.getOrNull()
         }
         val provenanceLabel = intent?.getStringExtra(EXTRA_PROVENANCE_LABEL)
         val attentionLabel = intent?.getStringExtra(EXTRA_ATTENTION_LABEL)
-        // Sticky restart delivers a null intent — policy defaults to IDLE when overlay OK.
+        val jobFromIntent = intent?.getStringExtra(EXTRA_INTERVENTION_JOB_ID)
+        val turnFromIntent = intent?.getStringExtra(EXTRA_INTERVENTION_TURN_ID)
+        val (jobId, turnId, savedSummary) = resolveInterventionExtras(jobFromIntent, turnFromIntent)
+        lastInterventionJobId = jobId
+        lastInterventionTurnId = turnId
+
         val decision = FloatingAgentRestartPolicy.decide(
             overlayGranted = overlayGranted,
-            requestedState = requested
+            requestedState = requested,
+            wasRunningWithOverlay = runningWithOverlay || bubble != null,
+            stickyRestart = stickyRestart,
+            notificationsPermitted = FloatingAgentInterruptNotifier.notificationsPermitted(this),
+            interventionJobId = jobId,
+            interventionTurnId = turnId,
+            savedWorkSummary = savedSummary
         )
         if (decision.mode == FloatingAgentRestartPolicy.StartMode.STOP_NOT_STICKY) {
             removeBubble()
+            stopForegroundCompat()
+            maybePostTakeover(this, decision)
+            runningWithOverlay = false
+            companionActive.set(false)
             stopSelf()
             return START_NOT_STICKY
         }
         val state = decision.resolvedState ?: FloatingAgentState.IDLE
-        ensureForeground()
+        ensureForeground(jobId = jobId, turnId = turnId)
         ensureBubble()
         updateBubble(
             state = state,
             attentionLabel = attentionLabel,
             provenanceLabel = provenanceLabel
         )
+        runningWithOverlay = true
+        companionActive.set(true)
+        takeoverPostedForDenial.set(false)
         return START_STICKY
     }
 
     override fun onDestroy() {
         removeBubble()
+        runningWithOverlay = false
         super.onDestroy()
     }
 
-    private fun ensureForeground() {
+    private fun resolveInterventionExtras(
+        jobFromIntent: String?,
+        turnFromIntent: String?
+    ): Triple<String?, String?, String?> {
+        var jobId = jobFromIntent?.takeIf { it.isNotBlank() } ?: lastInterventionJobId
+        var turnId = turnFromIntent?.takeIf { it.isNotBlank() } ?: lastInterventionTurnId
+        var summary: String? = null
+        runCatching {
+            val store = IntentApp.instance.store
+            val intervention = TriggerCooldownPolicy.activeIntervention(store.snapshot())
+            if (intervention != null) {
+                if (jobId.isNullOrBlank()) jobId = intervention.jobId
+                if (turnId.isNullOrBlank()) turnId = intervention.turnId
+                summary = "Active intervention (${intervention.provenanceKind.name}) is still queued."
+            }
+        }
+        return Triple(jobId, turnId, summary)
+    }
+
+    private fun ensureForeground(jobId: String?, turnId: String?) {
         val channelId = "intent_floating_companion"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val mgr = getSystemService(NotificationManager::class.java)
@@ -97,8 +145,12 @@ class FloatingAgentService : Service() {
         val open = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java).apply {
-                action = ACTION_OPEN_CONVERSATION
+            FloatingAgentInterruptNotifier.conversationIntent(
+                context = this,
+                jobId = jobId,
+                turnId = turnId
+            ).apply {
+                // FGS content intent already has NEW_TASK from helper; keep single-top.
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -121,6 +173,15 @@ class FloatingAgentService : Service() {
             )
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun stopForegroundCompat() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
         }
     }
 
@@ -155,12 +216,11 @@ class FloatingAgentService : Service() {
             )
         )
         frame.setOnClickListener {
-            val launch = Intent(this, MainActivity::class.java).apply {
-                action = ACTION_OPEN_CONVERSATION
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
+            val launch = FloatingAgentInterruptNotifier.conversationIntent(
+                context = this,
+                jobId = lastInterventionJobId,
+                turnId = lastInterventionTurnId
+            )
             startActivity(launch)
         }
         frame.setOnLongClickListener {
@@ -306,20 +366,51 @@ class FloatingAgentService : Service() {
         const val EXTRA_STATE = "floating_state"
         const val EXTRA_PROVENANCE_LABEL = "intervention_provenance"
         const val EXTRA_ATTENTION_LABEL = "intervention_attention"
+        const val EXTRA_INTERVENTION_JOB_ID = "intervention_job_id"
+        const val EXTRA_INTERVENTION_TURN_ID = "intervention_turn_id"
         private const val NOTIFICATION_ID = 1601
+
+        /** Process-wide: companion successfully showed with overlay this session. */
+        private val companionActive = AtomicBoolean(false)
+        /** Avoid spamming takeover notices on every Home resume while overlay stays denied. */
+        private val takeoverPostedForDenial = AtomicBoolean(false)
 
         /**
          * Sync overlay bubble to [state].
-         * Null / overlay denied → stop service (no invented bubble); Home fallback applies.
+         * Null / overlay denied → stop service (no invented bubble). When overlay
+         * was revoked after the companion had been active, Gate D3 posts one
+         * permitted takeover notice (not on every subsequent resume).
          */
         fun sync(
             context: Context,
             state: FloatingAgentState?,
             /** OBSERVED | INFERRED when an intervention prompt is active (Gate D2). */
             provenanceLabel: String? = null,
-            attentionLabel: String? = null
+            attentionLabel: String? = null,
+            interventionJobId: String? = null,
+            interventionTurnId: String? = null
         ) {
-            if (state == null || !Settings.canDrawOverlays(context)) {
+            val overlayGranted = Settings.canDrawOverlays(context)
+            if (state == null || !overlayGranted) {
+                if (!overlayGranted && companionActive.getAndSet(false)) {
+                    val (jobId, turnId, summary) = resolveSavedIntervention(
+                        context = context,
+                        jobFromCaller = interventionJobId,
+                        turnFromCaller = interventionTurnId
+                    )
+                    val decision = FloatingAgentRestartPolicy.decide(
+                        overlayGranted = false,
+                        requestedState = state,
+                        wasRunningWithOverlay = true,
+                        stickyRestart = false,
+                        notificationsPermitted =
+                            FloatingAgentInterruptNotifier.notificationsPermitted(context),
+                        interventionJobId = jobId,
+                        interventionTurnId = turnId,
+                        savedWorkSummary = summary
+                    )
+                    maybePostTakeover(context, decision)
+                }
                 context.stopService(Intent(context, FloatingAgentService::class.java))
                 return
             }
@@ -331,12 +422,48 @@ class FloatingAgentService : Service() {
                 if (!attentionLabel.isNullOrBlank()) {
                     putExtra(EXTRA_ATTENTION_LABEL, attentionLabel)
                 }
+                if (!interventionJobId.isNullOrBlank()) {
+                    putExtra(EXTRA_INTERVENTION_JOB_ID, interventionJobId)
+                }
+                if (!interventionTurnId.isNullOrBlank()) {
+                    putExtra(EXTRA_INTERVENTION_TURN_ID, interventionTurnId)
+                }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+        }
+
+        private fun maybePostTakeover(
+            context: Context,
+            decision: FloatingAgentRestartPolicy.Decision
+        ) {
+            if (!decision.postTakeoverNotification) return
+            if (!takeoverPostedForDenial.compareAndSet(false, true)) return
+            FloatingAgentInterruptNotifier.postTakeover(context, decision)
+        }
+
+        private fun resolveSavedIntervention(
+            context: Context,
+            jobFromCaller: String?,
+            turnFromCaller: String?
+        ): Triple<String?, String?, String?> {
+            var jobId = jobFromCaller?.takeIf { it.isNotBlank() }
+            var turnId = turnFromCaller?.takeIf { it.isNotBlank() }
+            var summary: String? = null
+            runCatching {
+                val app = context.applicationContext as? IntentApp ?: IntentApp.instance
+                val intervention = TriggerCooldownPolicy.activeIntervention(app.store.snapshot())
+                if (intervention != null) {
+                    if (jobId.isNullOrBlank()) jobId = intervention.jobId
+                    if (turnId.isNullOrBlank()) turnId = intervention.turnId
+                    summary =
+                        "Active intervention (${intervention.provenanceKind.name}) is still queued."
+                }
+            }
+            return Triple(jobId, turnId, summary)
         }
     }
 }
