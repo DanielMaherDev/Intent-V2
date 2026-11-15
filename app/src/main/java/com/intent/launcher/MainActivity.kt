@@ -48,6 +48,7 @@ import com.intent.launcher.ui.screens.IntentionBuilderScreen
 import com.intent.launcher.ui.screens.IntentionDrawerScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
+import com.intent.launcher.ui.screens.HistoryScreen
 import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.CheckOutWhatHappenedDialog
 import com.intent.launcher.ui.screens.EveningThoughtTriageSheet
@@ -56,6 +57,10 @@ import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.screens.TodayScreen
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
+import com.intent.launcher.ui.screens.TrashScreen
+import com.intent.launcher.ui.components.OverflowMenuItem
+import com.intent.launcher.engine.FloaterActionDrawer
+import com.intent.launcher.engine.HistoryTrashMenus
 import com.intent.launcher.ui.theme.IntentTheme
 
 class MainActivity : ComponentActivity() {
@@ -64,6 +69,7 @@ class MainActivity : ComponentActivity() {
     private var openConversationRequest by mutableIntStateOf(0)
     private var openAskFromDrawerRequest by mutableIntStateOf(0)
     private var openTodayFromDrawerRequest by mutableIntStateOf(0)
+    private var openHistoryFromDrawerRequest by mutableIntStateOf(0)
     private var showFloaterDrawer by mutableStateOf(false)
     private var showThoughtCapture by mutableStateOf(false)
     private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
@@ -84,6 +90,14 @@ class MainActivity : ComponentActivity() {
         } else {
             vm.onScreenCaptureConsentDenied()
         }
+    }
+
+    private val importSnapshotPicker = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val text = SnapshotExport.readImportText(this, uri).orEmpty()
+        vm.importSnapshotJson(text)
     }
 
     private val requestMicPermission = registerForActivityResult(
@@ -204,6 +218,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    LaunchedEffect(openHistoryFromDrawerRequest) {
+                        if (openHistoryFromDrawerRequest > 0) {
+                            nav.navigate(FloaterActionDrawer.HISTORY_ROUTE) {
+                                launchSingleTop = true
+                            }
+                        }
+                    }
                     LaunchedEffect(pendingOpenProposalAfterVoice) {
                         if (pendingOpenProposalAfterVoice > 0) {
                             nav.navigate("proposal")
@@ -222,6 +243,7 @@ class MainActivity : ComponentActivity() {
                                         thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
                                         showThoughtCapture = true
                                     }
+                                    FloaterDrawerAction.HISTORY -> openHistoryFromDrawerRequest++
                                 }
                             }
                         )
@@ -560,6 +582,33 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onToggleErrand = { vm.toggleErrand(it) },
                                 onSettings = { nav.navigate("settings") },
+                                overflowItems = listOf(
+                                    OverflowMenuItem(HistoryTrashMenus.MENU_HISTORY) {
+                                        nav.navigate("history")
+                                    },
+                                    OverflowMenuItem(HistoryTrashMenus.MENU_TRASH) {
+                                        nav.navigate("trash")
+                                    }
+                                ),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("history") {
+                            HistoryScreen(
+                                rows = vm.historyRows(),
+                                onUndoLast = vm.lastUndoableTransaction()?.let { { vm.undoLast() } },
+                                undoNote = vm.undoTrashNote,
+                                onBack = { nav.popBackStack() },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("trash") {
+                            TrashScreen(
+                                rows = vm.trashRows(),
+                                onRestore = { id -> vm.restoreTrashItem(id) },
+                                onPurge = { id -> vm.purgeTrashItem(id) },
+                                note = vm.undoTrashNote,
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -572,6 +621,13 @@ class MainActivity : ComponentActivity() {
                                     val file = SnapshotExport.writeExportFile(cacheDir, json)
                                     startActivity(SnapshotExport.shareIntent(this@MainActivity, file))
                                 },
+                                onImportSnapshot = {
+                                    importSnapshotPicker.launch(SnapshotExport.MIME_TYPE)
+                                },
+                                snapshotImportNote = vm.snapshotImportNote,
+                                onOpenHistory = {
+                                    nav.navigate("history")
+                                },
                                 onOpenConnections = { nav.navigate("connections") },
                                 liveLlmKeyPresent = vm.liveLlmObservation.keyConfigured,
                                 liveLlmOptedIn = vm.liveLlmObservation.userOptedIn,
@@ -580,7 +636,10 @@ class MainActivity : ComponentActivity() {
                                 onLiveLlmOptInChange = { vm.setLiveLlmOptedIn(it) },
                                 onSaveRuntimeApiKey = { vm.saveRuntimeOpenAiApiKey(it) },
                                 onClearRuntimeApiKey = { vm.clearRuntimeOpenAiApiKey() },
-                                onBack = { nav.popBackStack() },
+                                onBack = {
+                                    vm.clearSnapshotImportNote()
+                                    nav.popBackStack()
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -678,6 +737,14 @@ class MainActivity : ComponentActivity() {
                                         nav.navigate(route)
                                     }
                                 },
+                                overflowItems = listOf(
+                                    OverflowMenuItem(HistoryTrashMenus.MENU_HISTORY) {
+                                        nav.navigate("history")
+                                    },
+                                    OverflowMenuItem(HistoryTrashMenus.MENU_TRASH) {
+                                        nav.navigate("trash")
+                                    }
+                                ),
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -748,6 +815,7 @@ class MainActivity : ComponentActivity() {
                             ReportScreen(
                                 pathSummary = vm.pathSummary(),
                                 progressProof = vm.progressProof(),
+                                parentRollup = vm.parentRollup(),
                                 onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )

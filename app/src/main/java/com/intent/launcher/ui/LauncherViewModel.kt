@@ -88,6 +88,7 @@ import com.intent.launcher.engine.NotificationPackageTally
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.IntentionDetailCoherence
+import com.intent.launcher.engine.ParentRollup
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.PlatformCapabilityLive
 import com.intent.launcher.engine.PlayStoreDeepLink
@@ -470,6 +471,39 @@ class LauncherViewModel(
 
     /** Wire JSON of the current snapshot for local export/share (OS-004). */
     fun exportSnapshotJson(): String = store.encode(store.snapshot())
+
+    /** Last import status line for Settings (null when idle / cleared). */
+    var snapshotImportNote by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Replace the on-device store from exported JSON (same format as export).
+     * Stamp migration only via [IntentionFlowStore.replaceFromJson].
+     */
+    fun importSnapshotJson(raw: String): Boolean {
+        if (raw.isBlank()) {
+            snapshotImportNote =
+                "Import failed — could not read a snapshot file (empty or unreadable)."
+            return false
+        }
+        return try {
+            val imported = store.replaceFromJson(raw)
+            refresh()
+            snapshotImportNote =
+                "Imported local snapshot · schema ${imported.schemaVersion} · " +
+                    "${imported.intentions.size} intentions · not a cloud restore."
+            true
+        } catch (e: Exception) {
+            snapshotImportNote =
+                "Import failed — choose a valid INTENT snapshot JSON. (${e.message ?: "parse error"})"
+            false
+        }
+    }
+
+    fun clearSnapshotImportNote() {
+        snapshotImportNote = null
+    }
+
     /** OS-143 — newest-first local history for the menu-opened History screen. */
     fun historyRows(): List<HistoryRow> {
         val raw = HistoryTrashMenus.historyRows(snapshot.transactions)
@@ -1849,6 +1883,12 @@ class LauncherViewModel(
             shapeTag = activeIntention()?.shapeTag,
             registry = capabilityRegistry
         )
+
+    /** §17 case 29 — parent rollup of ACTIVE child tracker rows (each entry once). */
+    fun parentRollup(): ParentRollup.View? {
+        val id = activeIntention()?.id ?: return null
+        return ParentRollup.build(snapshot, id)
+    }
 
     fun fieldProgress(): com.intent.launcher.engine.FieldProgress.View? {
         val intention = activeIntention() ?: return null

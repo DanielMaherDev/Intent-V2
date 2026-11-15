@@ -52,17 +52,19 @@ class FloaterActionDrawerTest {
     }
 
     @Test
-    fun items_areAskTodayCapture() {
+    fun items_areAskTodayCaptureHistory() {
         val actions = FloaterActionDrawer.items.map { it.action }
         assertEquals(
             listOf(
                 FloaterDrawerAction.ASK,
                 FloaterDrawerAction.TODAY,
-                FloaterDrawerAction.CAPTURE
+                FloaterDrawerAction.CAPTURE,
+                FloaterDrawerAction.HISTORY
             ),
             actions
         )
         assertTrue(FloaterActionDrawer.items.all { it.label.isNotBlank() })
+        assertEquals(FloaterActionDrawer.HISTORY_ROUTE, "history")
     }
 
     @Test

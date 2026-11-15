@@ -105,6 +105,18 @@ class IntentionFlowStore(
         return loaded
     }
 
+    /**
+     * Local snapshot import — replace in-memory + on-disk state from export JSON.
+     * Uses the same [decode]/[migrate] stamp path as normal load (no store rewrite).
+     */
+    @Synchronized
+    fun replaceFromJson(raw: String): IntentionSnapshot {
+        val migrated = decode(raw)
+        state.set(migrated)
+        persist(migrated)
+        return migrated
+    }
+
     fun snapshot(): IntentionSnapshot = state.get()
 
     @Synchronized
