@@ -1046,19 +1046,32 @@ class LauncherViewModel(
     }
 
     /**
-     * After platform STT returns text — shared ConversationCoordinator path with chips.
+     * After platform STT returns text — chip match or the same Discuss free-text /
+     * [OpenAiDiscussClient] path as typed send when live_llm is CONNECTED.
      */
     fun onVoiceTranscript(transcript: String) {
-        val result = ConversationCoordinator.submitVoiceTranscript(
-            store = store,
-            intention = activeIntention(),
-            availableChips = conversationChips(),
-            transcript = transcript,
-            nowEpochMs = System.currentTimeMillis(),
-            registry = capabilityRegistry
-        )
-        voicePathNote = result.honestyNote
-        refresh()
+        if (freeTextBusy) return
+        freeTextBusy = true
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    ConversationCoordinator.submitVoiceTranscript(
+                        store = store,
+                        intention = activeIntention(),
+                        availableChips = conversationChips(),
+                        transcript = transcript,
+                        nowEpochMs = System.currentTimeMillis(),
+                        registry = capabilityRegistry,
+                        access = liveLlmAccess,
+                        client = openAiDiscussClient
+                    )
+                }
+                voicePathNote = result.honestyNote
+            } finally {
+                freeTextBusy = false
+                refresh()
+            }
+        }
     }
 
     fun onVoiceUnavailable(message: String) {
