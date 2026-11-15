@@ -156,6 +156,7 @@ class MainActivity : ComponentActivity() {
                     val showMoveEntry = intention?.shapeTag != "move"
                     val showJobOfferEntry = intention?.shapeTag != "decision"
                     val showQuitSmokingEntry = intention?.shapeTag != "cessation"
+                    val showAppUseEntry = intention?.shapeTag != "app_use"
 
                     LaunchedEffect(openConversationRequest) {
                         if (openConversationRequest > 0) {
@@ -403,6 +404,14 @@ class MainActivity : ComponentActivity() {
                                 onExploreQuitSmoking = if (showQuitSmokingEntry) {
                                     {
                                         vm.startQuitSmokingExploration()
+                                        nav.navigate("intention")
+                                    }
+                                } else {
+                                    null
+                                },
+                                onExploreAppUse = if (showAppUseEntry) {
+                                    {
+                                        vm.startAppUseExploration()
                                         nav.navigate("intention")
                                     }
                                 } else {

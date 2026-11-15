@@ -28,6 +28,9 @@
         <package android:name="com.chess" />
         <package android:name="com.spotify.music" />
         <package android:name="com.strava" />
+        <!-- CASE-06 app-use destinations — package visibility only; not Shorts/Reels identity. -->
+        <package android:name="com.instagram.android" />
+        <package android:name="com.google.android.youtube" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

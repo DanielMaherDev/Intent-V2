@@ -76,6 +76,7 @@ object ShapeProjection {
                 "move" -> "Move plan · landlord steps gated"
                 "decision" -> "Comparing — no choice made yet"
                 "cessation" -> "Baseline and support still open"
+                "app_use" -> "Usage target still taking shape"
                 else -> "Open your intention"
             }
             IntentionPhase.PROPOSAL_PENDING -> when (shapeTag) {
@@ -84,6 +85,7 @@ object ShapeProjection {
                 "move" -> "Apartment search pending approval"
                 "decision" -> "A decision-review block is pending"
                 "cessation" -> "An evening check-in is pending"
+                "app_use" -> "A usage review is pending"
                 else -> "Your approach is taking shape"
             }
             IntentionPhase.ACTIVE -> when (shapeTag) {
@@ -92,6 +94,7 @@ object ShapeProjection {
                 "move" -> "Search rhythm in motion · lease still gated"
                 "decision" -> "Decision support in motion"
                 "cessation" -> "Self-report check-in in motion"
+                "app_use" -> "Daily usage target in motion"
                 else -> "Speaking practice in motion"
             }
             IntentionPhase.PAUSED -> "Paused — facts kept"
@@ -106,6 +109,7 @@ object ShapeProjection {
             phase == IntentionPhase.ACTIVE && shapeTag == "decision" -> "Your comparison matrix"
             phase == IntentionPhase.CLARIFYING && shapeTag == "decision" -> "Your comparison matrix"
             phase == IntentionPhase.ACTIVE && shapeTag == "cessation" -> "Baseline and reports"
+            phase == IntentionPhase.ACTIVE && shapeTag == "app_use" -> "Usage facts"
             phase == IntentionPhase.ACTIVE -> "What we know"
             else -> "What we know"
         }
@@ -117,6 +121,7 @@ object ShapeProjection {
             "move" -> "Your move plan"
             "decision" -> "Your decision support"
             "cessation" -> "Your first-phase support"
+            "app_use" -> "Your usage approach"
             else -> "Your approach"
         }
 
@@ -133,6 +138,8 @@ object ShapeProjection {
                 "No accept/decline has been chosen for you. Add SAID criteria to compare before the deadline."
             "cessation" ->
                 "No quit date or smoke-free streak has been invented. Baseline and self-report come first."
+            "app_use" ->
+                "No blocking or auto-cap has been invented. Package time is a proxy — not Shorts or Reels identity."
             else ->
                 "No tasks have been invented. This intention stays open while you decide on an approach."
         }
@@ -151,6 +158,10 @@ object ShapeProjection {
                 "Support · compare criteria — INTENT does not choose"
             )
             "cessation" -> listOf("Goal · quit smoking", "Baseline · self-reported cigarettes/day", "Quit date · none yet")
+            "app_use" -> listOf(
+                "Goal · Instagram & YouTube under 45 min/day",
+                "Limit · package foreground ≠ Shorts/Reels"
+            )
             else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
         }
 
@@ -161,7 +172,12 @@ object ShapeProjection {
     ): String? {
         if (phase != IntentionPhase.ACTIVE && phase != IntentionPhase.PROPOSAL_PENDING) return null
         if (destination != null) {
-            return "Destination · ${destination.label} — opening an app is not lesson completion."
+            return if (shapeTag == "app_use" || SessionDestinations.isAppUsePackage(destination.packageName)) {
+                "Destination · ${destination.label} (+ YouTube) — package foreground only; " +
+                    "not Shorts/Reels identity or auto-Complete."
+            } else {
+                "Destination · ${destination.label} — opening an app is not lesson completion."
+            }
         }
         return when (shapeTag) {
             "marathon" -> "Destination · outdoors / your own run log — no partner completion evidence."
@@ -171,6 +187,8 @@ object ShapeProjection {
             "decision" ->
                 "Destination · your notes & criteria — INTENT never accepts or declines for you."
             "cessation" -> "Measures · SAID self-report only — no biometric or automatic smoke-free streak."
+            "app_use" ->
+                "Destination · Instagram / YouTube — package foreground only; not Shorts/Reels identity."
             else -> null
         }
     }
@@ -232,6 +250,18 @@ object ShapeProjection {
                 ApproachStep(
                     title = "Log cigarettes and cravings",
                     detail = "Self-reported SAID only — not a smoke-free streak chart.",
+                    muted = true
+                )
+            )
+            "app_use" -> listOf(
+                ApproachStep(
+                    title = session?.title ?: "Evening usage review",
+                    detail = (whenLabel?.let { "$it · approved" } ?: "Approved usage-review rhythm")
+                ),
+                ApproachStep(
+                    title = "Compare package time to 45 min",
+                    detail = "Instagram/YouTube foreground only — not Shorts or Reels identity. " +
+                        "Complete stays your report.",
                     muted = true
                 )
             )
@@ -328,6 +358,7 @@ object ShapeProjection {
                     "move" -> "What depends on a landlord?"
                     "decision" -> "What will you weigh?"
                     "cessation" -> "What is your baseline?"
+                    "app_use" -> "How will you hold the cap?"
                     else -> "How will you practise?"
                 },
                 heroBody = when (shapeTag) {
@@ -341,6 +372,9 @@ object ShapeProjection {
                         "Capture SAID criteria into a comparison matrix. INTENT will not accept or decline for you."
                     "cessation" ->
                         "Start with cigarettes/day and when cravings hit. No quit date is forced; measures stay self-reported."
+                    "app_use" ->
+                        "We can set a 45-minute daily target and review Instagram/YouTube package time — " +
+                            "not Shorts or Reels identity."
                     else ->
                         "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
                 },
@@ -356,6 +390,7 @@ object ShapeProjection {
                     "move" -> "Add a weekly search block?"
                     "decision" -> "Add a decision-review block?"
                     "cessation" -> "Add an evening check-in?"
+                    "app_use" -> "Add an evening usage review?"
                     else -> "Add your session?"
                 },
                 heroBody = when (shapeTag) {
@@ -377,6 +412,7 @@ object ShapeProjection {
                     "move" -> "Prepare your next search block"
                     "decision" -> "Prepare your decision review"
                     "cessation" -> "Prepare your evening check-in"
+                    "app_use" -> "Prepare your next usage review"
                     else -> "Prepare for your next session"
                 },
                 heroBody = when (shapeTag) {
@@ -387,6 +423,8 @@ object ShapeProjection {
                     "decision" ->
                         "Revisit your SAID matrix. You still choose accept or decline."
                     "cessation" -> "Log cigarettes and cravings honestly — no invented smoke-free streak."
+                    "app_use" ->
+                        "Compare package foreground to your 45-min target — never auto-Complete from UsageStats."
                     else -> "Bring one situation you want to rehearse."
                 },
                 heroCta = "Begin preparation",
@@ -410,6 +448,7 @@ object ShapeProjection {
                 "move" -> "Contextual conversation · move plan"
                 "decision" -> "Contextual conversation · decision support"
                 "cessation" -> "Contextual conversation · cessation support"
+                "app_use" -> "Contextual conversation · usage"
                 else -> "Contextual conversation"
             }
             IntentionPhase.PROPOSAL_PENDING -> "Your ongoing conversation"
@@ -419,6 +458,7 @@ object ShapeProjection {
                 "move" -> "A conversation about your move"
                 "decision" -> "A conversation about your offer"
                 "cessation" -> "A conversation about quitting smoking"
+                "app_use" -> "A conversation about your usage target"
                 else -> "A conversation about your goal"
             }
         }
@@ -431,6 +471,7 @@ object ShapeProjection {
                 "move" -> "Your next apartment search"
                 "decision" -> "Your decision review"
                 "cessation" -> "Your evening check-in"
+                "app_use" -> "Your next usage review"
                 else -> "Your next session"
             }
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"

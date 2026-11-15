@@ -1,6 +1,7 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
@@ -163,6 +164,7 @@ object ConversationCoordinator {
             "move" -> MoveScenario.onChip(store, chip, nowEpochMs, registry)
             "decision" -> JobOfferScenario.onChip(store, chip, nowEpochMs, registry)
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.onChip(store, chip, nowEpochMs, registry)
+            "app_use" -> AppUseReductionScenario.onChip(store, chip, nowEpochMs, registry)
             else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry)
         }
     }

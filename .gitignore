@@ -10,3 +10,4 @@
 # Ignore build APKs; keep the published download under artifacts/
 *.apk
 !/artifacts/*.apk
+local.properties

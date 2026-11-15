@@ -1,6 +1,7 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.ProvenanceKind
@@ -240,5 +241,56 @@ class ObservedProvenanceTest {
         assertEquals(ProvenanceKind.OBSERVED, evidence.provenance.kind)
         assertEquals(SCHEMA_VERSION, reopened.snapshot().schemaVersion)
         assertEquals("Observed 3 min in Duolingo", evidence.summaryText)
+    }
+
+    @Test
+    fun appUse_instagramObservation_includesShortsLimitation_neverAutoCompletes() {
+        AppUseReductionScenario.seed(store, seedAt)
+        AppUseReductionScenario.onChip(store, "I want under 45 minutes a day", seedAt + 1)
+        AppUseReductionScenario.approve(store, seedAt + 2)
+        AppUseReductionScenario.beginSession(store, now, runId = "run-app-use-obs")
+
+        val access = FakeUsageStatsAccess(
+            granted = true,
+            foregroundByPackage = mapOf(
+                SessionDestinations.INSTAGRAM_PACKAGE to 50 * 60_000L
+            )
+        )
+        val registry = UsageStatsProbe.liveRegistry(access)
+        val dest = SessionDestinations.forShape("app_use", AppUseReductionScenario.INTENTION_ID)!!
+        assertEquals(SessionDestinations.INSTAGRAM_PACKAGE, dest.packageName)
+
+        val obs = UsageStatsProbe.observeSessionForeground(
+            access = access,
+            destination = dest,
+            sessionStartedAtEpochMs = now,
+            nowEpochMs = now + 3_600_000L,
+            registry = registry
+        )
+        assertTrue(obs.note.contains("Shorts", ignoreCase = true) ||
+            obs.note.contains("Reels", ignoreCase = true))
+        assertTrue(ObservedProvenance.meetsOrExceedsTargetMinutes(
+            obs.foregroundMs!!,
+            AppUseReductionScenario.DAILY_TARGET_MINUTES
+        ))
+
+        val recorded = ObservedProvenance.recordIfObservable(
+            store = store,
+            observation = obs,
+            intentionId = AppUseReductionScenario.INTENTION_ID,
+            sessionRunId = "run-app-use-obs",
+            nowEpochMs = now + 3_600_000L,
+            registry = registry
+        )
+        assertNotNull(recorded)
+        assertEquals(ProvenanceKind.OBSERVED, recorded!!.provenance.kind)
+        assertTrue(ObservedProvenance.sessionCardNote(recorded).contains("Shorts") ||
+            ObservedProvenance.sessionCardNote(recorded).contains("Reels"))
+        assertTrue(ObservedProvenance.checkoutNote(recorded).contains("Shorts") ||
+            ObservedProvenance.checkoutNote(recorded).contains("Reels"))
+        assertEquals(
+            SessionRunStatus.IN_PROGRESS,
+            store.snapshot().sessionRuns.single().status
+        )
     }
 }

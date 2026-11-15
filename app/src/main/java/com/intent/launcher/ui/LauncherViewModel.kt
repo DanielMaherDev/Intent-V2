@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
@@ -816,6 +817,7 @@ class LauncherViewModel(
             "move" -> MoveScenario.conversationChips(capabilityRegistry)
             "decision" -> JobOfferScenario.conversationChips(capabilityRegistry)
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(capabilityRegistry)
+            "app_use" -> AppUseReductionScenario.conversationChips(capabilityRegistry)
             else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
@@ -881,6 +883,11 @@ class LauncherViewModel(
         refresh()
     }
 
+    fun startAppUseExploration() {
+        AppUseReductionScenario.ensureSeeded(store)
+        refresh()
+    }
+
     fun activateSpanish() {
         SpanishScenario.ensureSeeded(store)
         store.apply(
@@ -900,6 +907,7 @@ class LauncherViewModel(
             MoveScenario.PROPOSAL_ID -> MoveScenario.SESSION_ID
             JobOfferScenario.PROPOSAL_ID -> JobOfferScenario.SESSION_ID
             QuitSmokingScenario.PROPOSAL_ID -> QuitSmokingScenario.SESSION_ID
+            AppUseReductionScenario.PROPOSAL_ID -> AppUseReductionScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
@@ -932,6 +940,7 @@ class LauncherViewModel(
             MoveScenario.PROPOSAL_ID -> 10
             JobOfferScenario.PROPOSAL_ID -> 18
             QuitSmokingScenario.PROPOSAL_ID -> 20
+            AppUseReductionScenario.PROPOSAL_ID -> 20
             else -> 18
         }
         store.apply(

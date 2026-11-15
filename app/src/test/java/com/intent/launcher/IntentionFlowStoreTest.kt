@@ -1,5 +1,6 @@
 package com.intent.launcher
 
+import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
@@ -406,6 +407,95 @@ class IntentionFlowStoreTest {
         assertEquals(deferUntil, again.sessions.first { it.id == MoveScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals("move", again.intentions.first { it.id == MoveScenario.INTENTION_ID }.shapeTag)
         assertFalse(MoveScenario.placeIsConfirmed(again.facts))
+
+    @Test
+    fun appUseReductionFlow_45MinTarget_shortsHonesty_noAutoComplete() {
+        AppUseReductionScenario.seed(store, now)
+        var snap = store.snapshot()
+        assertEquals(
+            IntentionPhase.EXPLORING,
+            snap.intentions.first { it.id == AppUseReductionScenario.INTENTION_ID }.phase
+        )
+        assertEquals(
+            "app_use",
+            snap.intentions.first { it.id == AppUseReductionScenario.INTENTION_ID }.shapeTag
+        )
+
+        AppUseReductionScenario.onChip(
+            store,
+            "Package time is only a proxy — Shorts aren't identifiable",
+            now + 10
+        )
+        AppUseReductionScenario.onChip(store, "I want under 45 minutes a day", now + 20)
+        snap = store.snapshot()
+
+        val fact = snap.facts.first { it.id == AppUseReductionScenario.FACT_DAILY_TARGET_ID }
+        assertEquals(ProvenanceKind.SAID, fact.provenance.kind)
+        assertTrue(fact.text.contains("45"))
+        val proposal = snap.proposals.first { it.id == AppUseReductionScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertNotEquals(fact.text, proposal.summary)
+        assertTrue(proposal.summary.contains("Shorts", ignoreCase = true) ||
+            proposal.summary.contains("package", ignoreCase = true))
+        assertTrue(proposal.basedOnFactIds.contains(fact.id))
+
+        // Dishonest Shorts-identity claim → refuse; no auto evidence / no Complete
+        val turnsBefore = snap.turns.size
+        AppUseReductionScenario.onChip(
+            store,
+            "Auto-detect my YouTube Shorts minutes",
+            now + 30
+        )
+        snap = store.snapshot()
+        assertTrue(snap.turns.size > turnsBefore)
+        assertTrue(
+            snap.turns.any {
+                it.text.contains("not Shorts", ignoreCase = true) ||
+                    it.text.contains("Shorts", ignoreCase = true)
+            }
+        )
+        assertTrue(snap.evidence.isEmpty())
+        assertTrue(snap.sessionRuns.isEmpty())
+
+        AppUseReductionScenario.approve(store, now + 40)
+        snap = store.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first {
+            it.id == AppUseReductionScenario.INTENTION_ID
+        }.phase)
+        assertEquals(1, snap.sessions.count { it.id == AppUseReductionScenario.SESSION_ID })
+
+        // Monday 20:00 — pin Mon 13 Nov 2023 20:00 UTC
+        val mondayDue = 1_699_905_600_000L
+        val next = NextActionEngine.recommend(snap, mondayDue, tz)
+        assertEquals(NextActionKind.BEGIN, next.kind)
+
+        AppUseReductionScenario.beginSession(store, mondayDue + 10, runId = "run-app-use-1")
+        snap = store.snapshot()
+        assertEquals(SessionRunStatus.IN_PROGRESS, snap.sessionRuns.single().status)
+
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(
+            IntentionPhase.ACTIVE,
+            again.intentions.first { it.id == AppUseReductionScenario.INTENTION_ID }.phase
+        )
+        assertEquals(
+            ProvenanceKind.SAID,
+            again.facts.first { it.id == AppUseReductionScenario.FACT_DAILY_TARGET_ID }.provenance.kind
+        )
+        assertEquals(SessionRunStatus.IN_PROGRESS, again.sessionRuns.single().status)
+    }
+
+    @Test
+    fun fourShapes_shareCoreRecordsIncludingAppUse() {
+        SpanishScenario.seed(store, now)
+        MarathonScenario.seed(store, now + 1)
+        BusinessScenario.seed(store, now + 2)
+        AppUseReductionScenario.seed(store, now + 3)
+        val snap = store.snapshot()
+        assertEquals(4, snap.intentions.size)
+        assertTrue(snap.intentions.any { it.shapeTag == "app_use" })
+        assertEquals(AppUseReductionScenario.INTENTION_ID, snap.activeIntentionId)
     }
 
     @Test
