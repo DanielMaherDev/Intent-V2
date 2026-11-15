@@ -375,9 +375,20 @@ class IntentionFlowStoreTest {
         assertFalse(MoveScenario.placeIsConfirmed(snap.facts))
         assertTrue(snap.facts.any { it.id == MoveScenario.FACT_NO_PLACE_ID })
 
-        // Saturday apartment search is Sat 10:00 — pin Sat 18 Nov 2023 10:00 UTC
+        // Saturday apartment search is Sat 10:00 — pin Sat 18 Nov 2023 10:00 UTC (morning check-in).
         val saturdayDue = 1_700_301_600_000L
-        val next = NextActionEngine.recommend(snap, saturdayDue, tz)
+        val morning = NextActionEngine.recommend(snap, saturdayDue, tz)
+        assertEquals(NextActionKind.CHECK_IN, morning.kind)
+        store.apply(
+            FlowCommand.ConfirmDailyCheckIn(
+                intentionId = MoveScenario.INTENTION_ID,
+                localDate = com.intent.launcher.engine.DailyCycle.localDateString(saturdayDue, tz),
+                focusSummary = morning.detail,
+                nowEpochMs = saturdayDue
+            )
+        )
+        snap = store.snapshot()
+        val next = NextActionEngine.recommend(snap, saturdayDue + 1, tz)
         assertEquals(NextActionKind.BEGIN, next.kind)
 
         val deferUntil = saturdayDue + 3_600_000L
