@@ -11,7 +11,9 @@ enum class CapabilityStatus {
     CONNECTED,
     STALE,
     TEMPORARILY_UNAVAILABLE,
-    NOT_SUPPORTED
+    NOT_SUPPORTED,
+    /** Explicitly off — e.g. user declined live LLM opt-in while a key may exist. */
+    DENIED
 }
 
 data class CapabilityEntry(
@@ -51,6 +53,9 @@ class CapabilityRegistry(
 
     fun isUnsupported(id: String): Boolean =
         byId[id]?.status == CapabilityStatus.NOT_SUPPORTED || byId[id] == null
+
+    fun isDenied(id: String): Boolean =
+        byId[id]?.status == CapabilityStatus.DENIED
 
     fun filterChips(chips: List<SuggestedChip>): List<String> =
         chips.filter { isActionable(it.requiredCapabilityId) }.map { it.label }
@@ -175,6 +180,13 @@ class CapabilityRegistry(
     fun canUsePartnerStrava(): Boolean =
         isActionable(ID_PARTNER_STRAVA)
 
+    /**
+     * True only when live LLM Discuss is honestly LIVE (key + opt-in + client).
+     * This build keeps [ID_LIVE_LLM] off the actionable path without those conditions.
+     */
+    fun canUseLiveLlm(): Boolean =
+        isActionable(ID_LIVE_LLM)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -211,6 +223,7 @@ class CapabilityRegistry(
         const val ID_PARTNER_SPOTIFY = "partner_spotify"
         const val ID_PARTNER_CHESS = "partner_chess"
         const val ID_PARTNER_STRAVA = "partner_strava"
+        const val ID_LIVE_LLM = "live_llm"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -443,6 +456,14 @@ class CapabilityRegistry(
                 status = CapabilityStatus.NOT_SUPPORTED,
                 limitNote = "Strava activity sync is not supported. " +
                     "No fabricated runs or auto-Complete from partner data."
+            ),
+            CapabilityEntry(
+                id = ID_LIVE_LLM,
+                title = "Live LLM Discuss",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "No LLM API key configured. Discuss uses labeled local heuristics " +
+                    "(scripted chips / templates) — not a live model. Never writes OBSERVED " +
+                    "from model output; never auto-Completes sessions."
             )
         )
 

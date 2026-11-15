@@ -104,6 +104,16 @@ class CapabilityRegistryTest {
     }
 
     @Test
+    fun registry_marksLiveLlmNotSupported_byDefault() {
+        val live = registry.get(CapabilityRegistry.ID_LIVE_LLM)!!
+        assertEquals(CapabilityStatus.NOT_SUPPORTED, live.status)
+        assertFalse(registry.canUseLiveLlm())
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_LIVE_LLM))
+        assertTrue(live.limitNote.contains("local heuristics", ignoreCase = true))
+        assertTrue(live.limitNote.contains("OBSERVED", ignoreCase = true))
+    }
+
+    @Test
     fun registry_marksUsageStatsPermissionNeeded_andCalendarUnsupported() {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_USAGE_STATS))
         assertFalse(registry.isActionable(CapabilityRegistry.ID_USAGE_STATS))

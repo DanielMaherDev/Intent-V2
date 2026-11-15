@@ -50,7 +50,7 @@ class ConversationCoordinatorTest {
     fun submitChip_runsSpanishScript_sameAsDirectOnChip() {
         val intention = store.snapshot().intentions.first { it.id == SpanishScenario.INTENTION_ID }
         val registry = CapabilityRegistry.default
-        ConversationCoordinator.submitChip(
+        val result = ConversationCoordinator.submitChip(
             store,
             intention,
             "I meet a tutor on Thursdays at six",
@@ -60,6 +60,9 @@ class ConversationCoordinatorTest {
         val snap = store.snapshot()
         assertEquals(1, snap.proposals.size)
         assertEquals(ProposalStatus.PENDING, snap.proposals.first().status)
+        assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
+        assertNotNull(result.honestyNote)
+        assertTrue(result.honestyNote!!.contains("local heuristics", ignoreCase = true))
     }
 
     @Test
@@ -78,7 +81,8 @@ class ConversationCoordinatorTest {
         assertEquals(ConversationCoordinator.Channel.VOICE_TRANSCRIPT, result.channel)
         assertEquals("I meet a tutor on Thursdays at six", result.appliedChip)
         assertNotNull(result.honestyNote)
-        assertTrue(result.honestyNote!!.contains("No live LLM", ignoreCase = true))
+        assertTrue(result.honestyNote!!.contains("no live LLM", ignoreCase = true))
+        assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
         assertEquals(1, store.snapshot().proposals.size)
     }
 
@@ -99,11 +103,12 @@ class ConversationCoordinatorTest {
         assertNull(result.appliedChip)
         assertEquals("random free speech about weather", result.storedTranscript)
         assertTrue(result.honestyNote!!.contains("no LLM", ignoreCase = true))
+        assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
         assertEquals(0, store.snapshot().proposals.size)
         assertTrue(store.snapshot().turns.size >= beforeTurns + 2)
         assertTrue(
             store.snapshot().turns.any {
-                it.role == "agent" && it.text.contains("no live LLM", ignoreCase = true)
+                it.role == "agent" && it.text.contains("local heuristics", ignoreCase = true)
             }
         )
     }

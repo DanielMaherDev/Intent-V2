@@ -47,6 +47,8 @@ import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
+import com.intent.launcher.engine.LiveLlmAccess
+import com.intent.launcher.engine.LiveLlmProbe
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.NotificationListenerProbe
@@ -90,6 +92,7 @@ class LauncherViewModel(
         IntentApp.instance.screenCaptureAccess,
     private val sessionNotificationReviewStore: SessionNotificationReviewStore =
         IntentApp.instance.sessionNotificationReviewStore,
+    private val liveLlmAccess: LiveLlmAccess = IntentApp.instance.liveLlmAccess,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
@@ -102,7 +105,8 @@ class LauncherViewModel(
                 speechToTextAccess,
                 notificationListenerAccess,
                 quietModeAccess,
-                screenCaptureAccess
+                screenCaptureAccess,
+                liveLlmAccess
             )
 
     /** Local UI flag — user asked for quiet; never implies silence applied. */
@@ -213,6 +217,10 @@ class LauncherViewModel(
     var builderTriageNote by mutableStateOf<String?>(null)
         private set
 
+    /** Live LLM / local-heuristic honesty for Discuss + Conversation. */
+    var liveLlmObservation by mutableStateOf(LiveLlmProbe.observe(liveLlmAccess))
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
@@ -224,6 +232,7 @@ class LauncherViewModel(
         deferPreview = resolveDeferPreview()
         quietObservation = observeQuietIfActive()
         sessionNotificationObservation = observeSessionNotifications()
+        liveLlmObservation = LiveLlmProbe.observe(liveLlmAccess)
     }
 
     fun rawThoughtCount(): Int =
@@ -365,7 +374,8 @@ class LauncherViewModel(
                 speechToTextAccess,
                 notificationListenerAccess,
                 quietModeAccess,
-                screenCaptureAccess
+                screenCaptureAccess,
+                liveLlmAccess
             )
         snapshot = store.snapshot()
         nextAction = recommend()
@@ -386,6 +396,7 @@ class LauncherViewModel(
         if (deferPreview == null) deferConfirmPending = false
         quietObservation = observeQuietIfActive()
         sessionNotificationObservation = observeSessionNotifications()
+        liveLlmObservation = LiveLlmProbe.observe(liveLlmAccess)
     }
 
     /**
@@ -445,6 +456,13 @@ class LauncherViewModel(
         sessionNotificationReviewStore.dismiss(packageName, coarseCategory, runId)
         sessionNotificationObservation = observeSessionNotifications()
     }
+
+    /** Banner for Conversation: "Local heuristics" unless live_llm is honestly LIVE. */
+    fun discussSourceLabel(): String =
+        LiveLlmProbe.discussSourceLabel(capabilityRegistry)
+
+    fun discussHonestyNote(): String =
+        liveLlmObservation.note
 
     /** True when mic may start platform speech recognition. */
     fun canStartVoiceCapture(): Boolean =

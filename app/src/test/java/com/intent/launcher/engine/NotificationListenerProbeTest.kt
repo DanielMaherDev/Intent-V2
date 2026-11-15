@@ -94,5 +94,6 @@ class NotificationListenerProbeTest {
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
         // Default FakeScreenCaptureAccess is available + NOT_ASKED → PERMISSION_NEEDED.
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_LIVE_LLM))
     }
 }

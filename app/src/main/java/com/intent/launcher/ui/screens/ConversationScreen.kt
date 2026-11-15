@@ -50,6 +50,9 @@ fun ConversationScreen(
     hasPendingProposal: Boolean,
     conversationEyebrow: String = "A conversation about your goal",
     conversationHeadline: String = "Let's find a way that fits.",
+    /** Honest Discuss source: local heuristics vs model suggestion. */
+    discussSourceLabel: String = "Local heuristics",
+    discussHonestyNote: String? = null,
     voiceNote: String? = null,
     voiceEnabled: Boolean = false,
     onMicClick: () -> Unit = {},
@@ -79,6 +82,22 @@ fun ConversationScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 color = IntentColors.Ink
             )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = discussSourceLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = IntentColors.AccentDark,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.4.sp
+            )
+            if (discussHonestyNote != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = discussHonestyNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
             Spacer(modifier = Modifier.height(17.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -589,6 +589,8 @@ class MainActivity : ComponentActivity() {
                                 hasPendingProposal = pending != null,
                                 conversationEyebrow = convProjection.conversationEyebrow,
                                 conversationHeadline = convProjection.conversationHeadline,
+                                discussSourceLabel = vm.discussSourceLabel(),
+                                discussHonestyNote = vm.discussHonestyNote(),
                                 voiceNote = vm.voicePathNote ?: vm.voiceObservation.note,
                                 voiceEnabled = vm.canStartVoiceCapture(),
                                 onMicClick = { onConversationMicClick() },

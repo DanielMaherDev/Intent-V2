@@ -3,6 +3,7 @@ package com.intent.launcher
 import android.app.Application
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.InstalledAppLauncher
+import com.intent.launcher.engine.LiveLlmAccess
 import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.QuietModeAccess
@@ -11,6 +12,7 @@ import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.VoicePermissionAccess
+import com.intent.launcher.platform.AndroidLiveLlmAccess
 import com.intent.launcher.platform.AndroidNotificationListenerAccess
 import com.intent.launcher.platform.AndroidOverlayPermissionAccess
 import com.intent.launcher.platform.AndroidQuietModeAccess
@@ -53,6 +55,9 @@ class IntentApp : Application() {
     lateinit var sessionNotificationReviewStore: SessionNotificationReviewStore
         private set
 
+    lateinit var liveLlmAccess: LiveLlmAccess
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -69,6 +74,7 @@ class IntentApp : Application() {
         sessionNotificationReviewStore = SessionNotificationReviewStore(
             File(filesDir, "session_notification_review.json")
         )
+        liveLlmAccess = AndroidLiveLlmAccess(this)
         SpanishScenario.ensureSeeded(store)
     }
 
