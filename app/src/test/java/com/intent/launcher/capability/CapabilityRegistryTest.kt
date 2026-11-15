@@ -38,6 +38,7 @@ class CapabilityRegistryTest {
         val launch = registry.get(CapabilityRegistry.ID_LAUNCH_INSTALLED_APP)!!
         assertEquals(CapabilityStatus.AVAILABLE, launch.status)
         assertTrue(registry.isActionable(CapabilityRegistry.ID_LAUNCH_INSTALLED_APP))
+        assertTrue(registry.canLaunchInstalledApp())
         assertFalse(registry.isActionable(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
     }
 

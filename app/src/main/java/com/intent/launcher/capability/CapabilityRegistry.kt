@@ -79,6 +79,9 @@ class CapabilityRegistry(
     fun canDiscuss(): Boolean =
         isActionable(ID_DISCUSS)
 
+    fun canLaunchInstalledApp(): Boolean =
+        isActionable(ID_LAUNCH_INSTALLED_APP)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
