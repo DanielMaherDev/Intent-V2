@@ -336,6 +336,22 @@ class MainActivity : ComponentActivity() {
                                 onAbandonSession = { vm.abandonActiveSession() },
                                 onOpenDestination = { vm.launchDestinationApp() },
                                 onConfirmCheckIn = { vm.confirmDailyCheckIn() },
+                                onConfirmMidday = {
+                                    vm.recordMiddayCheck(
+                                        summary = vm.nextAction.detail.ifBlank {
+                                            "Midday check — plan held"
+                                        },
+                                        deferLater = false
+                                    )
+                                },
+                                onDeferMidday = {
+                                    vm.recordMiddayCheck(
+                                        summary = vm.nextAction.detail.ifBlank {
+                                            "Midday check — deferring"
+                                        },
+                                        deferLater = true
+                                    )
+                                },
                                 onCheckOutKeepSchedule = {
                                     pendingCheckOutDefer = false
                                     pendingWhatHappened = ""
@@ -695,6 +711,9 @@ class MainActivity : ComponentActivity() {
                                 honestyNote = vm.trackerHonestyNote(),
                                 onRecord = { moduleId, value ->
                                     vm.recordTrackerEntry(moduleId, value)
+                                },
+                                onCorrect = { priorId, value ->
+                                    vm.correctTrackerEntry(priorId, value)
                                 },
                                 onDelete = { entryId -> vm.deleteTrackerEntry(entryId) },
                                 onOpenReports = { nav.navigate("reports") },

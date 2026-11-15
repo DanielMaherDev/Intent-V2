@@ -98,6 +98,7 @@ object HomeAttention {
                     NextActionKind.BEGIN,
                     NextActionKind.ACTIVE_SESSION,
                     NextActionKind.CHECK_IN,
+                    NextActionKind.MIDDAY,
                     NextActionKind.CHECK_OUT
                 ) &&
                 run {
@@ -158,6 +159,7 @@ object HomeAttention {
                 subtitle = "Discuss it with your agent"
             )
             NextActionKind.CHECK_IN,
+            NextActionKind.MIDDAY,
             NextActionKind.CHECK_OUT -> AgentCue(
                 title = "Want to adjust today's focus?",
                 subtitle = "Discuss it with your agent"

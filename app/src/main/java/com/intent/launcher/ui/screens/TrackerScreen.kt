@@ -3,10 +3,8 @@ package com.intent.launcher.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +12,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,6 +40,7 @@ fun TrackerScreen(
     entries: List<TrackerEntry>,
     honestyNote: String,
     onRecord: (moduleId: String, valueText: String) -> Unit,
+    onCorrect: (priorEntryId: String, valueText: String) -> Unit,
     onDelete: (entryId: String) -> Unit,
     onOpenReports: () -> Unit,
     onBack: () -> Unit,
@@ -45,6 +48,7 @@ fun TrackerScreen(
 ) {
     val active = entries.filter { it.status == TrackerEntryStatus.ACTIVE }
         .sortedByDescending { it.recordedAtEpochMs }
+    var correctingEntryId by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier
@@ -63,7 +67,7 @@ fun TrackerScreen(
             color = IntentColors.Ink
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Lede("Same intention store — manual rows are SAID. No fabricated streaks.")
+        Lede("Same intention store — manual rows are SAID. Corrections supersede; no fabricated streaks.")
         Spacer(modifier = Modifier.height(18.dp))
         Text(
             text = honestyNote,
@@ -102,7 +106,20 @@ fun TrackerScreen(
             } else {
                 Spacer(modifier = Modifier.height(12.dp))
                 moduleEntries.forEach { entry ->
-                    TrackerEntryRow(entry = entry, onDelete = { onDelete(entry.id) })
+                    TrackerEntryRow(
+                        entry = entry,
+                        suggestedValues = module.suggestedValues,
+                        correcting = correctingEntryId == entry.id,
+                        onToggleCorrect = {
+                            correctingEntryId =
+                                if (correctingEntryId == entry.id) null else entry.id
+                        },
+                        onCorrectValue = { value ->
+                            onCorrect(entry.id, value)
+                            correctingEntryId = null
+                        },
+                        onDelete = { onDelete(entry.id) }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
@@ -113,8 +130,13 @@ fun TrackerScreen(
 @Composable
 private fun TrackerEntryRow(
     entry: TrackerEntry,
+    suggestedValues: List<String>,
+    correcting: Boolean,
+    onToggleCorrect: () -> Unit,
+    onCorrectValue: (String) -> Unit,
     onDelete: () -> Unit
 ) {
+    val correctionChoices = suggestedValues.filter { it != entry.valueText }
     HeroCard(tone = HeroTone.Accent) {
         SmallLabel(
             text = provenanceChip(entry.provenance.kind),
@@ -134,8 +156,36 @@ private fun TrackerEntryRow(
             color = IntentColors.Muted
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            IntentQuietButton(text = "Delete entry", onClick = onDelete)
+        IntentSecondaryButton(
+            text = if (correcting) "Cancel correct" else "Correct entry",
+            onClick = onToggleCorrect
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        IntentQuietButton(text = "Delete entry", onClick = onDelete)
+        if (correcting) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Pick a corrected value — marks this row CORRECTED and inserts a new ACTIVE SAID row (source · user_correction).",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            if (correctionChoices.isEmpty()) {
+                Text(
+                    text = "No alternate suggested values for this module.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    correctionChoices.forEach { value ->
+                        IntentSecondaryButton(
+                            text = value,
+                            onClick = { onCorrectValue(value) }
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -61,6 +61,7 @@ object FloatingCompanion {
             NextActionKind.REVIEW_PROPOSAL,
             NextActionKind.BEGIN,
             NextActionKind.CHECK_IN,
+            NextActionKind.MIDDAY,
             NextActionKind.CHECK_OUT -> FloatingAgentState.ATTENTION_NEEDED
             else -> FloatingAgentState.IDLE
         }
