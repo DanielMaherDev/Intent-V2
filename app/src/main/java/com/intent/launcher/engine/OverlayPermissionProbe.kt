@@ -40,11 +40,10 @@ object OverlayPermissionProbe {
                     limitNote = "Floating companion overlay available — same agent as Conversation. " +
                         "Voice turns use Conversation mic when permitted; no live LLM."
                 )
-            } else {
+            }             else {
                 entry.copy(
                     status = CapabilityStatus.PERMISSION_NEEDED,
-                    limitNote = "Requires overlay permission for the floating companion. " +
-                        "Use Home’s Agent tab or Discuss to open Conversation without it."
+                    limitNote = TalkBackLabels.overlayDeniedFallbackNote()
                 )
             }
         }
@@ -63,8 +62,7 @@ object OverlayPermissionProbe {
         } else {
             Observation(
                 permissionGranted = false,
-                note = "Overlay permission not granted — no floating bubble. " +
-                    "Use Home’s Agent tab or Discuss for the same Conversation.",
+                note = TalkBackLabels.overlayDeniedFallbackNote(),
                 canOpenSettings = true
             )
         }

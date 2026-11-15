@@ -1,5 +1,5 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.110.apk`](./INTENT-v0.0.110.apk) — Four-core Home visual alignment (v0.0.104).
+Latest sideload APK (this branch): [`INTENT-v0.0.111.apk`](./INTENT-v0.0.111.apk) — Gate D accessibility + floater sticky honesty (v0.0.109).
 
 Do not overwrite lower version APKs.
