@@ -12,6 +12,8 @@ import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.QuitSmokingScenario
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.SCHEMA_VERSION
+import com.intent.launcher.domain.SessionDestinations
+import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.store.IntentionFlowStore
@@ -26,8 +28,8 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
- * Gate E §17 breadth — named must-haves 19, 21, 23, 26–29 plus supporting cases.
- * Domain + restart proofs; UI screenshots live under Project media/gate-e/.
+ * Gate E §17 breadth — named must-haves 19, 21, 23, 26–29 plus remaining gaps
+ * 2, 5, 17, 20, 24, 31–34. Domain + restart proofs; UI under Project media/gate-e/.
  */
 class GateEScenarioSuiteTest {
 
@@ -356,5 +358,323 @@ class GateEScenarioSuiteTest {
         assertEquals("intent.policy.v1", CommandGateway.POLICY_VERSION)
         assertEquals("intent.contracts.v1", CommandGateway.CONTRACTS_VERSION)
         assertEquals(10, SCHEMA_VERSION)
+    }
+
+    // —— 2 Vague health goal ——
+    @Test
+    fun case02_vagueHealth_exploringPlusNextQuestion_noSettledPlan() {
+        val result = VagueHealthGoal.open(
+            store = store,
+            utterance = "I want to be healthier.",
+            nowEpochMs = now
+        )
+        assertEquals(IntentionPhase.EXPLORING, result.phase)
+        assertFalse(result.settledPlanPresented)
+        assertTrue(result.nextQuestion.contains("sleep", ignoreCase = true))
+        val snap = store.snapshot()
+        val intention = snap.intentions.first { it.id == VagueHealthGoal.INTENTION_ID }
+        assertEquals(IntentionPhase.EXPLORING, intention.phase)
+        assertTrue(snap.turns.any { it.text == VagueHealthGoal.NEXT_QUESTION })
+        assertTrue(
+            snap.proposals.none {
+                it.intentionId == VagueHealthGoal.INTENTION_ID &&
+                    (it.status == ProposalStatus.PENDING || it.status == ProposalStatus.APPROVED)
+            }
+        )
+        assertFalse(
+            snap.turns.any {
+                it.role == "agent" &&
+                    it.text.contains("here is your complete health plan", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— 5 App-led learning ——
+    @Test
+    fun case05_duolingoApproach_confirmedHold_noLessonCompletionClaim() {
+        val result = AppDurationTask.confirmDuolingoApproach(
+            store = store,
+            nowEpochMs = now,
+            utterance = "I'll practise with Duolingo"
+        )
+        assertTrue(result.approachConfirmed)
+        assertEquals(SessionDestinations.SPANISH_PACKAGE, result.heldPackage)
+        assertFalse(result.claimedLessonCompletion)
+        assertTrue(
+            store.snapshot().facts.any {
+                it.id == AppDurationTask.APPROACH_FACT_ID &&
+                    it.text.contains("not lesson completion", ignoreCase = true)
+            }
+        )
+        SpanishScenario.onChip(
+            store,
+            "Track my Duolingo lesson completion automatically",
+            now + 50
+        )
+        assertTrue(
+            store.snapshot().turns.any {
+                it.role == "agent" &&
+                    (it.text.contains("not supported", ignoreCase = true) ||
+                        it.text.contains("lesson", ignoreCase = true))
+            }
+        )
+    }
+
+    // —— 17 Physical constraint ——
+    @Test
+    fun case17_physicalConstraint_updatesConstraintAndRescheduleProposal() {
+        MarathonScenario.seed(store, now)
+        MarathonScenario.onChip(store, "Long runs feel best on Sundays", now + 10)
+        MarathonScenario.approve(store, now + 20)
+        val result = PhysicalConstraintChange.apply(
+            store = store,
+            nowEpochMs = now + 30,
+            utterance = "I cannot run this week."
+        )
+        assertTrue(result.constraintRecorded)
+        assertEquals(PhysicalConstraintChange.PROPOSAL_ID, result.proposalId)
+        assertFalse(result.highIntensityLeftUnchanged)
+        assertTrue(PhysicalConstraintChange.proposalIsEasyWeek(store))
+        assertNotNull(result.deferredSessionId)
+        val proposal = store.snapshot().proposals.first { it.id == PhysicalConstraintChange.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertTrue(proposal.summary.contains("not speed", ignoreCase = true))
+        assertFalse(proposal.summary.contains("high-intensity intervals as planned", ignoreCase = true))
+    }
+
+    // —— 20 Cross-intention link ——
+    @Test
+    fun case20_crossIntentionLink_exactRelationProposal_noDuplicateOrGuess() {
+        store.apply(
+            FlowCommand.SeedExploring(
+                intentionId = "intention-health",
+                title = "Health",
+                statement = "Parent health goal",
+                shapeTag = "other",
+                nowEpochMs = now
+            )
+        )
+        store.apply(
+            FlowCommand.SeedExploring(
+                intentionId = "intention-gym",
+                title = "Gym",
+                statement = "Strength training",
+                shapeTag = "other",
+                nowEpochMs = now + 1
+            )
+        )
+        val proposed = CrossIntentionLink.propose(
+            store = store,
+            childIntentionId = "intention-gym",
+            parentIntentionId = "intention-health",
+            relationLabel = "Gym is part of my Health goal.",
+            nowEpochMs = now + 2
+        )
+        assertTrue(proposed.pending)
+        assertFalse(proposed.applied)
+        assertTrue(CrossIntentionLink.isPending(store, "intention-gym"))
+        assertEquals(
+            null,
+            store.snapshot().intentions.first { it.id == "intention-gym" }.parentIntentionId
+        )
+        val confirmed = CrossIntentionLink.confirm(
+            store = store,
+            childIntentionId = "intention-gym",
+            parentIntentionId = "intention-health",
+            nowEpochMs = now + 3
+        )
+        assertTrue(confirmed.applied)
+        assertEquals(
+            "intention-health",
+            store.snapshot().intentions.first { it.id == "intention-gym" }.parentIntentionId
+        )
+        assertEquals(1, store.snapshot().intentions.count { it.id == "intention-gym" })
+        assertEquals(1, store.snapshot().intentions.count { it.id == "intention-health" })
+    }
+
+    // —— 24 Long-term adjustment ——
+    @Test
+    fun case24_tutorDayChange_correctedFactAndScheduleProposal_noSilentRewrite() {
+        SpanishScenario.seed(store, now)
+        SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 10)
+        SpanishScenario.approve(store, now + 20)
+        val beforeDay = store.snapshot().sessions.first { it.id == SpanishScenario.SESSION_ID }.dayOfWeek
+        assertEquals(4, beforeDay)
+        val result = LongTermAdjustment.applyTutorTuesday(
+            store = store,
+            nowEpochMs = now + 30,
+            utterance = "Tutor is now on Tuesdays."
+        )
+        assertEquals(LongTermAdjustment.CORRECTED_FACT_ID, result.correctedFactId)
+        assertEquals(LongTermAdjustment.SCHEDULE_CHANGE_PROPOSAL_ID, result.proposalId)
+        assertFalse(result.sessionSilentlyRewritten)
+        assertEquals(
+            4,
+            store.snapshot().sessions.first { it.id == SpanishScenario.SESSION_ID }.dayOfWeek
+        )
+        val change = store.snapshot().proposals.first {
+            it.id == LongTermAdjustment.SCHEDULE_CHANGE_PROPOSAL_ID
+        }
+        assertEquals(ProposalStatus.PENDING, change.status)
+        assertEquals(LongTermAdjustment.TUESDAY, change.proposedDayOfWeek)
+        assertTrue(
+            store.snapshot().facts.any {
+                it.id == LongTermAdjustment.CORRECTED_FACT_ID &&
+                    it.text.contains("Tuesdays", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— 31 Guided practice ——
+    @Test
+    fun case31_guidedPractice_roleObjectiveTranscriptOnSpanishIntention() {
+        val result = GuidedPractice.start(
+            store = store,
+            nowEpochMs = now,
+            utterance = "Let's practise a customer call in Spanish."
+        )
+        assertEquals(SpanishScenario.INTENTION_ID, result.intentionId)
+        assertTrue(result.linkedToSpanishIntention)
+        assertFalse(result.separateBotCreated)
+        assertTrue(result.transcriptTurnIds.isNotEmpty())
+        val snap = store.snapshot()
+        assertTrue(snap.facts.any { it.id == GuidedPractice.ROLE_FACT_ID })
+        assertTrue(snap.facts.any { it.id == GuidedPractice.OBJECTIVE_FACT_ID })
+        assertTrue(
+            snap.turns.any {
+                it.id == result.feedbackTurnId &&
+                    it.intentionId == SpanishScenario.INTENTION_ID
+            }
+        )
+        assertTrue(
+            snap.intentions.none {
+                it.id != SpanishScenario.INTENTION_ID &&
+                    it.title.contains("customer call", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— 32 App-duration task ——
+    @Test
+    fun case32_appDuration_fifteenMinuteCriterion_softPauseResume_noLessonClaim() {
+        val result = AppDurationTask.startFifteenMinutePractice(
+            store = store,
+            nowEpochMs = now,
+            utterance = "Practise in Duolingo for 15 minutes."
+        )
+        assertEquals(15, result.criterionMinutes)
+        assertNotNull(result.runId)
+        assertTrue(result.softPaused)
+        assertTrue(result.resumed)
+        assertFalse(result.claimedLessonCompletion)
+        assertTrue(
+            store.snapshot().facts.any {
+                it.id == AppDurationTask.DURATION_FACT_ID &&
+                    it.text.contains("15", ignoreCase = false)
+            }
+        )
+        val run = store.snapshot().sessionRuns.first { it.id == result.runId }
+        assertEquals(SessionDestinations.SPANISH_PACKAGE, run.affinityPackageName)
+        assertEquals(SessionRunStatus.IN_PROGRESS, run.status)
+        assertTrue(
+            store.snapshot().turns.none {
+                it.text.contains("lesson was completed", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— 33 Spoken approval ambiguity ——
+    @Test
+    fun case33_spokenYes_withTwoPending_asksClarification_approvesNeither() {
+        SpanishScenario.seed(store, now)
+        SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 10)
+        MarathonScenario.seed(store, now + 20)
+        MarathonScenario.onChip(store, "Long runs feel best on Sundays", now + 30)
+        assertEquals(
+            2,
+            store.snapshot().proposals.count { it.status == ProposalStatus.PENDING }
+        )
+        val result = CommandGateway.approveProposal(
+            store = store,
+            turnId = "turn-yes-1",
+            commandId = "cmd-yes-1",
+            sessionId = "session-should-not-apply",
+            nowEpochMs = now + 40,
+            utterance = "Yes"
+        )
+        assertEquals(GatewayStatus.AMBIGUOUS, result.status)
+        assertTrue(result.blocks.any { it.type == ResponseBlockType.CHOICE_SET })
+        assertTrue(result.message!!.contains("arbitrarily", ignoreCase = true))
+        assertEquals(
+            2,
+            store.snapshot().proposals.count { it.status == ProposalStatus.PENDING }
+        )
+        assertTrue(
+            store.snapshot().proposals.none { it.status == ProposalStatus.APPROVED }
+        )
+    }
+
+    @Test
+    fun case33_explicitProposalId_approvesOnlyThatOne() {
+        SpanishScenario.seed(store, now)
+        SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 10)
+        MarathonScenario.seed(store, now + 20)
+        MarathonScenario.onChip(store, "Long runs feel best on Sundays", now + 30)
+        val result = CommandGateway.approveProposal(
+            store = store,
+            turnId = "turn-yes-2",
+            commandId = "cmd-yes-2",
+            sessionId = SpanishScenario.SESSION_ID,
+            nowEpochMs = now + 40,
+            utterance = "Yes",
+            explicitProposalId = SpanishScenario.PROPOSAL_ID
+        )
+        assertEquals(GatewayStatus.APPLIED, result.status)
+        assertEquals(
+            ProposalStatus.APPROVED,
+            store.snapshot().proposals.first { it.id == SpanishScenario.PROPOSAL_ID }.status
+        )
+        assertEquals(
+            ProposalStatus.PENDING,
+            store.snapshot().proposals.first { it.id == MarathonScenario.PROPOSAL_ID }.status
+        )
+    }
+
+    // —— 34 Interrupted voice ——
+    @Test
+    fun case34_interruptedVoice_cancelsSpeech_oneOrderedTurn_refusesLateDuplicate() {
+        MarathonScenario.seed(store, now)
+        val speakingTurnId = "turn-agent-speaking-1"
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = speakingTurnId,
+                intentionId = MarathonScenario.INTENTION_ID,
+                role = "agent",
+                text = "I was in the middle of recommending a long tempo run…",
+                nowEpochMs = now + 1,
+                modality = "VOICE_TTS"
+            )
+        )
+        val result = InterruptedVoice.bargeIn(
+            store = store,
+            intentionId = MarathonScenario.INTENTION_ID,
+            speakingTurnId = speakingTurnId,
+            userTranscript = "Wait — soft easy jog only today",
+            nowEpochMs = now + 2
+        )
+        assertEquals(speakingTurnId, result.cancelledTurnId)
+        assertTrue(result.lateDuplicateRefused)
+        assertTrue(AgentTurnLifecycle.isCancelled(store.snapshot(), speakingTurnId))
+        val turns = store.snapshot().turns.sortedBy { it.atEpochMs }
+        val userIdx = turns.indexOfFirst { it.id == result.newUserTurnId }
+        val cancelIdx = turns.indexOfFirst {
+            it.id == AgentTurnLifecycle.cancelMarkerTurnId(speakingTurnId)
+        }
+        assertTrue(userIdx >= 0)
+        assertTrue(cancelIdx >= 0)
+        assertTrue(turns[userIdx].atEpochMs >= turns[cancelIdx].atEpochMs)
+        assertTrue(
+            store.snapshot().trackerEntries.none { it.id == "trk-late-voice-$speakingTurnId" }
+        )
     }
 }
