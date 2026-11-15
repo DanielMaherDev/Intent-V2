@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.18**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.19**.
 
 ## Build
 
@@ -32,6 +32,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.16:** Floating agent companion — overlay-gated bubble for the same Conversation agent (`idle` / `attention_needed` / `active_session`); press → Discuss
 - **v0.0.17:** Stable sideload signing (`keystore/intent-sideload.jks`) so native Package Installer can install/update GitHub artifacts
 - **v0.0.18:** Stage 6 voice path — mic/STT gated; voice + chips share `ConversationCoordinator` (no live LLM)
+- **v0.0.19:** Sideload APKs non-debuggable — fixes PackageInstaller `INSTALL_FAILED_TEST_ONLY` (ApkMirror-only installs)
 
 ## Shapes
 
@@ -77,9 +78,9 @@ Shapes with a destination package (Spanish → Duolingo / `com.duolingo`) launch
 
 When overlay is granted, `FloatingAgentService` shows a bubble for the **same** agent as Conversation (`idle` / `attention_needed` / `active_session`; stub labels for capture/think/reply). Press opens Discuss → Conversation. When overlay is denied, there is **no** fake bubble — use Home Agent / Discuss.
 
-## Sideload signing (v0.0.17)
+## Sideload packaging (v0.0.17 + v0.0.19)
 
-Published APKs are signed with the committed `keystore/intent-sideload.jks` (not a per-machine debug keystore) so Android’s native Package Installer can install and update them. **Uninstall any older INTENT build once** before installing v0.0.17+ if you previously sideloaded a differently signed APK.
+Published APKs use `keystore/intent-sideload.jks` and **`isDebuggable = false`** so the system Package Installer can install them (debuggable APKs fail with `INSTALL_FAILED_TEST_ONLY`; ApkMirror often still works). Filename still ends in `-debug.apk` for history — the binary is not `application-debuggable`. Use build type `engineering` only when you need a debugger. **Uninstall older INTENT once** before first v0.0.19 install if a prior build remains.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -87,6 +88,6 @@ Conversation mic uses platform speech recognition when `RECORD_AUDIO` is granted
 
 ## Download
 
-Debug APK (v0.0.18): [INTENT-v0.0.18-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/stage6-voice-v018-930c/artifacts/INTENT-v0.0.18-debug.apk)
+Debug APK (v0.0.19, Package Installer–safe): [INTENT-v0.0.19-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/apk-install-followup-v019-930c/artifacts/INTENT-v0.0.19-debug.apk)
 
-(Prior: [INTENT-v0.0.17-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.17-debug.apk) · [INTENT-v0.0.16-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.16-debug.apk) · [INTENT-v0.0.15-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.15-debug.apk) · [INTENT-v0.0.14-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.14-debug.apk) · [INTENT-v0.0.13-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.13-debug.apk) · [INTENT-v0.0.12-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.12-debug.apk) · [INTENT-v0.0.11-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.11-debug.apk) · [INTENT-v0.0.10-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.10-debug.apk) · [INTENT-v0.0.09-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.09-debug.apk) · [INTENT-v0.0.08-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.08-debug.apk) · [INTENT-v0.0.07-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.07-debug.apk) · [INTENT-v0.0.06-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.06-debug.apk) · [INTENT-v0.0.05-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.05-debug.apk) · [INTENT-v0.0.04-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.04-debug.apk) · [INTENT-v0.0.03-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.03-debug.apk) · [INTENT-v0.0.02-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.02-debug.apk) · [INTENT-v0.0.01-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk))
+(Prior: [INTENT-v0.0.18-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.18-debug.apk) · [INTENT-v0.0.17-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.17-debug.apk) · [INTENT-v0.0.16-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.16-debug.apk) · [INTENT-v0.0.15-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.15-debug.apk) · [INTENT-v0.0.14-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.14-debug.apk) · [INTENT-v0.0.13-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.13-debug.apk) · [INTENT-v0.0.12-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.12-debug.apk) · [INTENT-v0.0.11-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.11-debug.apk) · [INTENT-v0.0.10-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.10-debug.apk) · [INTENT-v0.0.09-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.09-debug.apk) · [INTENT-v0.0.08-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.08-debug.apk) · [INTENT-v0.0.07-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.07-debug.apk) · [INTENT-v0.0.06-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.06-debug.apk) · [INTENT-v0.0.05-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.05-debug.apk) · [INTENT-v0.0.04-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.04-debug.apk) · [INTENT-v0.0.03-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.03-debug.apk) · [INTENT-v0.0.02-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.02-debug.apk) · [INTENT-v0.0.01-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk))

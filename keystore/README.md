@@ -13,3 +13,8 @@ Configured in `app/build.gradle.kts` as `signingConfigs.sideload` for `debug` an
 ## Security
 
 This key is for **sideload continuity only** — not Play Store release. Treat it as public; rotate only if you accept forcing every device to uninstall first.
+
+## Debuggable
+
+Published `:app:assembleDebug` artifacts set `isDebuggable = false` so the system Package Installer accepts them. Use Gradle build type `engineering` when you need a debugger attached.
+

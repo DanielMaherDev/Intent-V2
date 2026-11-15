@@ -19,7 +19,9 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.IntentLauncher">
+        android:testOnly="false"
+        android:theme="@style/Theme.IntentLauncher"
+        tools:replace="android:testOnly">
         <activity
             android:name=".MainActivity"
             android:exported="true"
