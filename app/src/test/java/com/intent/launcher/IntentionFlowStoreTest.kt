@@ -293,7 +293,7 @@ class IntentionFlowStoreTest {
         val f = tmp.newFile("old.json")
         f.writeText(raw)
         val s = IntentionFlowStore(f)
-        assertEquals(2, s.snapshot().schemaVersion)
+        assertEquals(3, s.snapshot().schemaVersion)
         assertTrue(s.snapshot().sessionRuns.isEmpty())
     }
 

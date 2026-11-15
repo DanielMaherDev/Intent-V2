@@ -16,6 +16,7 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.FloatingAgentState
@@ -107,6 +108,10 @@ class LauncherViewModel(
     var voicePathNote by mutableStateOf<String?>(null)
         private set
 
+    /** Confirmation after a successful (or failed empty) thought capture. */
+    var thoughtCaptureNote by mutableStateOf<String?>(null)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
@@ -160,6 +165,29 @@ class LauncherViewModel(
         )
         refresh()
         return result.navigateTo
+    }
+
+    /**
+     * Persist a raw thought (SAID). [source] is floater / home / voice.
+     * Does not open Conversation or invent a summary.
+     */
+    fun captureThought(
+        text: String,
+        source: String = CaptureThought.SOURCE_HOME
+    ): Boolean {
+        val result = FloatingCompanion.onCaptureThought(
+            store = store,
+            text = text,
+            nowEpochMs = System.currentTimeMillis(),
+            source = source
+        )
+        thoughtCaptureNote = result.confirmation
+        refresh()
+        return result.ok
+    }
+
+    fun clearThoughtCaptureNote() {
+        thoughtCaptureNote = null
     }
 
     private fun recommend(): NextAction =

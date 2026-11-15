@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 2
+const val SCHEMA_VERSION: Int = 3
 
 enum class ProvenanceKind {
     SAID,
@@ -108,6 +108,28 @@ data class ConversationTurn(
     val atEpochMs: Long
 )
 
+/**
+ * Instant raw thought — stored before any classification.
+ * Provenance is always SAID; classification is deferred (evening / Conversation).
+ */
+enum class ThoughtCaptureStatus {
+    RAW,
+    PROMOTED,
+    DISCARDED
+}
+
+data class ThoughtCapture(
+    val id: String,
+    /** Active or last intention when captured; null only if none exist. */
+    val intentionId: String?,
+    val text: String,
+    val provenance: Provenance,
+    val capturedAtEpochMs: Long,
+    /** Entry surface: floater | home | voice */
+    val source: String,
+    val status: ThoughtCaptureStatus = ThoughtCaptureStatus.RAW
+)
+
 data class Intention(
     val id: String,
     val title: String,
@@ -127,6 +149,7 @@ data class IntentionSnapshot(
     val sessions: List<ScheduledSession> = emptyList(),
     val sessionRuns: List<SessionRun> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
+    val thoughtCaptures: List<ThoughtCapture> = emptyList(),
     val activeIntentionId: String? = null
 )
 
@@ -226,6 +249,17 @@ sealed class FlowCommand {
     data class MarkPhase(
         val intentionId: String,
         val phase: IntentionPhase,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Persist a raw thought immediately (SAID). No LLM summary; classification later.
+     */
+    data class CaptureThought(
+        val thoughtId: String,
+        val intentionId: String?,
+        val text: String,
+        val source: String,
         val nowEpochMs: Long
     ) : FlowCommand()
 }

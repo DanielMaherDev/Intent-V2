@@ -44,7 +44,7 @@ object FloatingCompanion {
                 state = null,
                 label = "Use Agent on Home",
                 manualRouteNote = "Overlay permission needed for the floating companion. " +
-                    "Use Home’s Agent tab or Discuss to open the same Conversation."
+                    "Use Home’s Agent tab or Discuss for Conversation, or Capture thought on Home."
             )
         }
         val state = resolveState(nextAction)
@@ -87,5 +87,21 @@ object FloatingCompanion {
             nextAction = nextAction,
             nowEpochMs = nowEpochMs,
             registry = registry
+        )
+
+    /**
+     * Long-press / Capture — persist raw thought (SAID). Not a second bot; no LLM summary.
+     */
+    fun onCaptureThought(
+        store: IntentionFlowStore,
+        text: String,
+        nowEpochMs: Long,
+        source: String = CaptureThought.SOURCE_FLOATER
+    ): CaptureThought.Result =
+        CaptureThought.capture(
+            store = store,
+            text = text,
+            source = source,
+            nowEpochMs = nowEpochMs
         )
 }

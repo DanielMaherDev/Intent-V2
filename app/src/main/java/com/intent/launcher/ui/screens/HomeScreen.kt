@@ -80,6 +80,8 @@ fun HomeScreen(
     floatingCompanionLabel: String? = null,
     /** Honest manual route when overlay is denied — no fake floating UI. */
     floatingManualRouteNote: String? = null,
+    onCaptureThought: () -> Unit = {},
+    thoughtCaptureNote: String? = null,
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -270,7 +272,8 @@ fun HomeScreen(
             if (floatingCompanionLabel != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. Tap the bubble to Discuss.",
+                    text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. " +
+                        "Tap to Discuss · long-press to Capture thought.",
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Muted
                 )
@@ -280,6 +283,19 @@ fun HomeScreen(
                     text = floatingManualRouteNote,
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Muted
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentQuietButton(
+                text = "Capture thought",
+                onClick = onCaptureThought
+            )
+            if (thoughtCaptureNote != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = thoughtCaptureNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Success
                 )
             }
 

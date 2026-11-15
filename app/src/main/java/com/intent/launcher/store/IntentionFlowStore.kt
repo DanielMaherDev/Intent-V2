@@ -17,6 +17,8 @@ import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
+import com.intent.launcher.domain.ThoughtCapture
+import com.intent.launcher.domain.ThoughtCaptureStatus
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -251,6 +253,38 @@ class IntentionFlowStore(
                     )
                 )
             }
+
+            is FlowCommand.CaptureThought -> {
+                val trimmed = command.text.trim()
+                if (trimmed.isEmpty()) return migrated
+                val thought = ThoughtCapture(
+                    id = command.thoughtId,
+                    intentionId = command.intentionId,
+                    text = trimmed,
+                    provenance = Provenance(
+                        kind = ProvenanceKind.SAID,
+                        learnedAtEpochMs = command.nowEpochMs,
+                        sourceLabel = when (command.source) {
+                            "voice" -> "voice_thought_capture"
+                            "floater" -> "floater_thought_capture"
+                            else -> "home_thought_capture"
+                        }
+                    ),
+                    capturedAtEpochMs = command.nowEpochMs,
+                    source = command.source,
+                    status = ThoughtCaptureStatus.RAW
+                )
+                val intentions = if (command.intentionId != null) {
+                    touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                } else {
+                    migrated.intentions
+                }
+                migrated.copy(
+                    thoughtCaptures = migrated.thoughtCaptures.filterNot { it.id == thought.id } +
+                        thought,
+                    intentions = intentions
+                )
+            }
         }
     }
 
@@ -383,6 +417,16 @@ class IntentionFlowStore(
         val atEpochMs: Long = 0L
     )
 
+    data class WireThoughtCapture(
+        val id: String = "",
+        val intentionId: String? = null,
+        val text: String = "",
+        val provenance: WireProvenance = WireProvenance(),
+        val capturedAtEpochMs: Long = 0L,
+        val source: String = "home",
+        val status: String = ThoughtCaptureStatus.RAW.name
+    )
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -392,6 +436,7 @@ class IntentionFlowStore(
         val sessions: List<WireSession> = emptyList(),
         val sessionRuns: List<WireSessionRun> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
+        val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
         val activeIntentionId: String? = null
     ) {
         fun toDomain() = IntentionSnapshot(
@@ -452,6 +497,18 @@ class IntentionFlowStore(
             turns = turns.map {
                 ConversationTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
             },
+            thoughtCaptures = thoughtCaptures.map {
+                ThoughtCapture(
+                    id = it.id,
+                    intentionId = it.intentionId,
+                    text = it.text,
+                    provenance = it.provenance.toDomain(),
+                    capturedAtEpochMs = it.capturedAtEpochMs,
+                    source = it.source,
+                    status = runCatching { ThoughtCaptureStatus.valueOf(it.status) }
+                        .getOrDefault(ThoughtCaptureStatus.RAW)
+                )
+            },
             activeIntentionId = activeIntentionId
         )
 
@@ -491,6 +548,17 @@ class IntentionFlowStore(
                 },
                 turns = s.turns.map {
                     WireTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
+                },
+                thoughtCaptures = s.thoughtCaptures.map {
+                    WireThoughtCapture(
+                        id = it.id,
+                        intentionId = it.intentionId,
+                        text = it.text,
+                        provenance = WireProvenance.from(it.provenance),
+                        capturedAtEpochMs = it.capturedAtEpochMs,
+                        source = it.source,
+                        status = it.status.name
+                    )
                 },
                 activeIntentionId = s.activeIntentionId
             )
