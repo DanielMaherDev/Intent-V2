@@ -48,6 +48,7 @@ class NotificationListenerProbeTest {
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
         // Post-#31: default screen_capture is consent-at-ask (PERMISSION_NEEDED).
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        assertFalse(registry.canUseScreenCapture())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
     }
 
@@ -94,6 +95,7 @@ class NotificationListenerProbeTest {
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
         // Default FakeScreenCaptureAccess is available + NOT_ASKED → PERMISSION_NEEDED.
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        assertFalse(registry.canUseScreenCapture())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_LIVE_LLM))
     }
 }
