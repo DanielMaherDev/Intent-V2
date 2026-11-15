@@ -19,6 +19,9 @@ import com.intent.launcher.store.IntentionFlowStore
  * Discuss (tech-arch §8). Without live_llm CONNECTED, free text stays labeled local
  * heuristics — never invents model replies. When LIVE + key + opt-in, unmatched voice
  * STT and typed free-text both call [OpenAiDiscussClient] on the same path.
+ *
+ * Chip-matching free-text / voice route through the same [dispatchChip] path so domain
+ * mutations (facts, proposals) converge across modalities when a chip matches.
  */
 object ConversationCoordinator {
 
@@ -48,7 +51,14 @@ object ConversationCoordinator {
         nowEpochMs: Long,
         registry: CapabilityRegistry = CapabilityRegistry.default
     ): SubmitResult {
-        dispatchChip(store, intention, chip, nowEpochMs, registry)
+        dispatchChip(
+            store,
+            intention,
+            chip,
+            nowEpochMs,
+            registry,
+            modality = Channel.TEXT_CHIP.name
+        )
         val live = registry.canUseLiveLlm()
         return SubmitResult(
             channel = Channel.TEXT_CHIP,
@@ -101,9 +111,17 @@ object ConversationCoordinator {
                 sourceLabel = sourceLabel
             )
         }
-        val matched = matchChip(trimmed, availableChips)
+        val chips = availableChips.ifEmpty { chipsForIntention(intention, registry) }
+        val matched = matchChip(trimmed, chips)
         if (matched != null) {
-            dispatchChip(store, intention, matched, nowEpochMs, registry)
+            dispatchChip(
+                store,
+                intention,
+                matched,
+                nowEpochMs,
+                registry,
+                modality = Channel.VOICE_TRANSCRIPT.name
+            )
             return SubmitResult(
                 channel = Channel.VOICE_TRANSCRIPT,
                 appliedChip = matched,
@@ -121,17 +139,19 @@ object ConversationCoordinator {
             nowEpochMs = nowEpochMs,
             registry = registry,
             access = access,
-            client = client
+            client = client,
+            availableChips = emptyList() // already failed chip match
         ).copy(channel = Channel.VOICE_TRANSCRIPT)
     }
 
     /**
      * Free-text Discuss path.
      *
-     * - Not LIVE (no key / opt-in off / client off): store user text + honest local reply;
-     *   never calls the network.
-     * - LIVE: calls [client] with [LiveLlmAccess.resolveApiKey]; agent turn is labeled
-     *   model-generated. Never writes OBSERVED; never auto-Completes.
+     * - When text matches a suggested chip for the intention (or [availableChips]),
+     *   routes through the same [dispatchChip] path as voice/chip (Gate B modality).
+     * - Not LIVE: store user text + honest local reply; never calls the network.
+     * - LIVE: calls [client] with [ContextAssembler] pack appended to the system prompt.
+     *   Never writes OBSERVED; never auto-Completes.
      */
     fun submitFreeText(
         store: IntentionFlowStore,
@@ -140,7 +160,8 @@ object ConversationCoordinator {
         nowEpochMs: Long,
         registry: CapabilityRegistry = CapabilityRegistry.default,
         access: LiveLlmAccess = FakeLiveLlmAccess(),
-        client: OpenAiDiscussClient? = null
+        client: OpenAiDiscussClient? = null,
+        availableChips: List<String> = emptyList()
     ): SubmitResult {
         val sourceLabel = LiveLlmProbe.discussSourceLabel(registry)
         val trimmed = text.trim()
@@ -163,13 +184,36 @@ object ConversationCoordinator {
                 sourceLabel = sourceLabel
             )
 
+        val chips = availableChips.ifEmpty { chipsForIntention(intention, registry) }
+        if (chips.isNotEmpty()) {
+            val matched = matchChip(trimmed, chips)
+            if (matched != null) {
+                dispatchChip(
+                    store,
+                    intention,
+                    matched,
+                    nowEpochMs,
+                    registry,
+                    modality = Channel.FREE_TEXT.name
+                )
+                return SubmitResult(
+                    channel = Channel.FREE_TEXT,
+                    appliedChip = matched,
+                    storedTranscript = trimmed,
+                    honestyNote = "Matched your typed text to a chip — same path as tapping it.",
+                    sourceLabel = sourceLabel
+                )
+            }
+        }
+
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-free-user-$nowEpochMs",
                 intentionId = intentionId,
                 role = "user",
                 text = trimmed,
-                nowEpochMs = nowEpochMs
+                nowEpochMs = nowEpochMs,
+                modality = Channel.FREE_TEXT.name
             )
         )
 
@@ -194,7 +238,8 @@ object ConversationCoordinator {
                     text = "I stored that as text. $reason " +
                         "Choose a chip above for scripted actions — " +
                         "I will not invent a model reply.",
-                    nowEpochMs = nowEpochMs + 1
+                    nowEpochMs = nowEpochMs + 1,
+                    modality = Channel.FREE_TEXT.name
                 )
             )
             return SubmitResult(
@@ -214,7 +259,20 @@ object ConversationCoordinator {
             )
         ) { "Live Discuss refused unsafe model side effects." }
 
-        return when (val outcome = client.complete(apiKey, trimmed)) {
+        val contextPack = ContextAssembler.assemble(
+            snapshot = store.snapshot(),
+            intention = intention ?: store.snapshot().intentions.firstOrNull { it.id == intentionId },
+            registry = registry,
+            nowEpochMs = nowEpochMs
+        )
+
+        return when (
+            val outcome = client.complete(
+                apiKey = apiKey,
+                userMessage = trimmed,
+                contextPack = contextPack
+            )
+        ) {
             is OpenAiDiscussClient.Outcome.Success -> {
                 val agentText = OpenAiDiscussClient.formatAgentTurn(outcome.completion)
                 store.apply(
@@ -223,7 +281,8 @@ object ConversationCoordinator {
                         intentionId = intentionId,
                         role = "agent",
                         text = agentText,
-                        nowEpochMs = nowEpochMs + 1
+                        nowEpochMs = nowEpochMs + 1,
+                        modality = Channel.FREE_TEXT.name
                     )
                 )
                 SubmitResult(
@@ -242,7 +301,8 @@ object ConversationCoordinator {
                         intentionId = intentionId,
                         role = "agent",
                         text = outcome.honestMessage,
-                        nowEpochMs = nowEpochMs + 1
+                        nowEpochMs = nowEpochMs + 1,
+                        modality = Channel.FREE_TEXT.name
                     )
                 )
                 SubmitResult(
@@ -266,12 +326,30 @@ object ConversationCoordinator {
         }
     }
 
+    /** Shape-aware suggested chips — Spanish/language default for Gate B. */
+    fun chipsForIntention(
+        intention: Intention?,
+        registry: CapabilityRegistry
+    ): List<String> = when (intention?.shapeTag) {
+        "marathon" -> MarathonScenario.conversationChips(registry)
+        "business" -> BusinessScenario.conversationChips(registry)
+        "move" -> MoveScenario.conversationChips(registry)
+        "decision" -> JobOfferScenario.conversationChips(registry)
+        QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(registry)
+        "app_use" -> AppUseReductionScenario.conversationChips(registry)
+        "research" -> EuWorkSpainScenario.conversationChips(registry)
+        ChessScenario.SHAPE_TAG -> ChessScenario.conversationChips(registry)
+        "language", null -> SpanishScenario.conversationChips(registry)
+        else -> SpanishScenario.conversationChips(registry)
+    }
+
     private fun dispatchChip(
         store: IntentionFlowStore,
         intention: Intention?,
         chip: String,
         nowEpochMs: Long,
-        registry: CapabilityRegistry
+        registry: CapabilityRegistry,
+        modality: String? = null
     ) {
         when (intention?.shapeTag) {
             "marathon" -> MarathonScenario.onChip(store, chip, nowEpochMs, registry)
@@ -282,7 +360,7 @@ object ConversationCoordinator {
             "app_use" -> AppUseReductionScenario.onChip(store, chip, nowEpochMs, registry)
             "research" -> EuWorkSpainScenario.onChip(store, chip, nowEpochMs, registry)
             ChessScenario.SHAPE_TAG -> ChessScenario.onChip(store, chip, nowEpochMs, registry)
-            else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry)
+            else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry, modality)
         }
     }
 }

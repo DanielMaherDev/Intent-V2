@@ -106,7 +106,8 @@ object SpanishScenario {
         store: IntentionFlowStore,
         chip: String,
         now: Long = System.currentTimeMillis(),
-        registry: CapabilityRegistry = CapabilityRegistry.default
+        registry: CapabilityRegistry = CapabilityRegistry.default,
+        modality: String? = null
     ) {
         ensureSeeded(store, now)
         store.apply(
@@ -115,13 +116,14 @@ object SpanishScenario {
                 intentionId = INTENTION_ID,
                 role = "user",
                 text = chip,
-                nowEpochMs = now
+                nowEpochMs = now,
+                modality = modality
             )
         )
         when {
             chip.contains("Everyday conversations", ignoreCase = true) -> {
                 if (!registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) {
-                    refuseUnavailable(store, now, CapabilityRegistry.ID_ADD_HYPOTHESIS, registry)
+                    refuseUnavailable(store, now, CapabilityRegistry.ID_ADD_HYPOTHESIS, registry, modality)
                     return
                 }
                 store.apply(
@@ -138,7 +140,8 @@ object SpanishScenario {
                         intentionId = INTENTION_ID,
                         role = "agent",
                         text = "Good. Any fixed practice you already keep?",
-                        nowEpochMs = now + 1
+                        nowEpochMs = now + 1,
+                        modality = modality
                     )
                 )
                 store.apply(
@@ -151,7 +154,7 @@ object SpanishScenario {
             }
             chip.contains("tutor", ignoreCase = true) || chip.contains("Thursdays", ignoreCase = true) -> {
                 if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) {
-                    refuseUnavailable(store, now, CapabilityRegistry.ID_RECORD_FACT, registry)
+                    refuseUnavailable(store, now, CapabilityRegistry.ID_RECORD_FACT, registry, modality)
                     return
                 }
                 store.apply(
@@ -172,7 +175,8 @@ object SpanishScenario {
                                 CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION,
                                 registry
                             ),
-                            nowEpochMs = now + 1
+                            nowEpochMs = now + 1,
+                            modality = modality
                         )
                     )
                     return
@@ -196,12 +200,13 @@ object SpanishScenario {
                         intentionId = INTENTION_ID,
                         role = "agent",
                         text = "I can schedule a weekly session from that tutor fact. Review the proposal?",
-                        nowEpochMs = now + 1
+                        nowEpochMs = now + 1,
+                        modality = modality
                     )
                 )
             }
             chip.contains("Duolingo", ignoreCase = true) || chip.contains("lesson completion", ignoreCase = true) -> {
-                refuseUnavailable(store, now, CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION, registry)
+                refuseUnavailable(store, now, CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION, registry, modality)
             }
         }
     }
@@ -210,7 +215,8 @@ object SpanishScenario {
         store: IntentionFlowStore,
         now: Long,
         capabilityId: String,
-        registry: CapabilityRegistry
+        registry: CapabilityRegistry,
+        modality: String? = null
     ) {
         store.apply(
             FlowCommand.AddConversationTurn(
@@ -218,7 +224,8 @@ object SpanishScenario {
                 intentionId = INTENTION_ID,
                 role = "agent",
                 text = honestUnavailableMessage(capabilityId, registry),
-                nowEpochMs = now + 1
+                nowEpochMs = now + 1,
+                modality = modality
             )
         )
     }

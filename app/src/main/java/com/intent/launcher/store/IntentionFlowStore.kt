@@ -143,7 +143,8 @@ class IntentionFlowStore(
                     intentionId = command.intentionId,
                     role = command.role,
                     text = command.text,
-                    atEpochMs = command.nowEpochMs
+                    atEpochMs = command.nowEpochMs,
+                    modality = command.modality
                 )
                 migrated.copy(turns = migrated.turns + turn)
             }
@@ -1656,12 +1657,13 @@ class IntentionFlowStore(
         val intentionId: String = "",
         val role: String = "",
         val text: String = "",
-        val atEpochMs: Long = 0L
+        val atEpochMs: Long = 0L,
+        val modality: String? = null
     ) {
-        fun toDomain() = ConversationTurn(id, intentionId, role, text, atEpochMs)
+        fun toDomain() = ConversationTurn(id, intentionId, role, text, atEpochMs, modality)
         companion object {
             fun from(t: ConversationTurn) =
-                WireTurn(t.id, t.intentionId, t.role, t.text, t.atEpochMs)
+                WireTurn(t.id, t.intentionId, t.role, t.text, t.atEpochMs, t.modality)
         }
     }
 

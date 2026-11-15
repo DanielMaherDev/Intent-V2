@@ -153,6 +153,7 @@ class ConversationCoordinatorTest {
             transporter = OpenAiHttpTransporter { _, _, body ->
                 httpCalls++
                 assertTrue(body.contains("random free speech about weather"))
+                assertTrue(body.contains("Learn Spanish") || body.contains("Intention context"))
                 OpenAiHttpResponse(
                     200,
                     """
