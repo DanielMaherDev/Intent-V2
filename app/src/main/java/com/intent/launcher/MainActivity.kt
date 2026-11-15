@@ -49,6 +49,16 @@ class MainActivity : ComponentActivity() {
     /** When true, STT result goes to CaptureThought instead of Conversation. */
     private var speechForThoughtCapture: Boolean = false
 
+    private val screenCaptureConsent = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            vm.onScreenCaptureConsentGranted()
+        } else {
+            vm.onScreenCaptureConsentDenied()
+        }
+    }
+
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -251,6 +261,17 @@ class MainActivity : ComponentActivity() {
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
                                     )
+                                },
+                                screenCaptureNote = vm.screenCaptureObservation?.note,
+                                showCaptureScreen =
+                                    vm.screenCaptureObservation?.canRequestConsent == true,
+                                onCaptureScreen = {
+                                    val intent = vm.screenCaptureConsentIntent()
+                                    if (intent != null) {
+                                        screenCaptureConsent.launch(intent)
+                                    } else {
+                                        vm.onScreenCaptureConsentDenied()
+                                    }
                                 },
                                 overlayNote = vm.overlayObservation?.note,
                                 showGrantOverlay = vm.overlayObservation?.canOpenSettings == true,

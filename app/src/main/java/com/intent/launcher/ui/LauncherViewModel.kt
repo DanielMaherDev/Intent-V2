@@ -38,6 +38,8 @@ import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PlatformCapabilityLive
 import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.QuietModeProbe
+import com.intent.launcher.engine.ScreenCaptureAccess
+import com.intent.launcher.engine.ScreenCaptureProbe
 import com.intent.launcher.engine.SpeechToTextAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.UsageStatsProbe
@@ -60,6 +62,8 @@ class LauncherViewModel(
         IntentApp.instance.notificationListenerAccess,
     private val quietModeAccess: QuietModeAccess =
         IntentApp.instance.quietModeAccess,
+    private val screenCaptureAccess: ScreenCaptureAccess =
+        IntentApp.instance.screenCaptureAccess,
     initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
 
@@ -71,7 +75,8 @@ class LauncherViewModel(
                 voicePermissionAccess,
                 speechToTextAccess,
                 notificationListenerAccess,
-                quietModeAccess
+                quietModeAccess,
+                screenCaptureAccess
             )
 
     /** Local UI flag — user asked for quiet; never implies silence applied. */
@@ -104,6 +109,10 @@ class LauncherViewModel(
 
     /** Post-Complete / check-out note from OBSERVED evidence — never auto-complete. */
     var checkoutObservationNote by mutableStateOf<String?>(null)
+        private set
+
+    /** Screen-capture consent honesty for the active SessionCard (never OCR / lesson). */
+    var screenCaptureObservation by mutableStateOf<ScreenCaptureProbe.Observation?>(null)
         private set
 
     /** Overlay permission honesty — floating companion when granted. */
@@ -157,6 +166,7 @@ class LauncherViewModel(
         notificationObservation = observeNotificationsIfActive()
         maybeRecordObservedEvidence(usageObservation)
         observedEvidence = resolveObservedEvidence()
+        screenCaptureObservation = observeScreenCaptureIfActive()
         floatingPresence = resolveFloatingPresence()
         deferPreview = resolveDeferPreview()
         quietObservation = observeQuietIfActive()
@@ -178,7 +188,8 @@ class LauncherViewModel(
                 voicePermissionAccess,
                 speechToTextAccess,
                 notificationListenerAccess,
-                quietModeAccess
+                quietModeAccess,
+                screenCaptureAccess
             )
         snapshot = store.snapshot()
         nextAction = recommend()
@@ -190,6 +201,7 @@ class LauncherViewModel(
         maybeRecordObservedEvidence(usageObservation)
         snapshot = store.snapshot()
         observedEvidence = resolveObservedEvidence()
+        screenCaptureObservation = observeScreenCaptureIfActive()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
         floatingPresence = resolveFloatingPresence()
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
@@ -352,6 +364,24 @@ class LauncherViewModel(
 
     fun clearCheckoutObservationNote() {
         checkoutObservationNote = null
+    }
+
+    private fun observeScreenCaptureIfActive(): ScreenCaptureProbe.Observation? {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
+        return ScreenCaptureProbe.observeForSession(screenCaptureAccess)
+    }
+
+    /** Intent for MediaProjection consent; null when unavailable or already denied. */
+    fun screenCaptureConsentIntent() = screenCaptureAccess.createConsentIntent()
+
+    fun onScreenCaptureConsentGranted() {
+        screenCaptureAccess.recordConsentGranted()
+        refresh()
+    }
+
+    fun onScreenCaptureConsentDenied() {
+        screenCaptureAccess.recordConsentDenied()
+        refresh()
     }
 
     fun activeIntention(): Intention? {
