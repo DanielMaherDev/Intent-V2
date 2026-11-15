@@ -586,6 +586,15 @@ class LauncherViewModel(
         )
     }
 
+    /**
+     * Settings quiet-mode honesty — never invents a silence toggle while NOT_SUPPORTED.
+     */
+    fun quietModeSettingsCopy(): QuietModeProbe.SettingsCopy =
+        QuietModeProbe.settingsCopy(
+            access = quietModeAccess,
+            registry = capabilityRegistry
+        )
+
     private fun observeQuietIfActive(): QuietModeProbe.Observation? {
         if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
         if (!quietRequestedForActiveSession) {

@@ -636,6 +636,18 @@ class MainActivity : ComponentActivity() {
                                 onOpenConnections = { nav.navigate("connections") },
                                 themePreference = vm.themePref,
                                 onThemePreferenceChange = { vm.setThemePreference(it) },
+                                quietModeStatusLabel = vm.quietModeSettingsCopy().statusLabel,
+                                quietModeHonestyNote = vm.quietModeSettingsCopy().body,
+                                showQuietSilenceToggle = vm.quietModeSettingsCopy().showSilenceToggle,
+                                showOpenDndSettings = vm.quietModeSettingsCopy().canOpenDndSettings,
+                                onOpenDndSettings = {
+                                    val action = vm.quietModeSettingsCopy().dndSettingsAction
+                                    startActivity(
+                                        Intent(action).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                },
                                 liveLlmKeyPresent = vm.liveLlmObservation.keyConfigured,
                                 liveLlmOptedIn = vm.liveLlmObservation.userOptedIn,
                                 liveLlmStatusLabel = vm.discussSourceLabel(),
