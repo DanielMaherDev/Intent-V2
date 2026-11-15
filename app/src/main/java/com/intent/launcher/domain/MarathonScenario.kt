@@ -22,7 +22,10 @@ object MarathonScenario {
     val suggestedChips: List<SuggestedChip> = listOf(
         SuggestedChip("Build a base before speed work", CapabilityRegistry.ID_ADD_HYPOTHESIS),
         SuggestedChip("Long runs feel best on Sundays", CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION),
-        SuggestedChip("I already jog a few times a week", CapabilityRegistry.ID_RECORD_FACT)
+        SuggestedChip("I already jog a few times a week", CapabilityRegistry.ID_RECORD_FACT),
+        SuggestedChip("Logged an easy 5 km", CapabilityRegistry.ID_TRACKER_MODULES),
+        SuggestedChip("Long run done — self-reported", CapabilityRegistry.ID_TRACKER_MODULES),
+        SuggestedChip("Legs felt strong", CapabilityRegistry.ID_TRACKER_MODULES)
     )
 
     fun conversationChips(registry: CapabilityRegistry = CapabilityRegistry.default): List<String> =
@@ -180,7 +183,81 @@ object MarathonScenario {
                     )
                 )
             }
+            chip.contains("easy 5", ignoreCase = true) ||
+                chip.contains("5 km", ignoreCase = true) -> {
+                recordSelfReport(
+                    store = store,
+                    registry = registry,
+                    now = now,
+                    moduleId = "mileage",
+                    valueText = "Easy 5 km (self-reported)",
+                    agentReply = "Logged as SAID mileage — not GPS-verified. No invented race totals."
+                )
+            }
+            chip.contains("Long run done", ignoreCase = true) -> {
+                recordSelfReport(
+                    store = store,
+                    registry = registry,
+                    now = now,
+                    moduleId = "mileage",
+                    valueText = "Long run done (self-reported)",
+                    agentReply = "Long-run note stored as SAID. Distance stays self-reported."
+                )
+            }
+            chip.contains("Legs felt strong", ignoreCase = true) -> {
+                recordSelfReport(
+                    store = store,
+                    registry = registry,
+                    now = now,
+                    moduleId = "body_check",
+                    valueText = "Legs felt strong (self-reported)",
+                    agentReply = "Body check stored as SAID — not biometric recovery proof."
+                )
+            }
         }
+    }
+
+    private fun recordSelfReport(
+        store: IntentionFlowStore,
+        registry: CapabilityRegistry,
+        now: Long,
+        moduleId: String,
+        valueText: String,
+        agentReply: String
+    ) {
+        if (!registry.canUseTrackerModules()) {
+            store.apply(
+                FlowCommand.AddConversationTurn(
+                    turnId = "turn-marathon-agent-no-tracker-$now",
+                    intentionId = INTENTION_ID,
+                    role = "agent",
+                    text = registry.get(CapabilityRegistry.ID_TRACKER_MODULES)?.limitNote
+                        ?: "Self-report tracking is not available.",
+                    nowEpochMs = now + 1
+                )
+            )
+            return
+        }
+        store.apply(
+            FlowCommand.RecordTrackerEntry(
+                entryId = "trk-marathon-$moduleId-$now",
+                intentionId = INTENTION_ID,
+                moduleId = moduleId,
+                valueText = valueText,
+                nowEpochMs = now,
+                provenanceKind = ProvenanceKind.SAID,
+                sourceLabel = "user"
+            )
+        )
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-marathon-agent-tracker-$now",
+                intentionId = INTENTION_ID,
+                role = "agent",
+                text = agentReply,
+                nowEpochMs = now + 1
+            )
+        )
     }
 
     fun approve(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {

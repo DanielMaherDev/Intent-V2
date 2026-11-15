@@ -1548,11 +1548,54 @@ class LauncherViewModel(
                     "hyp-checkin-$localDate-$now"
                 } else {
                     null
-                }
+                },
+                occurrenceId = "occ-morning-$localDate-$now",
+                dailyContextId = "dctx-morning-$localDate-$now",
+                priorities = summary
             )
         )
         refresh()
         return snapshot.dayCycle.checkedInFor(localDate)
+    }
+
+    /**
+     * Midday drift check — durable Occurrence + DailyContext; optional session defer
+     * with IN_PROGRESS conflict refusal inside the store.
+     */
+    fun recordMiddayCheck(
+        summary: String,
+        deferLater: Boolean = false,
+        energy: String? = null,
+        constraints: String? = null
+    ): Boolean {
+        if (!capabilityRegistry.canDailyMidday()) return false
+        val intention = activeIntention() ?: return false
+        val now = System.currentTimeMillis()
+        val tz = TimeZone.getDefault()
+        val localDate = DailyCycle.localDateString(now, tz)
+        val note = summary.trim().ifBlank { "Midday check — plan held" }
+        val sessionId = nextAction.sessionId
+            ?: snapshot.sessions.firstOrNull { it.intentionId == intention.id }?.id
+        store.apply(
+            FlowCommand.RecordMiddayCheck(
+                occurrenceId = "occ-midday-$localDate-$now",
+                contextId = "dctx-midday-$localDate-$now",
+                intentionId = intention.id,
+                localDate = localDate,
+                summary = note,
+                nowEpochMs = now,
+                energy = energy,
+                constraints = constraints,
+                deferSessionId = if (deferLater) sessionId else null,
+                deferUntilEpochMs = if (deferLater) {
+                    DailyCycle.tomorrowMorningEpochMs(now, tz)
+                } else {
+                    null
+                }
+            )
+        )
+        refresh()
+        return snapshot.dayCycle.middayDoneFor(localDate)
     }
 
     /**
@@ -1589,7 +1632,9 @@ class LauncherViewModel(
                     DailyCycle.tomorrowMorningEpochMs(now, tz)
                 } else {
                     null
-                }
+                },
+                occurrenceId = "occ-evening-$localDate-$now",
+                dailyContextId = "dctx-evening-$localDate-$now"
             )
         )
         refresh()
@@ -1667,6 +1712,33 @@ class LauncherViewModel(
         }
     }
 
+    /**
+     * Correct / backdate a tracker value — supersedes prior ACTIVE row (contracts §6).
+     */
+    fun correctTrackerEntry(
+        priorEntryId: String,
+        valueText: String,
+        eventTimeEpochMs: Long? = null
+    ): Boolean {
+        if (!capabilityRegistry.canUseTrackerModules()) return false
+        val now = System.currentTimeMillis()
+        store.apply(
+            FlowCommand.CorrectTrackerEntry(
+                priorEntryId = priorEntryId,
+                newEntryId = "trk-corr-$now",
+                valueText = valueText,
+                nowEpochMs = now,
+                eventTimeEpochMs = eventTimeEpochMs,
+                provenanceKind = ProvenanceKind.SAID,
+                sourceLabel = "user_correction"
+            )
+        )
+        refresh()
+        return snapshot.trackerEntries.any {
+            it.id == priorEntryId && it.status == TrackerEntryStatus.CORRECTED
+        }
+    }
+
     fun pathSummary(): PathSummary.View? =
         PathSummary.build(
             snapshot = snapshot,
@@ -1684,6 +1756,15 @@ class LauncherViewModel(
             shapeTag = activeIntention()?.shapeTag,
             registry = capabilityRegistry
         )
+
+    fun fieldProgress(): com.intent.launcher.engine.FieldProgress.View? {
+        val intention = activeIntention() ?: return null
+        return com.intent.launcher.engine.FieldProgress.build(
+            snapshot = snapshot,
+            intentionId = intention.id,
+            shapeTag = intention.shapeTag
+        )
+    }
 
     /** Open errands for the Home inbox (newest first). */
     fun openErrands(): List<ErrandTodo> =

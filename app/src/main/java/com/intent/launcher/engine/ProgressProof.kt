@@ -88,7 +88,8 @@ object ProgressProof {
                     provenanceLabel = provenanceLabel(e.provenance.kind),
                     kind = e.provenance.kind,
                     text = e.valueText,
-                    recordedAtEpochMs = e.recordedAtEpochMs,
+                    // Prefer event time so backdated corrections land in the right day bucket.
+                    recordedAtEpochMs = e.eventAtEpochMs,
                     sourceDetail = "Tracker · $module · ${e.provenance.sourceLabel}"
                 )
             }
