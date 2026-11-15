@@ -701,6 +701,42 @@ class IntentionFlowStoreTest {
     }
 
     @Test
+    fun exportSerialization_emptySnapshot_roundTrips() {
+        val empty = store.snapshot()
+        assertTrue(empty.intentions.isEmpty())
+        val json = store.encode(empty)
+        assertTrue(json.contains("\"schemaVersion\""))
+        val decoded = store.decode(json)
+        assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, decoded.schemaVersion)
+        assertTrue(decoded.intentions.isEmpty())
+        assertTrue(decoded.facts.isEmpty())
+        assertTrue(decoded.sessions.isEmpty())
+        assertTrue(decoded.sessionRuns.isEmpty())
+        assertEquals(store.encode(decoded), store.encode(empty))
+    }
+
+    @Test
+    fun exportSerialization_spanishFixture_roundTrips() {
+        SpanishScenario.seed(store, now)
+        SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 10)
+        SpanishScenario.approve(store, now + 20)
+        val original = store.snapshot()
+        val json = store.encode(original)
+        val decoded = store.decode(json)
+
+        assertEquals(original.schemaVersion, decoded.schemaVersion)
+        assertEquals(original.intentions.map { it.id }, decoded.intentions.map { it.id })
+        assertEquals(original.facts.map { it.id }, decoded.facts.map { it.id })
+        assertEquals(original.proposals.map { it.id }, decoded.proposals.map { it.id })
+        assertEquals(original.sessions.map { it.id }, decoded.sessions.map { it.id })
+        assertEquals(SpanishScenario.INTENTION_ID, decoded.intentions.first().id)
+        assertEquals(IntentionPhase.ACTIVE, decoded.intentions.first().phase)
+        assertEquals(ProposalStatus.APPROVED, decoded.proposals.first().status)
+        assertEquals(ProvenanceKind.SAID, decoded.facts.first().provenance.kind)
+        assertEquals(store.encode(original), store.encode(decoded))
+    }
+
+    @Test
     fun beginSession_createsInProgressRun_completeAndAbandon() {
         SpanishScenario.seed(store, now)
         SpanishScenario.onChip(store, "I meet a tutor on Thursdays at six", now + 1)

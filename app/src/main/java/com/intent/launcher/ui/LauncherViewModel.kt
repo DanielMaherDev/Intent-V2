@@ -375,6 +375,9 @@ class LauncherViewModel(
             entry.expiresAtEpochMs == null || entry.expiresAtEpochMs >= nowEpochMs
         }
 
+    /** Wire JSON of the current snapshot for local export/share (OS-004). */
+    fun exportSnapshotJson(): String = store.encode(store.snapshot())
+
     fun refresh() {
         capabilityRegistry =
             PlatformCapabilityLive.registry(
