@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,6 +30,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,15 +56,27 @@ fun ConversationScreen(
     /** Honest Discuss source: local heuristics vs model suggestion. */
     discussSourceLabel: String = "Local heuristics",
     discussHonestyNote: String? = null,
+    /** SAID intention statement shown as find-a-way framing when no user turns yet. */
+    intentionStatement: String = "",
     voiceNote: String? = null,
     voiceEnabled: Boolean = false,
     onMicClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val paperWash = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFFF7F5EF),
+            IntentColors.Paper,
+            Color(0xFFF1EEE6)
+        )
+    )
+    val hasUserTurn = turns.any { it.role == "user" }
+    val showFramingStatement = !hasUserTurn && intentionStatement.isNotBlank()
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(IntentColors.Paper)
+            .background(paperWash)
     ) {
         Column(
             modifier = Modifier
@@ -76,11 +91,12 @@ fun ConversationScreen(
             )
             Spacer(modifier = Modifier.height(23.dp))
             SmallLabel(text = conversationEyebrow)
-            Spacer(modifier = Modifier.height(7.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = conversationHeadline,
-                style = MaterialTheme.typography.headlineMedium,
-                color = IntentColors.Ink
+                style = MaterialTheme.typography.headlineLarge,
+                color = IntentColors.Ink,
+                lineHeight = 34.sp
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
@@ -98,9 +114,12 @@ fun ConversationScreen(
                     color = IntentColors.Muted
                 )
             }
-            Spacer(modifier = Modifier.height(17.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (showFramingStatement) {
+                    UserBubble(intentionStatement)
+                }
                 turns.forEach { turn ->
                     if (turn.role == "user") {
                         UserBubble(turn.text)
@@ -112,7 +131,7 @@ fun ConversationScreen(
 
             if (chips.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     chips.forEach { chip ->
                         ChoiceRow(text = chip, onClick = { onChip(chip) })
                     }
@@ -155,7 +174,8 @@ private fun UserBubble(text: String) {
                 .background(IntentColors.UserBubble)
                 .padding(horizontal = 13.dp, vertical = 11.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Ink
+            color = IntentColors.Ink,
+            lineHeight = 19.sp
         )
     }
 }
@@ -165,6 +185,12 @@ private fun AgentBubble(text: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 3.dp,
+                shape = RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp),
+                ambientColor = Color(0x14000000),
+                spotColor = Color(0x14000000)
+            )
             .border(1.dp, IntentColors.Line, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
             .background(IntentColors.Card, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
             .padding(14.dp)
@@ -195,7 +221,7 @@ private fun ChoiceRow(text: String, onClick: () -> Unit) {
             .border(1.dp, IntentColors.Line, RoundedCornerShape(13.dp))
             .background(IntentColors.Card)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
+            .padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -209,7 +235,7 @@ private fun ChoiceRow(text: String, onClick: () -> Unit) {
             imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             contentDescription = null,
             tint = IntentColors.Accent,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -236,17 +262,19 @@ private fun ComposerBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .border(1.dp, IntentColors.ComposerBorder, RoundedCornerShape(18.dp))
-                    .background(Color.White, RoundedCornerShape(18.dp))
-                    .padding(start = 13.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    .shadow(
+                        elevation = 2.dp,
+                        shape = RoundedCornerShape(22.dp),
+                        ambientColor = Color(0x0F000000),
+                        spotColor = Color(0x0F000000)
+                    )
+                    .border(1.dp, IntentColors.ComposerBorder, RoundedCornerShape(22.dp))
+                    .background(Color.White, RoundedCornerShape(22.dp))
+                    .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (voiceEnabled) {
-                        "Speak a chip phrase, or choose above"
-                    } else {
-                        "Choose a chip above — mic needs permission"
-                    },
+                    text = "Tell me more, or choose above",
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.ComposerHint,
                     modifier = Modifier.weight(1f)
@@ -257,24 +285,31 @@ private fun ComposerBar(
                     tint = IntentColors.ComposerHint,
                     modifier = Modifier.size(18.dp)
                 )
-            }
-            Spacer(modifier = Modifier.size(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (voiceEnabled) IntentColors.Accent else IntentColors.Muted
-                    )
-                    .clickable(onClick = onMicClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Mic,
-                    contentDescription = "Speak",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(22.dp)
+                        .background(IntentColors.Line)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (voiceEnabled) IntentColors.Accent else IntentColors.Muted
+                        )
+                        .clickable(onClick = onMicClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Mic,
+                        contentDescription = "Speak",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
