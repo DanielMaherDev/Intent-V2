@@ -91,6 +91,25 @@ class AttentionStripTest {
         assertNull(line)
     }
 
+
+    @Test
+    fun secondary_prefersPausedElapsedWhenSoftPaused() {
+        val line = AttentionStrip.secondaryLine(
+            nextAction = active,
+            nowEpochMs = 1_000L + 90_000L,
+            usageGranted = true,
+            usageForegroundMs = 125_000L,
+            usageAppLabel = "Duolingo",
+            pausedAtEpochMs = 1_000L + 60_000L,
+            accumulatedPausedMs = 0L,
+            softPaused = true
+        )
+        assertTrue(line is AttentionStrip.SecondaryLine.SessionElapsed)
+        val elapsed = line as AttentionStrip.SecondaryLine.SessionElapsed
+        assertTrue(elapsed.text.startsWith("Paused "))
+        assertTrue(elapsed.contentDescription.contains("not lesson", ignoreCase = true))
+    }
+
     @Test
     fun supportingSentence_prefersReasonOverDetail() {
         assertEquals(

@@ -248,7 +248,9 @@ class IntentionFlowStore(
                     intentionId = session.intentionId,
                     title = session.title,
                     status = SessionRunStatus.IN_PROGRESS,
-                    startedAtEpochMs = command.nowEpochMs
+                    startedAtEpochMs = command.nowEpochMs,
+                    affinityPackageName = command.affinityPackageName,
+                    affinityAppLabel = command.affinityAppLabel
                 )
                 migrated.copy(
                     sessionRuns = migrated.sessionRuns.filterNot { it.id == run.id } + run,
@@ -332,6 +334,14 @@ class IntentionFlowStore(
                         }
                     }
                 )
+            }
+
+            is FlowCommand.SoftPauseSessionRun -> {
+                softPauseSessionRun(migrated, command.runId, command.nowEpochMs)
+            }
+
+            is FlowCommand.ResumeSessionRun -> {
+                resumeSessionRun(migrated, command.runId, command.nowEpochMs)
             }
 
             is FlowCommand.SetActiveIntention -> {
@@ -928,6 +938,8 @@ is FlowCommand.MarkThoughtStatus -> {
                     is FlowCommand.BeginSession -> command.nowEpochMs
                     is FlowCommand.CompleteSessionRun -> command.nowEpochMs
                     is FlowCommand.AbandonSessionRun -> command.nowEpochMs
+                    is FlowCommand.SoftPauseSessionRun -> command.nowEpochMs
+                    is FlowCommand.ResumeSessionRun -> command.nowEpochMs
                     is FlowCommand.SoftDeleteIntention -> command.nowEpochMs
                     is FlowCommand.SoftDeleteSession -> command.nowEpochMs
                     is FlowCommand.RestoreTrashItem -> command.nowEpochMs
@@ -972,6 +984,8 @@ is FlowCommand.MarkThoughtStatus -> {
             is FlowCommand.BeginSession -> command.nowEpochMs
             is FlowCommand.CompleteSessionRun -> command.nowEpochMs
             is FlowCommand.AbandonSessionRun -> command.nowEpochMs
+            is FlowCommand.SoftPauseSessionRun -> command.nowEpochMs
+            is FlowCommand.ResumeSessionRun -> command.nowEpochMs
             is FlowCommand.SoftDeleteIntention -> command.nowEpochMs
             is FlowCommand.SoftDeleteSession -> command.nowEpochMs
             is FlowCommand.RestoreTrashItem -> command.nowEpochMs
@@ -1052,10 +1066,58 @@ is FlowCommand.MarkThoughtStatus -> {
     ): IntentionSnapshot {
         val run = migrated.sessionRuns.firstOrNull { it.id == runId } ?: return migrated
         if (run.status != SessionRunStatus.IN_PROGRESS) return migrated
+        // Fold an open soft-pause into accumulation before ending.
+        val folded = if (run.pausedAtEpochMs != null) {
+            val extra = (nowEpochMs - run.pausedAtEpochMs).coerceAtLeast(0L)
+            run.copy(
+                accumulatedPausedMs = run.accumulatedPausedMs + extra,
+                pausedAtEpochMs = null
+            )
+        } else {
+            run
+        }
         return migrated.copy(
             sessionRuns = migrated.sessionRuns.map {
                 if (it.id == runId) {
-                    it.copy(status = endStatus, endedAtEpochMs = nowEpochMs)
+                    folded.copy(status = endStatus, endedAtEpochMs = nowEpochMs)
+                } else it
+            },
+            intentions = touch(migrated.intentions, run.intentionId, nowEpochMs)
+        )
+    }
+
+    private fun softPauseSessionRun(
+        migrated: IntentionSnapshot,
+        runId: String,
+        nowEpochMs: Long
+    ): IntentionSnapshot {
+        val run = migrated.sessionRuns.firstOrNull { it.id == runId } ?: return migrated
+        if (run.status != SessionRunStatus.IN_PROGRESS) return migrated
+        if (run.pausedAtEpochMs != null) return migrated
+        return migrated.copy(
+            sessionRuns = migrated.sessionRuns.map {
+                if (it.id == runId) it.copy(pausedAtEpochMs = nowEpochMs) else it
+            },
+            intentions = touch(migrated.intentions, run.intentionId, nowEpochMs)
+        )
+    }
+
+    private fun resumeSessionRun(
+        migrated: IntentionSnapshot,
+        runId: String,
+        nowEpochMs: Long
+    ): IntentionSnapshot {
+        val run = migrated.sessionRuns.firstOrNull { it.id == runId } ?: return migrated
+        if (run.status != SessionRunStatus.IN_PROGRESS) return migrated
+        val pausedAt = run.pausedAtEpochMs ?: return migrated
+        val extra = (nowEpochMs - pausedAt).coerceAtLeast(0L)
+        return migrated.copy(
+            sessionRuns = migrated.sessionRuns.map {
+                if (it.id == runId) {
+                    it.copy(
+                        pausedAtEpochMs = null,
+                        accumulatedPausedMs = it.accumulatedPausedMs + extra
+                    )
                 } else it
             },
             intentions = touch(migrated.intentions, run.intentionId, nowEpochMs)
@@ -1246,16 +1308,38 @@ is FlowCommand.MarkThoughtStatus -> {
         val title: String = "",
         val status: String = SessionRunStatus.IN_PROGRESS.name,
         val startedAtEpochMs: Long = 0L,
-        val endedAtEpochMs: Long? = null
+        val endedAtEpochMs: Long? = null,
+        val affinityPackageName: String? = null,
+        val affinityAppLabel: String? = null,
+        val pausedAtEpochMs: Long? = null,
+        val accumulatedPausedMs: Long = 0L
     ) {
         fun toDomain() = SessionRun(
-            id, sessionId, intentionId, title,
-            SessionRunStatus.valueOf(status), startedAtEpochMs, endedAtEpochMs
+            id = id,
+            sessionId = sessionId,
+            intentionId = intentionId,
+            title = title,
+            status = SessionRunStatus.valueOf(status),
+            startedAtEpochMs = startedAtEpochMs,
+            endedAtEpochMs = endedAtEpochMs,
+            affinityPackageName = affinityPackageName,
+            affinityAppLabel = affinityAppLabel,
+            pausedAtEpochMs = pausedAtEpochMs,
+            accumulatedPausedMs = accumulatedPausedMs
         )
         companion object {
             fun from(r: SessionRun) = WireSessionRun(
-                r.id, r.sessionId, r.intentionId, r.title,
-                r.status.name, r.startedAtEpochMs, r.endedAtEpochMs
+                id = r.id,
+                sessionId = r.sessionId,
+                intentionId = r.intentionId,
+                title = r.title,
+                status = r.status.name,
+                startedAtEpochMs = r.startedAtEpochMs,
+                endedAtEpochMs = r.endedAtEpochMs,
+                affinityPackageName = r.affinityPackageName,
+                affinityAppLabel = r.affinityAppLabel,
+                pausedAtEpochMs = r.pausedAtEpochMs,
+                accumulatedPausedMs = r.accumulatedPausedMs
             )
         }
     }
