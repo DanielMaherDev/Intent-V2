@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <!-- Declared for AppOps UsageStats; grant is via system settings, not runtime dialog. -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -11,6 +10,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+      Do NOT declare QUERY_ALL_PACKAGES for sideload builds.
+      Play Protect / PackageInstaller UI often aborts with no error dialog after the user
+      taps Install when this permission is present. Destination visibility uses <queries>.
+    -->
+    <queries>
+        <package android:name="com.duolingo" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".IntentApp"
