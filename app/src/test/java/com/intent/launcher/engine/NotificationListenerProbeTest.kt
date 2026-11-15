@@ -97,5 +97,6 @@ class NotificationListenerProbeTest {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
         assertFalse(registry.canUseScreenCapture())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_LIVE_LLM))
+        assertFalse(registry.canUseScreenCapture())
     }
 }

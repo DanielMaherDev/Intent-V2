@@ -1,6 +1,7 @@
 package com.intent.launcher.capability
 
 import com.intent.launcher.domain.AppUseReductionScenario
+import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.QuitSmokingScenario
@@ -195,6 +196,18 @@ class CapabilityRegistryTest {
             AppUseReductionScenario.conversationChips(registry),
             registry.filterChips(AppUseReductionScenario.suggestedChips)
         )
+    }
+
+
+    @Test
+    fun filterChips_dropsDishonestChessComAutoRatingSuggestion() {
+        val mixed = ChessScenario.suggestedChips + ChessScenario.dishonestAutoRatingChip
+        val labels = registry.filterChips(mixed)
+        assertTrue(labels.contains("My rapid rating is about 900"))
+        assertFalse(labels.any { it.contains("automatically", ignoreCase = true) })
+        assertFalse(labels.any { it.contains("Sync my Chess.com", ignoreCase = true) })
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_CHESS_RATING))
+        assertTrue(registry.canUseTrackerModules())
     }
 
     @Test

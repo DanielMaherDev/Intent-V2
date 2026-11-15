@@ -118,6 +118,41 @@ object TrackerModules {
                     )
                 )
             )
+            ChessScenario.SHAPE_TAG, "chess_rating" -> listOf(
+                TrackerModuleDef(
+                    id = "rating_self_report",
+                    title = "Rating (self-report)",
+                    prompt = "What rapid rating will you log? (manual — not Chess.com sync)",
+                    suggestedValues = listOf(
+                        "About 900 (baseline)",
+                        "Improved since last log",
+                        "About the same",
+                        "Dropped — noted honestly"
+                    )
+                ),
+                TrackerModuleDef(
+                    id = "practice_log",
+                    title = "Practice log",
+                    prompt = "What did you practise?",
+                    suggestedValues = listOf(
+                        "Tactics session",
+                        "Opening review",
+                        "Endgame drills",
+                        "Skipped — noted honestly"
+                    )
+                ),
+                TrackerModuleDef(
+                    id = "game_review",
+                    title = "Game review",
+                    prompt = "Did you review a real game you played?",
+                    suggestedValues = listOf(
+                        "Reviewed one recent game",
+                        "Noted a blunder pattern",
+                        "No game to review today",
+                        "Skipped review — honest"
+                    )
+                )
+            )
             else -> listOf(
                 TrackerModuleDef(
                     id = "general_log",

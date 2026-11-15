@@ -4,6 +4,7 @@ import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.EuWorkSpainScenario
+import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.JobOfferScenario
@@ -167,6 +168,7 @@ object ConversationCoordinator {
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.onChip(store, chip, nowEpochMs, registry)
             "app_use" -> AppUseReductionScenario.onChip(store, chip, nowEpochMs, registry)
             "research" -> EuWorkSpainScenario.onChip(store, chip, nowEpochMs, registry)
+            ChessScenario.SHAPE_TAG -> ChessScenario.onChip(store, chip, nowEpochMs, registry)
             else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry)
         }
     }
