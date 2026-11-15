@@ -134,6 +134,7 @@ fun HomeScreen(
     onExploreQuitSmoking: (() -> Unit)? = null,
     onExploreAppUse: (() -> Unit)? = null,
     onExploreEuWorkSpain: (() -> Unit)? = null,
+    onExploreChess: (() -> Unit)? = null,
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
@@ -408,6 +409,17 @@ fun HomeScreen(
                     glyphTone = GlyphTone.Accent
                 )
             }
+
+            if (onExploreChess != null) {
+                LineRow(
+                    title = "Explore chess rating",
+                    subtitle = "CASE-07 — manual baseline + honest practice log",
+                    onClick = onExploreChess,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+
 
             if (onStartBuilder != null) {
                 LineRow(

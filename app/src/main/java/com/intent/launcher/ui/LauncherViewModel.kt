@@ -11,6 +11,7 @@ import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.EuWorkSpainScenario
+import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
@@ -860,6 +861,7 @@ class LauncherViewModel(
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(capabilityRegistry)
             "app_use" -> AppUseReductionScenario.conversationChips(capabilityRegistry)
             "research" -> EuWorkSpainScenario.conversationChips(capabilityRegistry)
+            ChessScenario.SHAPE_TAG -> ChessScenario.conversationChips(capabilityRegistry)
             else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
@@ -935,6 +937,11 @@ class LauncherViewModel(
         refresh()
     }
 
+    fun startChessExploration() {
+        ChessScenario.ensureSeeded(store)
+        refresh()
+    }
+
     fun activateSpanish() {
         SpanishScenario.ensureSeeded(store)
         store.apply(
@@ -956,6 +963,7 @@ class LauncherViewModel(
             QuitSmokingScenario.PROPOSAL_ID -> QuitSmokingScenario.SESSION_ID
             AppUseReductionScenario.PROPOSAL_ID -> AppUseReductionScenario.SESSION_ID
             EuWorkSpainScenario.PROPOSAL_ID -> EuWorkSpainScenario.SESSION_ID
+            ChessScenario.PROPOSAL_ID -> ChessScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
@@ -990,6 +998,7 @@ class LauncherViewModel(
             QuitSmokingScenario.PROPOSAL_ID -> 20
             AppUseReductionScenario.PROPOSAL_ID -> 20
             EuWorkSpainScenario.PROPOSAL_ID -> 10
+            ChessScenario.PROPOSAL_ID -> 19
             else -> 18
         }
         store.apply(

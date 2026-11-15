@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
@@ -168,6 +169,7 @@ class MainActivity : ComponentActivity() {
                     val showQuitSmokingEntry = intention?.shapeTag != "cessation"
                     val showAppUseEntry = intention?.shapeTag != "app_use"
                     val showEuWorkSpainEntry = intention?.shapeTag != "research"
+                    val showChessEntry = intention?.shapeTag != ChessScenario.SHAPE_TAG
 
                     LaunchedEffect(openConversationRequest) {
                         if (openConversationRequest > 0) {
@@ -485,6 +487,14 @@ class MainActivity : ComponentActivity() {
                                 onExploreEuWorkSpain = if (showEuWorkSpainEntry) {
                                     {
                                         vm.startEuWorkSpainExploration()
+                                        nav.navigate("intention")
+                                    }
+                                } else {
+                                    null
+                                },
+                                onExploreChess = if (showChessEntry) {
+                                    {
+                                        vm.startChessExploration()
                                         nav.navigate("intention")
                                     }
                                 } else {

@@ -92,6 +92,16 @@ class ShapeProjectionTest {
         assertTrue(research.emptyNote!!.contains("No legal requirements have been invented"))
         assertEquals("Clarifying facts before research", research.homeSpaceSubtitle)
         assertEquals("A conversation about working legally in Spain", research.conversationEyebrow)
+
+
+        ChessScenario.seed(store, now + 7)
+        val chess = ShapeProjection.project(
+            store.snapshot().intentions.first { it.id == ChessScenario.INTENTION_ID }
+        )
+        assertEquals("What is your rating baseline?", chess.hero.heroTitle)
+        assertTrue(chess.emptyNote!!.contains("No Chess.com scrape"))
+        assertEquals("Baseline and practice still open", chess.homeSpaceSubtitle)
+        assertEquals("A conversation about your chess rating", chess.conversationEyebrow)
     }
 
     @Test

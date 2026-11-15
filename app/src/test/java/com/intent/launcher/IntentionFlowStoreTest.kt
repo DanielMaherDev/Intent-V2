@@ -1,6 +1,7 @@
 package com.intent.launcher
 
 import com.intent.launcher.domain.AppUseReductionScenario
+import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.EuWorkSpainScenario
 import com.intent.launcher.domain.FlowCommand
@@ -764,7 +765,7 @@ class IntentionFlowStoreTest {
         val againFile = tmp.newFile("cessation-again.json")
         againFile.writeText(encoded)
         val again = IntentionFlowStore(againFile).snapshot()
-        assertEquals(6, again.schemaVersion)
+        assertEquals(7, again.schemaVersion)
         assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
         assertEquals(deferUntil, again.sessions.first { it.id == QuitSmokingScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == QuitSmokingScenario.FACT_BASELINE_ID }.provenance.kind)
@@ -781,6 +782,92 @@ class IntentionFlowStoreTest {
         assertEquals(4, snap.intentions.size)
         assertTrue(snap.intentions.any { it.shapeTag == QuitSmokingScenario.SHAPE_TAG })
         assertEquals(QuitSmokingScenario.INTENTION_ID, snap.activeIntentionId)
+    }
+
+
+    @Test
+    fun chessRatingFlow_manualBaselineSelfReport_approveDeferPersist() {
+        ChessScenario.seed(store, now)
+        var snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == ChessScenario.INTENTION_ID }.phase)
+        assertEquals(ChessScenario.SHAPE_TAG, snap.intentions.first { it.id == ChessScenario.INTENTION_ID }.shapeTag)
+
+        ChessScenario.onChip(store, "My rapid rating is about 900", now + 10)
+        ChessScenario.onChip(store, "I want to reach 1200", now + 20)
+        ChessScenario.onChip(store, "Evenings work for practice", now + 30)
+        snap = store.snapshot()
+
+        val baseline = snap.facts.first { it.id == ChessScenario.FACT_BASELINE_ID }
+        assertEquals(ProvenanceKind.SAID, baseline.provenance.kind)
+        assertTrue(baseline.text.contains("900"))
+        assertTrue(snap.hypotheses.any { it.text.contains("1200") })
+
+        val proposal = snap.proposals.first { it.id == ChessScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertNotEquals(baseline.text, proposal.summary)
+        assertTrue(proposal.summary.contains("evening", ignoreCase = true))
+        assertEquals(IntentionPhase.PROPOSAL_PENDING, snap.intentions.first { it.id == ChessScenario.INTENTION_ID }.phase)
+
+        ChessScenario.approve(store, now + 40)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == ChessScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == ChessScenario.SESSION_ID })
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == ChessScenario.INTENTION_ID }.phase)
+
+        ChessScenario.onChip(store, "I practised tactics today", now + 50)
+        ChessScenario.onChip(store, "I reviewed a recent game", now + 60)
+        snap = store.snapshot()
+        val activeEntries = snap.trackerEntries.filter { it.status == TrackerEntryStatus.ACTIVE }
+        assertEquals(2, activeEntries.size)
+        assertTrue(activeEntries.all { it.provenance.kind == ProvenanceKind.SAID })
+        assertTrue(activeEntries.any { it.moduleId == "practice_log" })
+        assertTrue(activeEntries.any { it.moduleId == "game_review" })
+        assertFalse(activeEntries.any { it.valueText.contains("auto-sync", ignoreCase = true) })
+        assertFalse(activeEntries.any { it.valueText.contains("fabricated", ignoreCase = true) })
+
+        val modules = TrackerModules.forShape(ChessScenario.SHAPE_TAG)
+        assertTrue(modules.any { it.id == "rating_self_report" })
+        assertTrue(modules.any { it.id == "practice_log" })
+        assertTrue(modules.any { it.id == "game_review" })
+        assertFalse(modules.any { it.id == "general_log" })
+
+        val mondayEvening = 1_700_161_200_000L
+        val deferUntil = mondayEvening + 3 * 60 * 60 * 1000L
+        ChessScenario.deferSession(store, deferUntil, mondayEvening + 10)
+        snap = store.snapshot()
+        assertEquals(deferUntil, snap.sessions.first { it.id == ChessScenario.SESSION_ID }.deferredUntilEpochMs)
+
+        val encoded = store.encode(snap)
+        val againFile = tmp.newFile("chess-again.json")
+        againFile.writeText(encoded)
+        val again = IntentionFlowStore(againFile).snapshot()
+        assertEquals(7, again.schemaVersion)
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == ChessScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == ChessScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == ChessScenario.FACT_BASELINE_ID }.provenance.kind)
+        assertEquals(2, again.trackerEntries.count { it.status == TrackerEntryStatus.ACTIVE })
+    }
+
+    @Test
+    fun shapes_shareCoreRecordsIncludingChess() {
+        SpanishScenario.seed(store, now)
+        MarathonScenario.seed(store, now + 1)
+        BusinessScenario.seed(store, now + 2)
+        MoveScenario.seed(store, now + 3)
+        JobOfferScenario.seed(store, now + 4)
+        QuitSmokingScenario.seed(store, now + 5)
+        AppUseReductionScenario.seed(store, now + 6)
+        EuWorkSpainScenario.seed(store, now + 7)
+        ChessScenario.seed(store, now + 8)
+        val snap = store.snapshot()
+        assertEquals(9, snap.intentions.size)
+        assertTrue(snap.intentions.any { it.shapeTag == "decision" })
+        assertTrue(snap.intentions.any { it.shapeTag == "move" })
+        assertTrue(snap.intentions.any { it.shapeTag == QuitSmokingScenario.SHAPE_TAG })
+        assertTrue(snap.intentions.any { it.shapeTag == "app_use" })
+        assertTrue(snap.intentions.any { it.shapeTag == "research" })
+        assertTrue(snap.intentions.any { it.shapeTag == ChessScenario.SHAPE_TAG })
+        assertEquals(ChessScenario.INTENTION_ID, snap.activeIntentionId)
     }
 
     @Test

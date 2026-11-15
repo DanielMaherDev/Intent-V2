@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.103**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.119** (this branch) · main tip **v0.0.103**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.103**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.103.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.119.apk`
 
 ## Scope
 
@@ -59,14 +59,15 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.98:** CASE-01 small errand / quick to-do inbox (OS-073) — “Buy milk tonight” as first action + reminder, not an exploring Intention (reclaimed from 0.0.79 / 0.0.62 / 0.0.52)
 - **v0.0.101:** CASE-03 EU-citizen work Spain — research/checklist shape (`research`); SAID citizenship/arrangement/duration/documents; sourced checklist questions; no invented law; `web_research` NOT_SUPPORTED (reclaimed from 0.0.66/0.0.86 after tip 0.0.98)
 - **v0.0.103:** Evening thought triage (OS-154) — at check-out, classify RAW SAID thoughts as task / intention / reminder / keep / discard (user-picked only; was 0.0.88 / 0.0.68 / 0.0.58)
+- **v0.0.119:** CASE-07 chess rating — manual SAID baseline (900→1200) + practice/review log; Chess.com auto-sync `NOT_SUPPORTED` (reclaim; was 0.0.102 / 0.0.67); coexists with CASE-03 research + OS-154 evening triage
 
 ## Shapes
 
-Shared core records (`Intention`, facts, hypotheses, proposals, sessions, trackerEntries). Shape tag: `language` | `marathon` | `business` | `move` | `decision` | `cessation` | `app_use` | `research`.
+Shared core records (`Intention`, facts, hypotheses, proposals, sessions, trackerEntries). Shape tag: `language` | `marathon` | `business` | `move` | `decision` | `cessation` | `app_use` | `research` | `chess`.
 
 ## Capability registry
 
-`CapabilityRegistry` lists what INTENT can do (`available` / `permission_needed` / `not_supported`, etc.). Conversation chips, recurring-session proposals, and `NextActionEngine` recommendations filter through it — e.g. opening an app is available; observing Duolingo lesson completion is not. Language, marathon, business, move, decision, cessation, app_use, and research shapes consult the same registry.
+`CapabilityRegistry` lists what INTENT can do (`available` / `permission_needed` / `not_supported`, etc.). Conversation chips, recurring-session proposals, and `NextActionEngine` recommendations filter through it — e.g. opening an app is available; observing Duolingo lesson completion is not. Language, marathon, business, move, decision, cessation, app_use, research, and chess shapes consult the same registry.
 
 ## Daily action (Stage 4)
 
@@ -90,7 +91,12 @@ Shapes with a destination package (Spanish → Duolingo / `com.duolingo`) launch
 
 ## Adaptive UI (Stage 5 / v0.0.13)
 
-`ShapeProjection` drives Intention Space hero/approach/knowledge sections, Home “Your space” subtitles, and Conversation eyebrow/headline from `shapeTag` + phase — same screens, different composition. No tracker/report modules yet.
+`ShapeProjection` drives Intention Space hero/approach/knowledge sections, Home “Your space” subtitles, and Conversation eyebrow/headline from `shapeTag` + phase — same screens, different composition. Chess (v0.0.119) adds SAID tracker modules for rating/practice alongside CASE-03 research checklist composition.
+
+
+## Chess rating CASE-07 (v0.0.119)
+
+Home **Explore chess rating** seeds a shared-model intention (`shapeTag = chess`) with manual rapid baseline ~900 → goal 1200, evening practice proposal, and SAID `rating_self_report` / `practice_log` / `game_review` entries. Registry `observe_chess_rating` stays **NOT_SUPPORTED** — no Chess.com scrape or fabricated games. Coexists with CASE-03 `research` and OS-154 evening thought triage.
 
 ## UsageStats (Stage 6 / v0.0.14)
 
@@ -168,9 +174,9 @@ Home **Intentions** opens an accessible drawer of active intentions (tap → Int
 
 At evening check-out (after what-happened), RAW SAID thoughts are walked one at a time. User picks **task / intention / reminder / keep / discard** — no LLM invent. Then Keep schedule / Defer tomorrow as before.
 
-## Sideload packaging (v0.0.17–v0.0.103)
+## Sideload packaging (v0.0.17–v0.0.119)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.103.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.119.apk` on this branch (main tip: `INTENT-v0.0.103.apk`).
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -190,6 +196,6 @@ Registry capability `live_llm` is **NOT_SUPPORTED** without a configured key, **
 
 ## Download
 
-Sideload APK (v0.0.103, release): [INTENT-v0.0.103.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/evening-thought-triage-os154-e959/artifacts/INTENT-v0.0.103.apk)
+Sideload APK (v0.0.119, release): [INTENT-v0.0.119.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/chess-rating-case07-v045-a39c/artifacts/INTENT-v0.0.119.apk)
 
-(Prior: [INTENT-v0.0.98.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.98.apk) · [INTENT-v0.0.80.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.80.apk) · [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.65.apk) · [INTENT-v0.0.64.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.64.apk) · [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.61.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.60.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.59.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.49.apk))
+(Prior: [INTENT-v0.0.98.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.80.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.64.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.119.apk))
