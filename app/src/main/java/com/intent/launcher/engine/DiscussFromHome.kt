@@ -10,6 +10,9 @@ import com.intent.launcher.store.IntentionFlowStore
  * next action (scheduled Begin/Discuss chrome or active SessionCard) and open
  * Conversation for that context. Does not end or alter [SessionRun] state —
  * Complete / Abandon remain available after the user returns.
+ *
+ * Gate D: when a queued intervention is active, floater and Conversation share
+ * the same [OpenResult.interventionTurnId] / [OpenResult.interventionJobId].
  */
 object DiscussFromHome {
 
@@ -21,13 +24,17 @@ object DiscussFromHome {
         val intentionId: String?,
         val sessionId: String? = null,
         /** True when [FlowCommand.SetActiveIntention] was applied for context. */
-        val activatedIntention: Boolean = false
+        val activatedIntention: Boolean = false,
+        /** Shared intervention ids — floater bubble and Conversation converge. */
+        val interventionJobId: String? = null,
+        val interventionTurnId: String? = null
     )
 
     /**
      * Prepare Conversation navigation for Home Discuss.
      * Activates [NextAction.intentionId] when it differs from the store's active id
      * so Conversation reads the scheduled / in-progress intention.
+     * Prefer an active intervention's intention when one is queued.
      */
     fun open(
         store: IntentionFlowStore,
@@ -39,7 +46,9 @@ object DiscussFromHome {
             return OpenResult(navigateTo = null, intentionId = null)
         }
         val snap = store.snapshot()
-        val intentionId = nextAction.intentionId
+        val intervention = TriggerCooldownPolicy.activeIntervention(snap)
+        val intentionId = intervention?.intentionId
+            ?: nextAction.intentionId
             ?: snap.activeIntentionId
             ?: snap.intentions.firstOrNull()?.id
             ?: return OpenResult(navigateTo = null, intentionId = null)
@@ -56,11 +65,22 @@ object DiscussFromHome {
             false
         }
 
+        if (intervention != null && intervention.status == "queued") {
+            store.apply(
+                FlowCommand.MarkInterventionShown(
+                    jobId = intervention.jobId,
+                    nowEpochMs = nowEpochMs
+                )
+            )
+        }
+
         return OpenResult(
             navigateTo = CONVERSATION_ROUTE,
             intentionId = intentionId,
             sessionId = nextAction.sessionId,
-            activatedIntention = activated
+            activatedIntention = activated,
+            interventionJobId = intervention?.jobId,
+            interventionTurnId = intervention?.turnId
         )
     }
 }

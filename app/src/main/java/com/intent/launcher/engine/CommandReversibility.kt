@@ -122,6 +122,18 @@ object CommandReversibility {
                 Reversibility(true, "Released held app ${command.heldAppId}")
             is FlowCommand.UpdateDrawerCardLayout ->
                 Reversibility(true, "Updated drawer card layout for ${command.intentionId}")
+            is FlowCommand.SetProactivityPrefs ->
+                Reversibility(true, "Updated proactivity preferences")
+            is FlowCommand.ArmTriggerCooldown ->
+                Reversibility(true, "Armed trigger cooldown ${command.key}")
+            is FlowCommand.LeaveMeAlone ->
+                Reversibility(true, "Leave me alone until ${command.untilEpochMs}")
+            is FlowCommand.QueueIntervention ->
+                Reversibility(true, "Queued intervention ${command.jobId}")
+            is FlowCommand.MarkInterventionShown ->
+                Reversibility(true, "Marked intervention shown ${command.jobId}")
+            is FlowCommand.DismissIntervention ->
+                Reversibility(true, "Dismissed intervention ${command.jobId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

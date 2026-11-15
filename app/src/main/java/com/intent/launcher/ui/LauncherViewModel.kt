@@ -94,6 +94,8 @@ import com.intent.launcher.engine.ScreenTimeBarProbe
 import com.intent.launcher.engine.SessionNotificationReviewProbe
 import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
+import com.intent.launcher.engine.TriggerCooldownPolicy
+import com.intent.launcher.engine.UsageInterventionTrigger
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.UsageStatsProbe
 import com.intent.launcher.engine.VoiceInputProbe
@@ -262,6 +264,16 @@ class LauncherViewModel(
     var askContextChip by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * Shared intervention turn id for floater ↔ Conversation convergence (Gate D).
+     * Set when opening from floater/Discuss while a queued intervention is active.
+     */
+    var focusInterventionTurnId by mutableStateOf<String?>(null)
+        private set
+
+    var focusInterventionJobId by mutableStateOf<String?>(null)
+        private set
+
     /** Builder / triage honesty or validation note for the current screen. */
     var builderTriageNote by mutableStateOf<String?>(null)
         private set
@@ -279,6 +291,7 @@ class LauncherViewModel(
         screenTimeBarObservation = observeScreenTimeBar()
         notificationObservation = observeNotificationsIfActive()
         maybeRecordObservedEvidence(usageObservation)
+        maybeQueueUsageIntervention()
         observedEvidence = resolveObservedEvidence()
         screenCaptureObservation = observeScreenCaptureIfActive()
         applyPauseEvaluation()
@@ -483,6 +496,7 @@ class LauncherViewModel(
         screenTimeBarObservation = observeScreenTimeBar()
         notificationObservation = observeNotificationsIfActive()
         maybeRecordObservedEvidence(usageObservation)
+        maybeQueueUsageIntervention()
         snapshot = store.snapshot()
         observedEvidence = resolveObservedEvidence()
         screenCaptureObservation = observeScreenCaptureIfActive()
@@ -581,7 +595,8 @@ class LauncherViewModel(
         FloatingCompanion.presence(
             nextAction = nextAction,
             overlayGranted = overlayPermissionAccess.canDrawOverlays(),
-            registry = capabilityRegistry
+            registry = capabilityRegistry,
+            snapshot = snapshot
         )
 
     /** Overlay bubble state when allowed; null means do not show fake floating UI. */
@@ -589,6 +604,7 @@ class LauncherViewModel(
 
     /**
      * Companion press / notification — same Discuss → Conversation path as Home.
+     * Captures shared intervention turn/job ids when a prompt is queued.
      */
     fun openFromFloatingCompanion(): String? {
         val result = FloatingCompanion.onPress(
@@ -598,6 +614,8 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         askContextChip = null
+        focusInterventionTurnId = result.interventionTurnId
+        focusInterventionJobId = result.interventionJobId
         refresh()
         return result.navigateTo
     }
@@ -611,6 +629,8 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         askContextChip = result.contextChip
+        focusInterventionTurnId = result.interventionTurnId
+        focusInterventionJobId = result.interventionJobId
         floaterTodayNote = null
         refresh()
         return result.navigateTo
@@ -744,8 +764,38 @@ class LauncherViewModel(
                 nowEpochMs = System.currentTimeMillis()
             )
         )
+        // DismissEvidence reduce arms trigger cooldown (Gate D).
         refresh()
         return true
+    }
+
+    /** Dismiss the active proactive intervention and arm cooldown (scenario C step 5). */
+    fun dismissActiveIntervention(): Boolean {
+        val job = TriggerCooldownPolicy.activeIntervention(store.snapshot()) ?: return false
+        val now = System.currentTimeMillis()
+        store.apply(
+            FlowCommand.DismissIntervention(
+                jobId = job.jobId,
+                cooldownUntilEpochMs = now + TriggerCooldownPolicy.DEFAULT_COOLDOWN_MS,
+                nowEpochMs = now
+            )
+        )
+        focusInterventionTurnId = null
+        focusInterventionJobId = null
+        refresh()
+        return true
+    }
+
+    /**
+     * Permission-aware day usage → at most one queued intervention after policy checks.
+     */
+    private fun maybeQueueUsageIntervention() {
+        UsageInterventionTrigger.maybeQueueFromDayUsage(
+            store = store,
+            access = usageStatsAccess,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
     }
 
     fun clearCheckoutObservationNote() {
@@ -1254,6 +1304,8 @@ class LauncherViewModel(
             nowEpochMs = System.currentTimeMillis(),
             registry = capabilityRegistry
         )
+        focusInterventionTurnId = result.interventionTurnId
+        focusInterventionJobId = result.interventionJobId
         refresh()
         return result.navigateTo
     }

@@ -1,13 +1,16 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.domain.QueuedIntervention
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
  * Floating companion — same agent as Conversation, not a second bot.
  * Overlay-gated; press opens shared Conversation via [DiscussFromHome].
+ * Queued interventions share turnId / jobId with Conversation (Gate D).
  */
 enum class FloatingAgentState {
     IDLE,
@@ -27,7 +30,11 @@ object FloatingCompanion {
         /** Null when the bubble must not show (no overlay / registry locked). */
         val state: FloatingAgentState?,
         val label: String,
-        val manualRouteNote: String?
+        val manualRouteNote: String?,
+        /** Shared with Conversation when a proactive intervention is queued. */
+        val interventionJobId: String? = null,
+        val interventionTurnId: String? = null,
+        val unreadIntervention: Boolean = false
     )
 
     /**
@@ -37,26 +44,53 @@ object FloatingCompanion {
     fun presence(
         nextAction: NextAction,
         overlayGranted: Boolean,
-        registry: CapabilityRegistry = CapabilityRegistry.default
+        registry: CapabilityRegistry = CapabilityRegistry.default,
+        snapshot: IntentionSnapshot? = null
     ): Presence {
+        val intervention = snapshot?.let { TriggerCooldownPolicy.activeIntervention(it) }
         if (!overlayGranted || !registry.canUseFloatingOverlay()) {
             return Presence(
                 state = null,
                 label = "Use Agent on Home",
                 // Honest launcher fallback — never invents a bubble or overlay grant (OS-155).
-                manualRouteNote = TalkBackLabels.overlayDeniedFallbackNote()
+                manualRouteNote = TalkBackLabels.overlayDeniedFallbackNote(),
+                interventionJobId = intervention?.jobId,
+                interventionTurnId = intervention?.turnId,
+                unreadIntervention = intervention?.status == "queued"
             )
         }
-        val state = resolveState(nextAction)
+        val state = resolveState(nextAction, intervention)
         return Presence(
             state = state,
             label = labelFor(state),
-            manualRouteNote = null
+            manualRouteNote = null,
+            interventionJobId = intervention?.jobId,
+            interventionTurnId = intervention?.turnId,
+            unreadIntervention = intervention?.status == "queued"
         )
     }
 
-    fun resolveState(nextAction: NextAction): FloatingAgentState =
-        when (nextAction.kind) {
+    fun resolveState(
+        nextAction: NextAction,
+        intervention: QueuedIntervention? = null
+    ): FloatingAgentState {
+        if (intervention != null) {
+            return when (intervention.status) {
+                "queued" -> FloatingAgentState.ATTENTION_NEEDED
+                "shown" -> FloatingAgentState.RESPONSE_READY
+                else -> FloatingAgentState.IDLE
+            }.let { interventionState ->
+                // Active session still wins for chrome when no unread intervention.
+                if (nextAction.kind == NextActionKind.ACTIVE_SESSION &&
+                    intervention.status != "queued"
+                ) {
+                    FloatingAgentState.ACTIVE_SESSION
+                } else {
+                    interventionState
+                }
+            }
+        }
+        return when (nextAction.kind) {
             NextActionKind.ACTIVE_SESSION -> FloatingAgentState.ACTIVE_SESSION
             NextActionKind.REVIEW_PROPOSAL,
             NextActionKind.BEGIN,
@@ -65,6 +99,7 @@ object FloatingCompanion {
             NextActionKind.CHECK_OUT -> FloatingAgentState.ATTENTION_NEEDED
             else -> FloatingAgentState.IDLE
         }
+    }
 
     fun labelFor(state: FloatingAgentState): String =
         when (state) {
@@ -78,6 +113,7 @@ object FloatingCompanion {
 
     /**
      * Press the companion → open shared Conversation (same path as Home Discuss).
+     * When an intervention is queued, returns the same turnId / jobId Conversation uses.
      */
     fun onPress(
         store: IntentionFlowStore,

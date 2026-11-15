@@ -22,10 +22,14 @@ import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.Occurrence
+import com.intent.launcher.domain.ProactivityPrefs
 import com.intent.launcher.domain.Proposal
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.Provenance
 import com.intent.launcher.domain.ProvenanceKind
+import com.intent.launcher.domain.QueuedIntervention
+import com.intent.launcher.domain.ResponseBlock
+import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionRun
@@ -37,12 +41,14 @@ import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.domain.TrashKind
+import com.intent.launcher.domain.TriggerCooldown
 import com.intent.launcher.domain.TriageItem
 import com.intent.launcher.domain.TriageItemStatus
 import com.intent.launcher.domain.TriageState
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.engine.IntentionHierarchy
+import com.intent.launcher.engine.TriggerCooldownPolicy
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
@@ -140,13 +146,18 @@ class IntentionFlowStore(
             }
 
             is FlowCommand.AddConversationTurn -> {
+                val blocks = command.blocks.filter { block ->
+                    // Reject unknown enum values at write path (contracts §4).
+                    runCatching { ResponseBlockType.valueOf(block.type.name) }.isSuccess
+                }
                 val turn = ConversationTurn(
                     id = command.turnId,
                     intentionId = command.intentionId,
                     role = command.role,
                     text = command.text,
                     atEpochMs = command.nowEpochMs,
-                    modality = command.modality
+                    modality = command.modality,
+                    blocks = blocks
                 )
                 migrated.copy(turns = migrated.turns + turn)
             }
@@ -360,6 +371,36 @@ class IntentionFlowStore(
             }
 
             is FlowCommand.DismissEvidence -> {
+                val evidence = migrated.evidence.firstOrNull { it.id == command.evidenceId }
+                val triggerKey = evidence?.let {
+                    TriggerCooldownPolicy.usageThresholdKey(it.intentionId)
+                }
+                val cooldownUntil = command.nowEpochMs + TriggerCooldownPolicy.DEFAULT_COOLDOWN_MS
+                val nextCooldowns = if (triggerKey != null) {
+                    upsertCooldown(
+                        migrated.triggerCooldowns,
+                        TriggerCooldown(
+                            key = triggerKey,
+                            armedUntilEpochMs = cooldownUntil,
+                            reason = TriggerCooldownPolicy.REASON_DISMISS
+                        )
+                    )
+                } else {
+                    migrated.triggerCooldowns
+                }
+                val nextInterventions = if (triggerKey != null) {
+                    migrated.queuedInterventions.map { job ->
+                        if (job.triggerKey == triggerKey &&
+                            job.status in TriggerCooldownPolicy.ACTIVE_STATUSES
+                        ) {
+                            job.copy(status = "dismissed")
+                        } else {
+                            job
+                        }
+                    }
+                } else {
+                    migrated.queuedInterventions
+                }
                 migrated.copy(
                     evidence = migrated.evidence.map {
                         if (it.id == command.evidenceId) {
@@ -367,7 +408,9 @@ class IntentionFlowStore(
                         } else {
                             it
                         }
-                    }
+                    },
+                    triggerCooldowns = nextCooldowns,
+                    queuedInterventions = nextInterventions
                 )
             }
 
@@ -1047,11 +1090,157 @@ class IntentionFlowStore(
                 )
             }
 
+            is FlowCommand.SetProactivityPrefs -> {
+                val budget = command.interruptionBudgetPerDay.coerceAtLeast(0)
+                migrated.copy(
+                    proactivityPrefs = migrated.proactivityPrefs.copy(
+                        quietHoursStartMin = command.quietHoursStartMin,
+                        quietHoursEndMin = command.quietHoursEndMin,
+                        interruptionBudgetPerDay = budget
+                    )
+                )
+            }
+
+            is FlowCommand.ArmTriggerCooldown -> {
+                if (command.key.isBlank()) return migrated
+                migrated.copy(
+                    triggerCooldowns = upsertCooldown(
+                        migrated.triggerCooldowns,
+                        TriggerCooldown(
+                            key = command.key,
+                            armedUntilEpochMs = command.armedUntilEpochMs,
+                            reason = command.reason
+                        )
+                    )
+                )
+            }
+
+            is FlowCommand.LeaveMeAlone -> {
+                val prefs = migrated.proactivityPrefs.copy(
+                    leaveMeAloneUntilEpochMs = command.untilEpochMs
+                )
+                val cooldowns = if (!command.triggerKey.isNullOrBlank()) {
+                    upsertCooldown(
+                        migrated.triggerCooldowns,
+                        TriggerCooldown(
+                            key = command.triggerKey,
+                            armedUntilEpochMs = command.untilEpochMs,
+                            reason = TriggerCooldownPolicy.REASON_LEAVE_ME_ALONE
+                        )
+                    )
+                } else {
+                    migrated.triggerCooldowns
+                }
+                val interventions = migrated.queuedInterventions.map { job ->
+                    if (job.status in TriggerCooldownPolicy.ACTIVE_STATUSES) {
+                        job.copy(status = "dismissed")
+                    } else {
+                        job
+                    }
+                }
+                migrated.copy(
+                    proactivityPrefs = prefs,
+                    triggerCooldowns = cooldowns,
+                    queuedInterventions = interventions
+                )
+            }
+
+            is FlowCommand.QueueIntervention -> {
+                val decision = TriggerCooldownPolicy.evaluate(
+                    snapshot = migrated,
+                    triggerKey = command.triggerKey,
+                    nowEpochMs = command.nowEpochMs
+                )
+                if (decision !is TriggerCooldownPolicy.Decision.Allow) return migrated
+                val intervention = QueuedIntervention(
+                    jobId = command.jobId,
+                    turnId = command.turnId,
+                    intentionId = command.intentionId,
+                    triggerKey = command.triggerKey,
+                    kind = command.kind,
+                    promptText = command.promptText,
+                    evidenceId = command.evidenceId,
+                    provenanceKind = command.provenanceKind,
+                    createdAtEpochMs = command.nowEpochMs,
+                    status = "queued"
+                )
+                // Replace any prior active jobs — at most one active intervention.
+                val cleared = migrated.queuedInterventions.map { job ->
+                    if (job.status in TriggerCooldownPolicy.ACTIVE_STATUSES) {
+                        job.copy(status = "dismissed")
+                    } else {
+                        job
+                    }
+                }.filterNot { it.jobId == intervention.jobId }
+                val agentText = command.agentTurnText
+                val turns = if (!agentText.isNullOrBlank()) {
+                    val blocks = command.agentTurnBlocks.filter {
+                        runCatching { ResponseBlockType.valueOf(it.type.name) }.isSuccess
+                    }
+                    if (migrated.turns.any { it.id == command.turnId }) {
+                        migrated.turns
+                    } else {
+                        migrated.turns + ConversationTurn(
+                            id = command.turnId,
+                            intentionId = command.intentionId,
+                            role = "agent",
+                            text = agentText,
+                            atEpochMs = command.nowEpochMs,
+                            modality = "FLOATER",
+                            blocks = blocks
+                        )
+                    }
+                } else {
+                    migrated.turns
+                }
+                migrated.copy(
+                    queuedInterventions = cleared + intervention,
+                    turns = turns,
+                    activeIntentionId = command.intentionId
+                )
+            }
+
+            is FlowCommand.MarkInterventionShown -> {
+                migrated.copy(
+                    queuedInterventions = migrated.queuedInterventions.map { job ->
+                        if (job.jobId == command.jobId && job.status == "queued") {
+                            job.copy(status = "shown")
+                        } else {
+                            job
+                        }
+                    }
+                )
+            }
+
+            is FlowCommand.DismissIntervention -> {
+                val target = migrated.queuedInterventions.firstOrNull { it.jobId == command.jobId }
+                    ?: return migrated
+                migrated.copy(
+                    queuedInterventions = migrated.queuedInterventions.map { job ->
+                        if (job.jobId == command.jobId) job.copy(status = "dismissed") else job
+                    },
+                    triggerCooldowns = upsertCooldown(
+                        migrated.triggerCooldowns,
+                        TriggerCooldown(
+                            key = target.triggerKey,
+                            armedUntilEpochMs = command.cooldownUntilEpochMs,
+                            reason = TriggerCooldownPolicy.REASON_DISMISS
+                        )
+                    )
+                )
+            }
+
             is FlowCommand.RecordExternalAction -> migrated
 
             is FlowCommand.UndoLastReversible -> migrated
         }
     }
+
+    private fun upsertCooldown(
+        existing: List<TriggerCooldown>,
+        cooldown: TriggerCooldown
+    ): List<TriggerCooldown> =
+        existing.filterNot { it.key == cooldown.key } + cooldown
 
     private fun softDeleteIntention(
         migrated: IntentionSnapshot,
@@ -1265,6 +1454,12 @@ class IntentionFlowStore(
                     is FlowCommand.ReorderHeldApps -> command.nowEpochMs
                     is FlowCommand.ReleaseHeldApp -> command.nowEpochMs
                     is FlowCommand.UpdateDrawerCardLayout -> command.nowEpochMs
+                    is FlowCommand.SetProactivityPrefs -> command.nowEpochMs
+                    is FlowCommand.ArmTriggerCooldown -> command.nowEpochMs
+                    is FlowCommand.LeaveMeAlone -> command.nowEpochMs
+                    is FlowCommand.QueueIntervention -> command.nowEpochMs
+                    is FlowCommand.MarkInterventionShown -> command.nowEpochMs
+                    is FlowCommand.DismissIntervention -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -1319,6 +1514,12 @@ class IntentionFlowStore(
             is FlowCommand.ReorderHeldApps -> command.nowEpochMs
             is FlowCommand.ReleaseHeldApp -> command.nowEpochMs
             is FlowCommand.UpdateDrawerCardLayout -> command.nowEpochMs
+            is FlowCommand.SetProactivityPrefs -> command.nowEpochMs
+            is FlowCommand.ArmTriggerCooldown -> command.nowEpochMs
+            is FlowCommand.LeaveMeAlone -> command.nowEpochMs
+            is FlowCommand.QueueIntervention -> command.nowEpochMs
+            is FlowCommand.MarkInterventionShown -> command.nowEpochMs
+            is FlowCommand.DismissIntervention -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -1836,18 +2037,151 @@ class IntentionFlowStore(
         }
     }
 
+    data class WireResponseBlock(
+        val blockId: String = "",
+        val type: String = "",
+        val title: String = "",
+        val body: String = "",
+        val sourceLabel: String = "",
+        val linkedObjectIds: List<String> = emptyList(),
+        val actions: List<String> = emptyList(),
+        val active: Boolean = true,
+        val expiresAtEpochMs: Long? = null
+    ) {
+        fun toDomain(): ResponseBlock? {
+            val parsed = runCatching { ResponseBlockType.valueOf(type) }.getOrNull() ?: return null
+            return ResponseBlock(
+                blockId = blockId,
+                type = parsed,
+                title = title,
+                body = body,
+                sourceLabel = sourceLabel,
+                linkedObjectIds = linkedObjectIds,
+                actions = actions,
+                active = active,
+                expiresAtEpochMs = expiresAtEpochMs
+            )
+        }
+
+        companion object {
+            fun from(b: ResponseBlock) = WireResponseBlock(
+                blockId = b.blockId,
+                type = b.type.name,
+                title = b.title,
+                body = b.body,
+                sourceLabel = b.sourceLabel,
+                linkedObjectIds = b.linkedObjectIds,
+                actions = b.actions,
+                active = b.active,
+                expiresAtEpochMs = b.expiresAtEpochMs
+            )
+        }
+    }
+
     data class WireTurn(
         val id: String = "",
         val intentionId: String = "",
         val role: String = "",
         val text: String = "",
         val atEpochMs: Long = 0L,
-        val modality: String? = null
+        val modality: String? = null,
+        val blocks: List<WireResponseBlock> = emptyList()
     ) {
-        fun toDomain() = ConversationTurn(id, intentionId, role, text, atEpochMs, modality)
+        fun toDomain() = ConversationTurn(
+            id = id,
+            intentionId = intentionId,
+            role = role,
+            text = text,
+            atEpochMs = atEpochMs,
+            modality = modality,
+            blocks = blocks.mapNotNull { it.toDomain() }
+        )
         companion object {
             fun from(t: ConversationTurn) =
-                WireTurn(t.id, t.intentionId, t.role, t.text, t.atEpochMs, t.modality)
+                WireTurn(
+                    id = t.id,
+                    intentionId = t.intentionId,
+                    role = t.role,
+                    text = t.text,
+                    atEpochMs = t.atEpochMs,
+                    modality = t.modality,
+                    blocks = t.blocks.map(WireResponseBlock::from)
+                )
+        }
+    }
+
+    data class WireProactivityPrefs(
+        val quietHoursStartMin: Int? = null,
+        val quietHoursEndMin: Int? = null,
+        val interruptionBudgetPerDay: Int = 1,
+        val leaveMeAloneUntilEpochMs: Long? = null
+    ) {
+        fun toDomain() = ProactivityPrefs(
+            quietHoursStartMin = quietHoursStartMin,
+            quietHoursEndMin = quietHoursEndMin,
+            interruptionBudgetPerDay = interruptionBudgetPerDay,
+            leaveMeAloneUntilEpochMs = leaveMeAloneUntilEpochMs
+        )
+        companion object {
+            fun from(p: ProactivityPrefs) = WireProactivityPrefs(
+                quietHoursStartMin = p.quietHoursStartMin,
+                quietHoursEndMin = p.quietHoursEndMin,
+                interruptionBudgetPerDay = p.interruptionBudgetPerDay,
+                leaveMeAloneUntilEpochMs = p.leaveMeAloneUntilEpochMs
+            )
+        }
+    }
+
+    data class WireTriggerCooldown(
+        val key: String = "",
+        val armedUntilEpochMs: Long = 0L,
+        val reason: String = ""
+    ) {
+        fun toDomain() = TriggerCooldown(key, armedUntilEpochMs, reason)
+        companion object {
+            fun from(c: TriggerCooldown) =
+                WireTriggerCooldown(c.key, c.armedUntilEpochMs, c.reason)
+        }
+    }
+
+    data class WireQueuedIntervention(
+        val jobId: String = "",
+        val turnId: String = "",
+        val intentionId: String = "",
+        val triggerKey: String = "",
+        val kind: String = "",
+        val promptText: String = "",
+        val evidenceId: String? = null,
+        val provenanceKind: String = ProvenanceKind.OBSERVED.name,
+        val createdAtEpochMs: Long = 0L,
+        val status: String = "queued"
+    ) {
+        fun toDomain() = QueuedIntervention(
+            jobId = jobId,
+            turnId = turnId,
+            intentionId = intentionId,
+            triggerKey = triggerKey,
+            kind = kind,
+            promptText = promptText,
+            evidenceId = evidenceId,
+            provenanceKind = runCatching { ProvenanceKind.valueOf(provenanceKind) }
+                .getOrDefault(ProvenanceKind.OBSERVED),
+            createdAtEpochMs = createdAtEpochMs,
+            status = status
+        )
+        companion object {
+            fun from(q: QueuedIntervention) = WireQueuedIntervention(
+                jobId = q.jobId,
+                turnId = q.turnId,
+                intentionId = q.intentionId,
+                triggerKey = q.triggerKey,
+                kind = q.kind,
+                promptText = q.promptText,
+                evidenceId = q.evidenceId,
+                provenanceKind = q.provenanceKind.name,
+                createdAtEpochMs = q.createdAtEpochMs,
+                status = q.status
+            )
         }
     }
 
@@ -2335,7 +2669,10 @@ class IntentionFlowStore(
         val trash: List<WireTrashEntry> = emptyList(),
         val intentionOrder: List<String> = emptyList(),
         val heldApps: List<WireHeldApp> = emptyList(),
-        val drawerCardLayouts: List<WireDrawerCardLayout> = emptyList()
+        val drawerCardLayouts: List<WireDrawerCardLayout> = emptyList(),
+        val proactivityPrefs: WireProactivityPrefs = WireProactivityPrefs(),
+        val triggerCooldowns: List<WireTriggerCooldown> = emptyList(),
+        val queuedInterventions: List<WireQueuedIntervention> = emptyList()
     ) {
         fun toDomain() = IntentionSnapshot(
             schemaVersion = schemaVersion,
@@ -2360,7 +2697,10 @@ class IntentionFlowStore(
             trash = trash.map { it.toDomain() },
             intentionOrder = intentionOrder,
             heldApps = heldApps.map { it.toDomain() },
-            drawerCardLayouts = drawerCardLayouts.map { it.toDomain() }
+            drawerCardLayouts = drawerCardLayouts.map { it.toDomain() },
+            proactivityPrefs = proactivityPrefs.toDomain(),
+            triggerCooldowns = triggerCooldowns.map { it.toDomain() },
+            queuedInterventions = queuedInterventions.map { it.toDomain() }
         )
 
         companion object {
@@ -2387,7 +2727,10 @@ class IntentionFlowStore(
                 trash = s.trash.map(WireTrashEntry::from),
                 intentionOrder = s.intentionOrder,
                 heldApps = s.heldApps.map(WireHeldApp::from),
-                drawerCardLayouts = s.drawerCardLayouts.map(WireDrawerCardLayout::from)
+                drawerCardLayouts = s.drawerCardLayouts.map(WireDrawerCardLayout::from),
+                proactivityPrefs = WireProactivityPrefs.from(s.proactivityPrefs),
+                triggerCooldowns = s.triggerCooldowns.map(WireTriggerCooldown::from),
+                queuedInterventions = s.queuedInterventions.map(WireQueuedIntervention::from)
             )
         }
     }

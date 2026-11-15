@@ -174,7 +174,7 @@ class IntentionFlowStoreTest {
             again.facts.first { it.id == SpanishScenario.FACT_TUTOR_ID }.provenance.kind
         )
         assertEquals(ProposalStatus.APPROVED, again.proposals.first().status)
-        assertEquals(8, again.schemaVersion)
+        assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, again.schemaVersion)
     }
 
     @Test
@@ -845,7 +845,6 @@ class IntentionFlowStoreTest {
         againFile.writeText(encoded)
         val again = IntentionFlowStore(againFile).snapshot()
         assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, again.schemaVersion)
-        assertEquals(7, again.schemaVersion)
         assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
         assertEquals(deferUntil, again.sessions.first { it.id == QuitSmokingScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == QuitSmokingScenario.FACT_BASELINE_ID }.provenance.kind)
@@ -921,7 +920,7 @@ class IntentionFlowStoreTest {
         val againFile = tmp.newFile("chess-again.json")
         againFile.writeText(encoded)
         val again = IntentionFlowStore(againFile).snapshot()
-        assertEquals(7, again.schemaVersion)
+        assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, again.schemaVersion)
         assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == ChessScenario.INTENTION_ID }.phase)
         assertEquals(deferUntil, again.sessions.first { it.id == ChessScenario.SESSION_ID }.deferredUntilEpochMs)
         assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == ChessScenario.FACT_BASELINE_ID }.provenance.kind)

@@ -46,6 +46,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.ConversationTurn
+import com.intent.launcher.domain.ResponseBlock
+import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SmallLabel
@@ -135,7 +137,7 @@ fun ConversationScreen(
                     if (turn.role == "user") {
                         UserBubble(turn.text)
                     } else {
-                        AgentBubble(turn.text)
+                        AgentBubble(turn.text, turn.blocks)
                     }
                 }
             }
@@ -194,7 +196,8 @@ private fun UserBubble(text: String) {
 }
 
 @Composable
-private fun AgentBubble(text: String) {
+private fun AgentBubble(text: String, blocks: List<ResponseBlock> = emptyList()) {
+    val gap = blocks.firstOrNull { it.type == ResponseBlockType.CAPABILITY_GAP && it.active }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -215,13 +218,33 @@ private fun AgentBubble(text: String) {
             letterSpacing = 0.6.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Ink,
-            lineHeight = 19.sp
-        )
+        if (gap != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = gap.body.ifBlank { text },
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink,
+                lineHeight = 19.sp
+            )
+            if (gap.sourceLabel.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = gap.sourceLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IntentColors.Muted
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink,
+                lineHeight = 19.sp
+            )
+        }
     }
 }
 

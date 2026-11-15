@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 9
+const val SCHEMA_VERSION: Int = 10
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -207,6 +207,35 @@ data class Proposal(
     val provenance: Provenance
 )
 
+/**
+ * Typed response block (contracts §4 ResponseBlockV1).
+ * Unknown [type] values are rejected at the write path.
+ */
+enum class ResponseBlockType {
+    EXPLANATION,
+    QUESTION,
+    CHOICE_SET,
+    RECORDED_ENTRY,
+    PROPOSAL,
+    NEXT_ACTION,
+    REPORT_PREVIEW,
+    CAPABILITY_GAP,
+    PROGRESS,
+    ERROR
+}
+
+data class ResponseBlock(
+    val blockId: String,
+    val type: ResponseBlockType,
+    val title: String,
+    val body: String,
+    val sourceLabel: String,
+    val linkedObjectIds: List<String> = emptyList(),
+    val actions: List<String> = emptyList(),
+    val active: Boolean = true,
+    val expiresAtEpochMs: Long? = null
+)
+
 data class ConversationTurn(
     val id: String,
     val intentionId: String,
@@ -217,7 +246,44 @@ data class ConversationTurn(
      * Input modality that produced this turn when known
      * (`TEXT_CHIP` | `VOICE_TRANSCRIPT` | `FREE_TEXT` | null for legacy/seed).
      */
-    val modality: String? = null
+    val modality: String? = null,
+    /** Typed blocks (e.g. CAPABILITY_GAP) — empty for prose-only legacy turns. */
+    val blocks: List<ResponseBlock> = emptyList()
+)
+
+/** User-controlled proactivity preferences (Gate D / worksheet §13). */
+data class ProactivityPrefs(
+    /** Local minutes from midnight; null = no quiet-hours window. */
+    val quietHoursStartMin: Int? = null,
+    val quietHoursEndMin: Int? = null,
+    /** Max proactive interventions per local day (default 1). */
+    val interruptionBudgetPerDay: Int = 1,
+    /** Absolute mute until this epoch — “leave me alone”. */
+    val leaveMeAloneUntilEpochMs: Long? = null
+)
+
+/** Cooldown after dismiss / leave-me-alone for a trigger key. */
+data class TriggerCooldown(
+    val key: String,
+    val armedUntilEpochMs: Long,
+    /** dismiss | leave_me_alone | budget | not_now */
+    val reason: String
+)
+
+/** At-most-one queued proactive intervention (scenario C). */
+data class QueuedIntervention(
+    val jobId: String,
+    val turnId: String,
+    val intentionId: String,
+    val triggerKey: String,
+    val kind: String,
+    val promptText: String,
+    val evidenceId: String? = null,
+    /** OBSERVED | INFERRED — explicit for D2 labeling; never silent mix. */
+    val provenanceKind: ProvenanceKind = ProvenanceKind.OBSERVED,
+    val createdAtEpochMs: Long,
+    /** queued | shown | dismissed | answered */
+    val status: String = "queued"
 )
 
 /**
@@ -455,7 +521,16 @@ data class IntentionSnapshot(
     /** User-confirmed hold-for-apps bindings (SAID). */
     val heldApps: List<HeldApp> = emptyList(),
     /** Per-intention drawer card span / priority / cover key (OS-139). */
-    val drawerCardLayouts: List<DrawerCardLayout> = emptyList()
+    val drawerCardLayouts: List<DrawerCardLayout> = emptyList(),
+    /** Quiet hours / interruption budget / leave-me-alone (Gate D). */
+    val proactivityPrefs: ProactivityPrefs = ProactivityPrefs(),
+    /** Active trigger cooldowns keyed by trigger key. */
+    val triggerCooldowns: List<TriggerCooldown> = emptyList(),
+    /**
+     * Queued proactive interventions — at most one active (queued/shown) at a time.
+     * Floater and Conversation share [QueuedIntervention.turnId] / [QueuedIntervention.jobId].
+     */
+    val queuedInterventions: List<QueuedIntervention> = emptyList()
 )
 
 sealed class FlowCommand {
@@ -490,7 +565,9 @@ sealed class FlowCommand {
         val text: String,
         val nowEpochMs: Long,
         /** Optional modality tag — see [ConversationTurn.modality]. */
-        val modality: String? = null
+        val modality: String? = null,
+        /** Typed response blocks (contracts §4); empty for prose-only. */
+        val blocks: List<ResponseBlock> = emptyList()
     ) : FlowCommand()
 
     data class ProposeRecurringSession(
@@ -907,6 +984,69 @@ sealed class FlowCommand {
         val spanColumns: Int,
         val priorityBorder: Boolean,
         val imageKey: String = "shape",
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Set quiet hours / interruption budget (Gate D proactivity). */
+    data class SetProactivityPrefs(
+        val quietHoursStartMin: Int?,
+        val quietHoursEndMin: Int?,
+        val interruptionBudgetPerDay: Int = 1,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Arm a trigger cooldown so identical prompts stay suppressed until [armedUntilEpochMs].
+     * Used after dismiss / leave-me-alone / budget exhaustion.
+     */
+    data class ArmTriggerCooldown(
+        val key: String,
+        val armedUntilEpochMs: Long,
+        val reason: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * “Leave me alone” — durable mute until [untilEpochMs] plus optional trigger cooldown.
+     */
+    data class LeaveMeAlone(
+        val untilEpochMs: Long,
+        val triggerKey: String? = null,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Queue at most one proactive intervention. Idempotent when an active queued/shown
+     * intervention already exists for [triggerKey] (or any key when budget is 1/day).
+     */
+    data class QueueIntervention(
+        val jobId: String,
+        val turnId: String,
+        val intentionId: String,
+        val triggerKey: String,
+        val kind: String,
+        val promptText: String,
+        val nowEpochMs: Long,
+        val evidenceId: String? = null,
+        val provenanceKind: ProvenanceKind = ProvenanceKind.OBSERVED,
+        /** Optional agent turn text + blocks written with the same [turnId]. */
+        val agentTurnText: String? = null,
+        val agentTurnBlocks: List<ResponseBlock> = emptyList()
+    ) : FlowCommand()
+
+    /** Mark a queued intervention as shown (floater / Conversation opened it). */
+    data class MarkInterventionShown(
+        val jobId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Dismiss a queued intervention and arm cooldown for its trigger key.
+     * Does not secretly change schedules.
+     */
+    data class DismissIntervention(
+        val jobId: String,
+        val cooldownUntilEpochMs: Long,
         val nowEpochMs: Long
     ) : FlowCommand()
 }
