@@ -11,27 +11,64 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 125
-        versionName = "0.0.125"
+        versionCode = 126
+        versionName = "0.0.126"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // Presence flag only — never put the raw LLM API key in the APK.
-        // Set -Pllm.api.key.configured=true or gradle.properties when a secret is bound.
-        // local.properties is also checked (SDK path file; do not commit secrets there).
+        // Live OpenAI key wiring — never commit secrets or print values.
+        // Canonical Cursor / CI secret name: OPENAPI_GENERAL
+        // Resolution order (first non-blank wins for presence):
+        //   1) env OPENAPI_GENERAL (Cloud Agent / CI)
+        //   2) gitignored local.properties OPENAPI_GENERAL=...
+        //   3) -Popenapi.general=...
+        // Raw key is embedded into BuildConfig ONLY when
+        //   -Pintent.embed.openai.key=true
+        // Public / PR APKs omit embed (empty string). On-device key also via
+        // EncryptedSharedPreferences after Settings opt-in.
         val localPropsFile = rootProject.file("local.properties")
-        val localKeyFlag = if (localPropsFile.exists()) {
+        val localProps: Map<String, String> = if (localPropsFile.exists()) {
             localPropsFile.readLines()
                 .map { it.trim() }
-                .firstOrNull { it.startsWith("llm.api.key.configured=") }
-                ?.substringAfter("=")
-                ?.trim()
+                .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+                .associate { line ->
+                    val key = line.substringBefore("=").trim()
+                    val value = line.substringAfter("=").trim()
+                    key to value
+                }
         } else {
-            null
+            emptyMap()
         }
+        fun escapeBuildConfigString(raw: String): String =
+            raw.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "").replace("\r", "")
+
+        val fromEnv = System.getenv("OPENAPI_GENERAL").orEmpty().trim()
+        val fromLocal = localProps["OPENAPI_GENERAL"].orEmpty().trim()
+        val fromProp = (project.findProperty("openapi.general") as? String).orEmpty().trim()
+        val resolvedSecret = when {
+            fromEnv.isNotEmpty() -> fromEnv
+            fromLocal.isNotEmpty() -> fromLocal
+            fromProp.isNotEmpty() -> fromProp
+            else -> ""
+        }
+        val embedKey =
+            (project.findProperty("intent.embed.openai.key") as? String)
+                ?.equals("true", ignoreCase = true) == true
+        val openAiApiKey = if (embedKey) resolvedSecret else ""
+        val localKeyFlag = localProps["llm.api.key.configured"]
+        // Presence flag follows the *embedded* key (or an explicit local/CI flag).
+        // Do not flip true merely because OPENAPI_GENERAL exists in the build env —
+        // public APKs must stay honest empty/NOT_SUPPORTED without embed or runtime key.
         val llmKeyConfigured =
-            (project.findProperty("llm.api.key.configured") as? String)
-                ?.equals("true", ignoreCase = true) == true ||
+            openAiApiKey.isNotEmpty() ||
+                (project.findProperty("llm.api.key.configured") as? String)
+                    ?.equals("true", ignoreCase = true) == true ||
                 localKeyFlag?.equals("true", ignoreCase = true) == true
         buildConfigField("boolean", "LLM_API_KEY_CONFIGURED", llmKeyConfigured.toString())
+        // Empty in public builds. Never commit a non-empty value in source.
+        buildConfigField(
+            "String",
+            "OPENAI_API_KEY",
+            "\"${escapeBuildConfigString(openAiApiKey)}\""
+        )
     }
 
     // Stable sideload key so GitHub/raw artifacts update via native Package Installer.
@@ -110,6 +147,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("androidx.security:security-crypto:1.0.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

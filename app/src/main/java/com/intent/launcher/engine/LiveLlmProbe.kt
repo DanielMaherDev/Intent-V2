@@ -76,12 +76,12 @@ object LiveLlmProbe {
                 "An LLM key may be available, but live Discuss is off until you opt in. " +
                     "Showing local heuristics only — not model suggestions."
             CapabilityStatus.TEMPORARILY_UNAVAILABLE ->
-                "Key and opt-in are ready, but the live Discuss client is not shipped in this " +
-                    "build. Still using labeled local heuristics — not claiming LIVE."
+                "Key and opt-in are ready, but the live Discuss client is disabled. " +
+                    "Still using labeled local heuristics — not claiming LIVE."
             CapabilityStatus.CONNECTED ->
-                "Live LLM Discuss is connected. Model output is suggestion-only: user must " +
-                    "confirm before SAID facts or FlowCommands. Never writes OBSERVED from " +
-                    "the model; never auto-Completes sessions."
+                "Live OpenAI Discuss is connected. Replies are model-generated suggestions " +
+                    "only: user must confirm before SAID facts or FlowCommands. Never writes " +
+                    "OBSERVED from the model; never auto-Completes sessions."
             else ->
                 "Discuss path honesty unknown — treat replies as local heuristics " +
                     "(keyConfigured=${access.hasApiKeyConfigured()})."

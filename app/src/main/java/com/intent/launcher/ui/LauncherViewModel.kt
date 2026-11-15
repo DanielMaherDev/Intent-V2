@@ -3,6 +3,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AppUseReductionScenario
@@ -69,7 +70,11 @@ import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.LiveLlmAccess
 import com.intent.launcher.engine.LiveLlmProbe
+import com.intent.launcher.engine.OpenAiDiscussClient
 import com.intent.launcher.engine.NextActionEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.NotificationListenerProbe
 import com.intent.launcher.engine.ObservedProvenance
@@ -987,6 +992,56 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         voicePathNote = null
+        refresh()
+    }
+
+    /** True while a live OpenAI Discuss call is in flight. */
+    var freeTextBusy by mutableStateOf(false)
+        private set
+
+    private val openAiDiscussClient = OpenAiDiscussClient()
+
+    /**
+     * Discuss free-text composer. Network only when live_llm is CONNECTED
+     * (key + opt-in + client); otherwise labeled local heuristics — never invents.
+     */
+    fun onDiscussFreeText(text: String) {
+        if (freeTextBusy) return
+        freeTextBusy = true
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    ConversationCoordinator.submitFreeText(
+                        store = store,
+                        intention = activeIntention(),
+                        text = text,
+                        nowEpochMs = System.currentTimeMillis(),
+                        registry = capabilityRegistry,
+                        access = liveLlmAccess,
+                        client = openAiDiscussClient
+                    )
+                }
+                voicePathNote = result.honestyNote
+            } finally {
+                freeTextBusy = false
+                refresh()
+            }
+        }
+    }
+
+    fun setLiveLlmOptedIn(optedIn: Boolean) {
+        liveLlmAccess.setUserOptedIn(optedIn)
+        refresh()
+    }
+
+    /** Save a rotated runtime key to EncryptedSharedPreferences — never log the value. */
+    fun saveRuntimeOpenAiApiKey(key: String) {
+        liveLlmAccess.setRuntimeApiKey(key)
+        refresh()
+    }
+
+    fun clearRuntimeOpenAiApiKey() {
+        liveLlmAccess.clearRuntimeApiKey()
         refresh()
     }
 

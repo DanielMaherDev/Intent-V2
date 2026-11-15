@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Live OpenAI Discuss only — calls api.openai.com when key + opt-in are present. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
       Do NOT declare QUERY_ALL_PACKAGES for sideload builds.

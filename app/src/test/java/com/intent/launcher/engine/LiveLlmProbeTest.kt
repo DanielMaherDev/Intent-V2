@@ -55,10 +55,9 @@ class LiveLlmProbeTest {
             registry.get(CapabilityRegistry.ID_LIVE_LLM)!!.status
         )
         assertFalse(registry.canUseLiveLlm())
-        assertTrue(
-            registry.get(CapabilityRegistry.ID_LIVE_LLM)!!.limitNote
-                .contains("not claiming LIVE", ignoreCase = true)
-        )
+        val note = registry.get(CapabilityRegistry.ID_LIVE_LLM)!!.limitNote
+        assertTrue(note.contains("not claiming LIVE", ignoreCase = true))
+        assertTrue(note.contains("local heuristics", ignoreCase = true))
     }
 
     @Test

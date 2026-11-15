@@ -35,6 +35,9 @@ import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
+import com.intent.launcher.BuildConfig
+import com.intent.launcher.domain.SCHEMA_VERSION
+import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.screens.ConnectionsScreen
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
@@ -48,6 +51,7 @@ import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.CheckOutWhatHappenedDialog
 import com.intent.launcher.ui.screens.EveningThoughtTriageSheet
+import com.intent.launcher.ui.screens.SettingsScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
@@ -516,7 +520,28 @@ class MainActivity : ComponentActivity() {
                                     null
                                 },
                                 onToggleErrand = { vm.toggleErrand(it) },
-                                onSettings = { nav.navigate("connections") },
+                                onSettings = { nav.navigate("settings") },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("settings") {
+                            SettingsScreen(
+                                versionName = BuildConfig.VERSION_NAME,
+                                schemaVersion = SCHEMA_VERSION,
+                                onExportSnapshot = {
+                                    val json = vm.exportSnapshotJson()
+                                    val file = SnapshotExport.writeExportFile(cacheDir, json)
+                                    startActivity(SnapshotExport.shareIntent(this@MainActivity, file))
+                                },
+                                onOpenConnections = { nav.navigate("connections") },
+                                liveLlmKeyPresent = vm.liveLlmObservation.keyConfigured,
+                                liveLlmOptedIn = vm.liveLlmObservation.userOptedIn,
+                                liveLlmStatusLabel = vm.discussSourceLabel(),
+                                liveLlmHonestyNote = vm.discussHonestyNote(),
+                                onLiveLlmOptInChange = { vm.setLiveLlmOptedIn(it) },
+                                onSaveRuntimeApiKey = { vm.saveRuntimeOpenAiApiKey(it) },
+                                onClearRuntimeApiKey = { vm.clearRuntimeOpenAiApiKey() },
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -718,6 +743,8 @@ class MainActivity : ComponentActivity() {
                                 voiceNote = vm.voicePathNote ?: vm.voiceObservation.note,
                                 voiceEnabled = vm.canStartVoiceCapture(),
                                 onMicClick = { onConversationMicClick() },
+                                onSendFreeText = { vm.onDiscussFreeText(it) },
+                                freeTextBusy = vm.freeTextBusy,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
