@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.55**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.65**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.55**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.55.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.65.apk`
 
 ## Scope
 
@@ -54,7 +54,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.59:** App connection honesty — PackageManager inventory of Duolingo/Chess/Spotify/Strava candidates; AppConnection DISCONNECTED/NOT_SUPPORTED; intention usage SAID/OBSERVED only; partner_* caps stay NOT_SUPPORTED; Play Store deep link when missing
 - **v0.0.60:** App-linked session soft-pause — when UsageStats shows foreground ≠ destination affinity for >15s, freeze elapsed (“Away from app”); Resume / Complete / Abandon; never auto-Complete
 - **v0.0.64:** Job-offer decision shape (CASE-10) — SAID criteria matrix + decision-review session; never chooses accept/decline for the user
-- **v0.0.55:** CASE-05 quit smoking shape — baseline cigarettes/day, evening check-in, honest SAID cessation tracker modules (`cessation`)
+- **v0.0.65:** CASE-05 quit smoking shape — baseline cigarettes/day, evening check-in, honest SAID cessation tracker modules (`cessation`)
 
 ## Shapes
 
@@ -134,7 +134,7 @@ Active SessionCard offers **Request quiet for this session**. INTENT never claim
 
 ## Tracker + reports (v0.0.30)
 
-Intention Space opens **Tracker** (shape-default modules; manual SAID entries) and **Path & progress** (PathSummary + labeled SAID/OBSERVED/INFERRED proof from the same store). No fabricated completion charts; missing partner/OBSERVED data stays empty with a registry limit note. Cessation modules (v0.0.55) stay SAID self-report — `observe_cessation` is NOT_SUPPORTED.
+Intention Space opens **Tracker** (shape-default modules; manual SAID entries) and **Path & progress** (PathSummary + labeled SAID/OBSERVED/INFERRED proof from the same store). No fabricated completion charts; missing partner/OBSERVED data stays empty with a registry limit note. Cessation modules (v0.0.65) stay SAID self-report — `observe_cessation` is NOT_SUPPORTED.
 
 ## Session notification review (v0.0.31)
 
@@ -156,9 +156,9 @@ One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Op
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.17–v0.0.55)
+## Sideload packaging (v0.0.17–v0.0.65)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.55.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.65.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -178,6 +178,6 @@ Registry capability `live_llm` is **NOT_SUPPORTED** without a configured key, **
 
 ## Download
 
-Sideload APK (v0.0.55, release): [INTENT-v0.0.55.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/quit-smoking-case05-v042-a0b2/artifacts/INTENT-v0.0.55.apk)
+Sideload APK (v0.0.65, release): [INTENT-v0.0.65.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/quit-smoking-case05-v042-a0b2/artifacts/INTENT-v0.0.65.apk)
 
 (Prior: [INTENT-v0.0.61.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.61.apk) · [INTENT-v0.0.60.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.60.apk) · [INTENT-v0.0.59.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.59.apk) · [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.49.apk) · [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.48.apk) · [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk) · [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk) · [INTENT-v0.0.24.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.24.apk) · [INTENT-v0.0.23.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.23.apk) · [INTENT-v0.0.22.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.22.apk))
