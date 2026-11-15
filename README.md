@@ -1,6 +1,7 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.114**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.115**.
+
 
 ## Build
 
@@ -8,7 +9,8 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.114**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.114.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.115.apk`
+
 
 ## Scope
 
@@ -67,6 +69,8 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.104:** Four-core Home visual alignment — brand-first greeting hierarchy (date → headline → lede) above the attention strip; pills restored; strip / soft-pause / errands / drawer / settings intact (reclaim from 0.0.89 / 0.0.69 / 0.0.60)
 - **v0.0.109:** Gate D accessibility + floater sticky honesty — TalkBack container labels on SessionCard / next-action strip / floater bubble; overlay-denied Home/Companion fallback; `START_STICKY` only while overlay granted (never invent grant; reclaim from 0.0.94 / 0.0.74)
 - **v0.0.111:** Intention detail coherence (OS-142) — next action, active paths, plan, track, reports, and resources in one coherent Intention Space layout; existing registry/path model only (reclaimed from 0.0.96 / 0.0.78)
+- **v0.0.112:** Parent/child intention breadcrumb (OS-141) — Intention Space Path crumbs + child links from local `parentIntentionId` only; no invented dependency graph; drawer card layout left to 0.0.76/0.0.99 (reclaimed from 0.0.77 → 0.0.97 → 0.0.112)
+
 
 ## Shapes
 
@@ -172,9 +176,13 @@ One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Op
 
 Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
 
-## Sideload packaging (v0.0.114–v0.0.114)
+## Sideload packaging (v0.0.115–v0.0.115)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.114.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.115.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+
+## Parent/child breadcrumb (v0.0.115 / OS-141)
+
+Intention Space shows a **Path** breadcrumb when ancestors exist, and a **Child intentions** list for direct local children. Links use only stored `parentIntentionId` — no invented dependency graph. `SetParentIntention` refuses cycles and unknown parents. App path seeds an honest Spanish child via `ensureParentChildSeeded`; unit `seed()` stays single-intention. IntentionDrawerScreen card layout is owned by drawer OS-139 and was not rewritten here.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -198,8 +206,6 @@ Home restores the four-core brand-first composition: ✦ INTENT brand, date, gre
 
 ## Download
 
-Sideload APK (v0.0.114, release): [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/intention-detail-coherence-78-9f87/artifacts/INTENT-v0.0.114.apk)
+Sideload APK (v0.0.115, release): [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/intention-breadcrumb-os141-e08e/artifacts/INTENT-v0.0.115.apk)
 
-(Prior: [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk))
-
-(Prior: [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk) · [INTENT-v0.0.114.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.114.apk))
+(Prior: [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk) · [INTENT-v0.0.115.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.115.apk))

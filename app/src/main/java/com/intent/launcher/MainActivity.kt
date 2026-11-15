@@ -673,6 +673,8 @@ class MainActivity : ComponentActivity() {
                                 onOpenConnections = { nav.navigate("connections") },
                                 coherence = vm.intentionDetailCoherence(),
                                 nextAction = vm.nextAction,
+                                hierarchy = vm.hierarchyForActive(),
+                                onOpenRelatedIntention = { id -> vm.openRelatedIntention(id) },
                                 onWorkThisOut = {
                                     when (active?.phase) {
                                         IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")

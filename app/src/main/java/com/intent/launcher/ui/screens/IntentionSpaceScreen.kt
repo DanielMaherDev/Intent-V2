@@ -2,6 +2,8 @@ package com.intent.launcher.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,16 +13,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +50,7 @@ import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.engine.IntentionDetailCoherence
+import com.intent.launcher.engine.IntentionHierarchy
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.FactRow
 import com.intent.launcher.ui.components.HeroCard
@@ -74,6 +85,8 @@ fun IntentionSpaceScreen(
     onOpenConnections: (() -> Unit)? = null,
     coherence: IntentionDetailCoherence.View? = null,
     nextAction: NextAction? = null,
+    hierarchy: IntentionHierarchy.View? = null,
+    onOpenRelatedIntention: ((String) -> Unit)? = null,
     onWorkThisOut: () -> Unit,
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
@@ -132,6 +145,13 @@ fun IntentionSpaceScreen(
             .padding(horizontal = 19.dp, vertical = 15.dp)
     ) {
         ScreenTopBar(contextLabel = "Intention", onBack = onBack)
+        if (hierarchy != null && (hierarchy.crumbs.size > 1 || hierarchy.orphanParent)) {
+            Spacer(modifier = Modifier.height(14.dp))
+            IntentionBreadcrumb(
+                hierarchy = hierarchy,
+                onOpenRelatedIntention = onOpenRelatedIntention
+            )
+        }
         Spacer(modifier = Modifier.height(23.dp))
         SmallLabel(text = projection.hero.phaseLabel, color = labelColor)
         Spacer(modifier = Modifier.height(8.dp))
@@ -274,6 +294,51 @@ fun IntentionSpaceScreen(
         if (projection.emptyNote != null && exploringFirstViewport) {
             Spacer(modifier = Modifier.height(17.dp))
             EmptyNote(text = projection.emptyNote)
+        if (hierarchy != null && hierarchy.children.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Child intentions")
+            Spacer(modifier = Modifier.height(9.dp))
+            Text(
+                text = hierarchy.honestyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            hierarchy.children.forEach { child ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                        .background(IntentColors.Card, RoundedCornerShape(16.dp))
+                        .clickable(enabled = onOpenRelatedIntention != null) {
+                            onOpenRelatedIntention?.invoke(child.intentionId)
+                        }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .semantics {
+                            contentDescription = "Open child intention ${child.title}"
+                        }
+                ) {
+                    Text(
+                        text = child.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "${child.phaseLabel} · local child",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        } else if (hierarchy != null && hierarchy.crumbs.size > 1) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = hierarchy.honestyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
         }
 
         if (projection.approachSectionTitle != null && projection.approachSteps.isNotEmpty()) {
@@ -649,6 +714,71 @@ private fun buildKnowledgeRows(
         rows += KnowledgeRow(text = "Pending · add a weekly commitment", pending = true)
     }
     return rows
+}
+
+@Composable
+private fun IntentionBreadcrumb(
+    hierarchy: IntentionHierarchy.View,
+    onOpenRelatedIntention: ((String) -> Unit)?
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SmallLabel(text = "Path", color = IntentColors.Muted)
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .semantics {
+                    contentDescription = hierarchy.crumbs.joinToString(" / ") { it.title }
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            hierarchy.crumbs.forEachIndexed { index, crumb ->
+                if (index > 0) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = IntentColors.Muted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
+                val clickable = !crumb.isCurrent && onOpenRelatedIntention != null
+                Text(
+                    text = crumb.title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (crumb.isCurrent) IntentColors.Ink else IntentColors.Section,
+                    fontWeight = if (crumb.isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                    modifier = Modifier
+                        .then(
+                            if (clickable) {
+                                Modifier.clickable {
+                                    onOpenRelatedIntention?.invoke(crumb.intentionId)
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .semantics {
+                            contentDescription = if (crumb.isCurrent) {
+                                "Current intention ${crumb.title}"
+                            } else {
+                                "Open parent intention ${crumb.title}"
+                            }
+                        }
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+            }
+        }
+        if (hierarchy.orphanParent) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = hierarchy.honestyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Warm
+            )
+        }
+    }
 }
 
 @Composable

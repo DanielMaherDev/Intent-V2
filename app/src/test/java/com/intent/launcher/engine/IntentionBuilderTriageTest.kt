@@ -126,6 +126,10 @@ class IntentionBuilderTriageTest {
         file.writeText(store.encode(store.snapshot()))
         val reloaded = IntentionFlowStore(file)
         assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, reloaded.snapshot().schemaVersion)
+        assertEquals(
+            com.intent.launcher.domain.SCHEMA_VERSION,
+            reloaded.snapshot().schemaVersion
+        )
         assertTrue(reloaded.snapshot().triage.active)
         assertEquals(2, reloaded.snapshot().triage.items.size)
         assertEquals(2, reloaded.snapshot().thoughtCaptures.size)
