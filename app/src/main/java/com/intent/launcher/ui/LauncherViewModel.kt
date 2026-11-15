@@ -67,6 +67,7 @@ import com.intent.launcher.engine.ObservedProvenance
 import com.intent.launcher.engine.NotificationPackageTally
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
+import com.intent.launcher.engine.IntentionDetailCoherence
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.PlatformCapabilityLive
 import com.intent.launcher.engine.PlayStoreDeepLink
@@ -1550,5 +1551,22 @@ class LauncherViewModel(
 
     fun clearErrandNote() {
         errandNote = null
+    }
+
+    /** OS-142 — coherent intention-detail sections from the same store. */
+    fun intentionDetailCoherence(): IntentionDetailCoherence.View? {
+        val active = activeIntention() ?: return null
+        return IntentionDetailCoherence.build(
+            snapshot = snapshot,
+            intention = active,
+            nextAction = nextAction,
+            facts = snapshot.facts.filter { it.intentionId == active.id },
+            hypotheses = snapshot.hypotheses.filter { it.intentionId == active.id },
+            sessions = snapshot.sessions.filter { it.intentionId == active.id },
+            heldApps = heldAppsForActive(),
+            connectionUsages = connectionUsagesForActive(),
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
     }
 }

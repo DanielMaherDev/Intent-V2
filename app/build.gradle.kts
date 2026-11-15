@@ -11,8 +11,8 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 113
-        versionName = "0.0.113"
+        versionCode = 114
+        versionName = "0.0.114"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Presence flag only — never put the raw LLM API key in the APK.
         // Set -Pllm.api.key.configured=true or gradle.properties when a secret is bound.
