@@ -1,5 +1,4 @@
 package com.intent.launcher.ui
-
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +10,7 @@ import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
+import com.intent.launcher.domain.EuWorkSpainScenario
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
@@ -79,6 +79,7 @@ import com.intent.launcher.engine.VoiceInputProbe
 import com.intent.launcher.engine.VoicePermissionAccess
 import com.intent.launcher.store.IntentionFlowStore
 import java.util.TimeZone
+
 
 class LauncherViewModel(
     private val store: IntentionFlowStore = IntentApp.instance.store,
@@ -825,6 +826,7 @@ class LauncherViewModel(
             "decision" -> JobOfferScenario.conversationChips(capabilityRegistry)
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(capabilityRegistry)
             "app_use" -> AppUseReductionScenario.conversationChips(capabilityRegistry)
+            "research" -> EuWorkSpainScenario.conversationChips(capabilityRegistry)
             else -> SpanishScenario.conversationChips(capabilityRegistry)
         }
 
@@ -895,6 +897,11 @@ class LauncherViewModel(
         refresh()
     }
 
+    fun startEuWorkSpainExploration() {
+        EuWorkSpainScenario.ensureSeeded(store)
+        refresh()
+    }
+
     fun activateSpanish() {
         SpanishScenario.ensureSeeded(store)
         store.apply(
@@ -915,6 +922,7 @@ class LauncherViewModel(
             JobOfferScenario.PROPOSAL_ID -> JobOfferScenario.SESSION_ID
             QuitSmokingScenario.PROPOSAL_ID -> QuitSmokingScenario.SESSION_ID
             AppUseReductionScenario.PROPOSAL_ID -> AppUseReductionScenario.SESSION_ID
+            EuWorkSpainScenario.PROPOSAL_ID -> EuWorkSpainScenario.SESSION_ID
             SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
             else -> "session-${pending.id}"
         }
@@ -948,6 +956,7 @@ class LauncherViewModel(
             JobOfferScenario.PROPOSAL_ID -> 18
             QuitSmokingScenario.PROPOSAL_ID -> 20
             AppUseReductionScenario.PROPOSAL_ID -> 20
+            EuWorkSpainScenario.PROPOSAL_ID -> 10
             else -> 18
         }
         store.apply(

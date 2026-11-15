@@ -265,7 +265,7 @@ data class Intention(
     val phase: IntentionPhase,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    val shapeTag: String // language | marathon | business | move | decision | cessation | app_use | other
+    val shapeTag: String // language | marathon | business | move | decision | cessation | app_use | research | other
 )
 
 

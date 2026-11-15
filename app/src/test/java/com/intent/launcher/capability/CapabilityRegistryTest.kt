@@ -76,6 +76,12 @@ class CapabilityRegistryTest {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_NOTIFICATION_LISTENER))
         assertFalse(registry.canReadNotificationSummaries())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_WEB_RESEARCH))
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_WEB_RESEARCH)!!.limitNote
+                .contains("never invented statutes", ignoreCase = true)
+        )
+
         assertTrue(
             registry.get(CapabilityRegistry.ID_NOTIFICATION_LISTENER)!!.limitNote
                 .contains("Does not silence", ignoreCase = true)

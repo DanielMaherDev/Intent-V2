@@ -2,6 +2,7 @@ package com.intent.launcher
 
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
+import com.intent.launcher.domain.EuWorkSpainScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.JobOfferScenario
@@ -600,18 +601,111 @@ class IntentionFlowStoreTest {
     }
 
     @Test
-    fun fourShapes_shareCoreRecordsIncludingDecision() {
+    fun euWorkSpain_checklistConditional_untilSaidFacts() {
+        EuWorkSpainScenario.seed(store, now)
+        EuWorkSpainScenario.onChip(store, "Build a sourced research checklist", now + 10)
+        var snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.id == EuWorkSpainScenario.PROPOSAL_ID })
+        assertTrue(
+            snap.turns.any {
+                it.role == "agent" && it.text.contains("conditional", ignoreCase = true)
+            }
+        )
+        assertEquals(
+            IntentionPhase.CLARIFYING,
+            snap.intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }.phase
+        )
+
+        EuWorkSpainScenario.onChip(store, "Keep clarifying — no checklist yet", now + 20)
+        snap = store.snapshot()
+        assertEquals(
+            IntentionPhase.EXPLORING,
+            snap.intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }.phase
+        )
+        assertTrue(snap.proposals.none { it.intentionId == EuWorkSpainScenario.INTENTION_ID })
+    }
+
+    @Test
+    fun euWorkSpainFlow_saidFacts_sourcedChecklist_noInventedLaw() {
+        EuWorkSpainScenario.seed(store, now)
+        assertEquals(
+            "research",
+            store.snapshot().intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }.shapeTag
+        )
+
+        EuWorkSpainScenario.onChip(store, "I am an EU citizen", now + 10)
+        EuWorkSpainScenario.onChip(store, "I already live in Spain", now + 20)
+        EuWorkSpainScenario.onChip(store, "I plan to work for more than three months", now + 30)
+        EuWorkSpainScenario.onChip(store, "I have not gathered documents yet", now + 40)
+        EuWorkSpainScenario.onChip(store, "Build a sourced research checklist", now + 50)
+
+        var snap = store.snapshot()
+        val saidIds = listOf(
+            EuWorkSpainScenario.FACT_CITIZENSHIP_ID,
+            EuWorkSpainScenario.FACT_ARRANGEMENT_ID,
+            EuWorkSpainScenario.FACT_DURATION_ID,
+            EuWorkSpainScenario.FACT_DOCUMENTS_ID
+        )
+        for (id in saidIds) {
+            val fact = snap.facts.first { it.id == id }
+            assertEquals(ProvenanceKind.SAID, fact.provenance.kind)
+        }
+
+        val proposal = snap.proposals.first { it.id == EuWorkSpainScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertTrue(proposal.basedOnFactIds.containsAll(saidIds))
+        assertTrue(proposal.summary.contains("Not legal advice", ignoreCase = true))
+        assertTrue(proposal.summary.contains("no statutes invented", ignoreCase = true))
+        assertTrue(proposal.summary.contains("Live web research", ignoreCase = true))
+        // Must not invent specific statutory text / fake article numbers
+        assertTrue(!proposal.summary.contains("Article "))
+        assertTrue(!proposal.summary.contains("Real Decreto"))
+        assertNotEquals(
+            snap.facts.first { it.id == EuWorkSpainScenario.FACT_CITIZENSHIP_ID }.text,
+            proposal.summary
+        )
+        assertEquals(
+            IntentionPhase.PROPOSAL_PENDING,
+            snap.intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }.phase
+        )
+
+        EuWorkSpainScenario.approve(store, now + 60)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == EuWorkSpainScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == EuWorkSpainScenario.SESSION_ID })
+        assertEquals(
+            IntentionPhase.ACTIVE,
+            snap.intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }.phase
+        )
+
+        val deferUntil = now + 86_400_000L
+        EuWorkSpainScenario.deferSession(store, deferUntil, now + 70)
+        val restarted = IntentionFlowStore(File(tmp.root, "flow.json"))
+        val again = restarted.snapshot()
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == EuWorkSpainScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == EuWorkSpainScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals(
+            ProvenanceKind.SAID,
+            again.facts.first { it.id == EuWorkSpainScenario.FACT_CITIZENSHIP_ID }.provenance.kind
+        )
+    }
+
+
+    @Test
+    fun fiveShapes_shareCoreRecordsIncludingDecisionAndResearch() {
         SpanishScenario.seed(store, now)
         MarathonScenario.seed(store, now + 1)
         BusinessScenario.seed(store, now + 2)
         JobOfferScenario.seed(store, now + 3)
+        EuWorkSpainScenario.seed(store, now + 4)
         val snap = store.snapshot()
-        assertEquals(4, snap.intentions.size)
+        assertEquals(5, snap.intentions.size)
         assertTrue(snap.intentions.any { it.shapeTag == "language" })
         assertTrue(snap.intentions.any { it.shapeTag == "marathon" })
         assertTrue(snap.intentions.any { it.shapeTag == "business" })
         assertTrue(snap.intentions.any { it.shapeTag == "decision" })
-        assertEquals(JobOfferScenario.INTENTION_ID, snap.activeIntentionId)
+        assertTrue(snap.intentions.any { it.shapeTag == "research" })
+        assertEquals(EuWorkSpainScenario.INTENTION_ID, snap.activeIntentionId)
     }
 
     @Test
