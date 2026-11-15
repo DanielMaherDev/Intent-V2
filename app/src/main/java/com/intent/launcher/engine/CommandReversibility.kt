@@ -76,6 +76,11 @@ object CommandReversibility {
                 Reversibility(true, "Deleted tracker entry ${command.entryId}")
             is FlowCommand.MarkThoughtStatus ->
                 Reversibility(true, "Marked thought ${command.thoughtId}")
+            is FlowCommand.ClassifyThought ->
+                Reversibility(
+                    true,
+                    "Classified thought ${command.thoughtId} as ${command.disposition.name}"
+                )
             is FlowCommand.StartBuilderDraft ->
                 Reversibility(true, "Started intention builder")
             is FlowCommand.SetBuilderShape ->

@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 6
+const val SCHEMA_VERSION: Int = 7
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -200,6 +200,18 @@ enum class ThoughtCaptureStatus {
     DISCARDED
 }
 
+/**
+ * User-picked evening disposition (OS-154). Never LLM-invented — only set via
+ * [FlowCommand.ClassifyThought] after explicit confirm.
+ */
+enum class ThoughtDisposition {
+    TASK,
+    INTENTION,
+    REMINDER,
+    KEEP,
+    DISCARD
+}
+
 data class ThoughtCapture(
     val id: String,
     /** Active or last intention when captured; null only if none exist. */
@@ -209,7 +221,9 @@ data class ThoughtCapture(
     val capturedAtEpochMs: Long,
     /** Entry surface: floater | home | voice | triage */
     val source: String,
-    val status: ThoughtCaptureStatus = ThoughtCaptureStatus.RAW
+    val status: ThoughtCaptureStatus = ThoughtCaptureStatus.RAW,
+    /** Set only after user-picked evening classification (SAID). */
+    val disposition: ThoughtDisposition? = null
 )
 
 /** Guided intention builder draft — persisted so the flow can resume. */
@@ -566,6 +580,26 @@ sealed class FlowCommand {
         val thoughtId: String,
         val status: ThoughtCaptureStatus,
         val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Evening thought triage (OS-154) — user-picked disposition only.
+     * No LLM invent; [disposition] must come from an explicit confirm.
+     */
+    data class ClassifyThought(
+        val thoughtId: String,
+        val disposition: ThoughtDisposition,
+        val nowEpochMs: Long,
+        /** Seeded intention when disposition is INTENTION (or TASK with no parent). */
+        val newIntentionId: String? = null,
+        /** SAID fact for TASK / REMINDER / INTENTION seed. */
+        val factId: String? = null,
+        /** Lightweight session stub when disposition is TASK. */
+        val sessionId: String? = null,
+        /** ISO day-of-week (1=Mon…7=Sun) for TASK session stub. */
+        val taskDayOfWeek: Int? = null,
+        val taskHour: Int? = null,
+        val taskMinute: Int? = null
     ) : FlowCommand()
 
     data class StartBuilderDraft(
