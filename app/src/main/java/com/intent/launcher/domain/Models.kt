@@ -21,6 +21,12 @@ enum class EvidenceAccuracy {
     DISMISSED
 }
 
+/** Soft-delete for tracker rows until undo/trash purge is available. */
+enum class TrackerEntryStatus {
+    ACTIVE,
+    DELETED
+}
+
 enum class IntentionPhase {
     EXPLORING,
     CLARIFYING,
@@ -118,6 +124,20 @@ data class Evidence(
     val summaryText: String,
     val provenance: Provenance,
     val accuracy: EvidenceAccuracy = EvidenceAccuracy.ACTIVE
+)
+
+/**
+ * Manual or observed tracker row for an intention module.
+ * Lives in the same intention store — not a separate progress database.
+ */
+data class TrackerEntry(
+    val id: String,
+    val intentionId: String,
+    val moduleId: String,
+    val valueText: String,
+    val recordedAtEpochMs: Long,
+    val provenance: Provenance,
+    val status: TrackerEntryStatus = TrackerEntryStatus.ACTIVE
 )
 
 data class Proposal(
@@ -234,6 +254,7 @@ data class IntentionSnapshot(
     val sessions: List<ScheduledSession> = emptyList(),
     val sessionRuns: List<SessionRun> = emptyList(),
     val evidence: List<Evidence> = emptyList(),
+    val trackerEntries: List<TrackerEntry> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
     val thoughtCaptures: List<ThoughtCapture> = emptyList(),
     val activeIntentionId: String? = null,
@@ -348,6 +369,26 @@ sealed class FlowCommand {
     /** Mark evidence inaccurate / dismissed without editing chat. */
     data class DismissEvidence(
         val evidenceId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Manual tracker data entry — stores [ProvenanceKind.SAID] by default.
+     * Callers may pass OBSERVED when logging package-foreground honestly.
+     */
+    data class RecordTrackerEntry(
+        val entryId: String,
+        val intentionId: String,
+        val moduleId: String,
+        val valueText: String,
+        val nowEpochMs: Long,
+        val provenanceKind: ProvenanceKind = ProvenanceKind.SAID,
+        val sourceLabel: String = "user"
+    ) : FlowCommand()
+
+    /** Soft-delete a tracker row (command path; restore via undo when available). */
+    data class DeleteTrackerEntry(
+        val entryId: String,
         val nowEpochMs: Long
     ) : FlowCommand()
 

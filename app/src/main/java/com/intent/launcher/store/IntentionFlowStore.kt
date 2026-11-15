@@ -23,6 +23,8 @@ import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.ThoughtCapture
 import com.intent.launcher.domain.ThoughtCaptureStatus
+import com.intent.launcher.domain.TrackerEntry
+import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.domain.TrashKind
 import com.intent.launcher.engine.CommandReversibility
@@ -280,6 +282,38 @@ class IntentionFlowStore(
                     evidence = migrated.evidence.map {
                         if (it.id == command.evidenceId) {
                             it.copy(accuracy = EvidenceAccuracy.DISMISSED)
+                        } else {
+                            it
+                        }
+                    }
+                )
+            }
+
+            is FlowCommand.RecordTrackerEntry -> {
+                val entry = TrackerEntry(
+                    id = command.entryId,
+                    intentionId = command.intentionId,
+                    moduleId = command.moduleId,
+                    valueText = command.valueText,
+                    recordedAtEpochMs = command.nowEpochMs,
+                    provenance = Provenance(
+                        kind = command.provenanceKind,
+                        learnedAtEpochMs = command.nowEpochMs,
+                        sourceLabel = command.sourceLabel
+                    ),
+                    status = TrackerEntryStatus.ACTIVE
+                )
+                migrated.copy(
+                    trackerEntries = migrated.trackerEntries.filterNot { it.id == entry.id } + entry,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.DeleteTrackerEntry -> {
+                migrated.copy(
+                    trackerEntries = migrated.trackerEntries.map {
+                        if (it.id == command.entryId) {
+                            it.copy(status = TrackerEntryStatus.DELETED)
                         } else {
                             it
                         }
@@ -626,6 +660,8 @@ class IntentionFlowStore(
                     is FlowCommand.DismissEvidence -> command.nowEpochMs
                     is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
                     is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
+                    is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
+                    is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -654,6 +690,8 @@ class IntentionFlowStore(
             is FlowCommand.DismissEvidence -> command.nowEpochMs
             is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
             is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
+            is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
+            is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -1069,6 +1107,39 @@ class IntentionFlowStore(
         }
     }
 
+    data class WireTrackerEntry(
+        val id: String = "",
+        val intentionId: String = "",
+        val moduleId: String = "",
+        val valueText: String = "",
+        val recordedAtEpochMs: Long = 0L,
+        val provenance: WireProvenance = WireProvenance(),
+        val status: String = TrackerEntryStatus.ACTIVE.name
+    ) {
+        fun toDomain() = TrackerEntry(
+            id = id,
+            intentionId = intentionId,
+            moduleId = moduleId,
+            valueText = valueText,
+            recordedAtEpochMs = recordedAtEpochMs,
+            provenance = provenance.toDomain(),
+            status = runCatching { TrackerEntryStatus.valueOf(status) }
+                .getOrDefault(TrackerEntryStatus.ACTIVE)
+        )
+
+        companion object {
+            fun from(e: TrackerEntry) = WireTrackerEntry(
+                id = e.id,
+                intentionId = e.intentionId,
+                moduleId = e.moduleId,
+                valueText = e.valueText,
+                recordedAtEpochMs = e.recordedAtEpochMs,
+                provenance = WireProvenance.from(e.provenance),
+                status = e.status.name
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -1078,6 +1149,7 @@ class IntentionFlowStore(
         val sessions: List<WireSession> = emptyList(),
         val sessionRuns: List<WireSessionRun> = emptyList(),
         val evidence: List<WireEvidence> = emptyList(),
+        val trackerEntries: List<WireTrackerEntry> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
         val activeIntentionId: String? = null,
@@ -1094,6 +1166,7 @@ class IntentionFlowStore(
             sessions = sessions.map { it.toDomain() },
             sessionRuns = sessionRuns.map { it.toDomain() },
             evidence = evidence.map { it.toDomain() },
+            trackerEntries = trackerEntries.map { it.toDomain() },
             turns = turns.map { it.toDomain() },
             thoughtCaptures = thoughtCaptures.map { it.toDomain() },
             activeIntentionId = activeIntentionId,
@@ -1112,6 +1185,7 @@ class IntentionFlowStore(
                 sessions = s.sessions.map(WireSession::from),
                 sessionRuns = s.sessionRuns.map(WireSessionRun::from),
                 evidence = s.evidence.map(WireEvidence::from),
+                trackerEntries = s.trackerEntries.map(WireTrackerEntry::from),
                 turns = s.turns.map(WireTurn::from),
                 thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
                 activeIntentionId = s.activeIntentionId,

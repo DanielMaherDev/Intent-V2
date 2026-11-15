@@ -60,6 +60,10 @@ object CommandReversibility {
                 Reversibility(true, "Confirmed daily check-in for ${command.localDate}")
             is FlowCommand.CompleteDailyCheckOut ->
                 Reversibility(true, "Completed daily check-out for ${command.localDate}")
+            is FlowCommand.RecordTrackerEntry ->
+                Reversibility(true, "Recorded tracker entry ${command.entryId}")
+            is FlowCommand.DeleteTrackerEntry ->
+                Reversibility(true, "Deleted tracker entry ${command.entryId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

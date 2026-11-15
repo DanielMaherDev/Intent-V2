@@ -15,10 +15,15 @@ import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.domain.TrashEntry
+import com.intent.launcher.domain.TrackerEntry
+import com.intent.launcher.domain.TrackerEntryStatus
+import com.intent.launcher.domain.TrackerModuleDef
+import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
@@ -35,7 +40,9 @@ import com.intent.launcher.engine.NotificationListenerProbe
 import com.intent.launcher.engine.ObservedProvenance
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
+import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.PlatformCapabilityLive
+import com.intent.launcher.engine.ProgressProof
 import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.ScreenCaptureAccess
@@ -867,4 +874,93 @@ class LauncherViewModel(
         refresh()
         return snapshot.dayCycle.checkedOutFor(localDate)
     }
+
+    fun trackerModules(): List<TrackerModuleDef> =
+        TrackerModules.forShape(activeIntention()?.shapeTag)
+
+    fun trackerEntriesForActive(): List<TrackerEntry> {
+        val id = activeIntention()?.id ?: return emptyList()
+        return snapshot.trackerEntries.filter { it.intentionId == id }
+    }
+
+    fun trackerHonestyNote(): String =
+        capabilityRegistry.get(CapabilityRegistry.ID_TRACKER_MODULES)?.limitNote
+            ?: "Manual tracker entries are SAID."
+
+    fun canOpenTracker(): Boolean = capabilityRegistry.canUseTrackerModules()
+
+    fun canOpenReports(): Boolean = capabilityRegistry.canViewProgressReports()
+
+    fun recordTrackerEntry(
+        moduleId: String,
+        valueText: String,
+        provenanceKind: ProvenanceKind = ProvenanceKind.SAID,
+        sourceLabel: String = "user"
+    ): Boolean {
+        if (!capabilityRegistry.canUseTrackerModules()) return false
+        val intentionId = activeIntention()?.id ?: return false
+        val now = System.currentTimeMillis()
+        store.apply(
+            FlowCommand.RecordTrackerEntry(
+                entryId = "trk-$moduleId-$now",
+                intentionId = intentionId,
+                moduleId = moduleId,
+                valueText = valueText,
+                nowEpochMs = now,
+                provenanceKind = provenanceKind,
+                sourceLabel = sourceLabel
+            )
+        )
+        refresh()
+        return true
+    }
+
+    /**
+     * Optional OBSERVED tracker row from live UsageStats package foreground.
+     * Does not complete the session.
+     */
+    fun recordObservedForegroundToTracker(): Boolean {
+        val obs = usageObservation ?: return false
+        if (!obs.permissionGranted || obs.foregroundMs == null || obs.appLabel == null) return false
+        val minutes = (obs.foregroundMs / 60_000L).coerceAtLeast(0L)
+        val moduleId = trackerModules().firstOrNull()?.id ?: return false
+        return recordTrackerEntry(
+            moduleId = moduleId,
+            valueText = "Observed $minutes min in ${obs.appLabel} (package-level)",
+            provenanceKind = ProvenanceKind.OBSERVED,
+            sourceLabel = "usage_stats"
+        )
+    }
+
+    fun deleteTrackerEntry(entryId: String): Boolean {
+        if (!capabilityRegistry.canUseTrackerModules()) return false
+        store.apply(
+            FlowCommand.DeleteTrackerEntry(
+                entryId = entryId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+        return snapshot.trackerEntries.any {
+            it.id == entryId && it.status == TrackerEntryStatus.DELETED
+        }
+    }
+
+    fun pathSummary(): PathSummary.View? =
+        PathSummary.build(
+            snapshot = snapshot,
+            intention = activeIntention(),
+            nextAction = nextAction,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+
+    fun progressProof(): ProgressProof.View? =
+        ProgressProof.build(
+            snapshot = snapshot,
+            intentionId = activeIntention()?.id,
+            nowEpochMs = System.currentTimeMillis(),
+            shapeTag = activeIntention()?.shapeTag,
+            registry = capabilityRegistry
+        )
 }

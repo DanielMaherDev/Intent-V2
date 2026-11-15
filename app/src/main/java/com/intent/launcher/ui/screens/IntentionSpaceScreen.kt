@@ -55,6 +55,8 @@ fun IntentionSpaceScreen(
     onRestoreTrash: ((String) -> Unit)? = null,
     onPurgeTrash: ((String) -> Unit)? = null,
     undoTrashNote: String? = null,
+    onOpenTracker: (() -> Unit)? = null,
+    onOpenReports: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val projection = ShapeProjection.project(
@@ -111,6 +113,14 @@ fun IntentionSpaceScreen(
             )
             Spacer(modifier = Modifier.height(15.dp))
             IntentPrimaryButton(text = projection.hero.heroCta, onClick = onWorkThisOut)
+            if (onOpenTracker != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                IntentSecondaryButton(text = "Open tracker", onClick = onOpenTracker)
+            }
+            if (onOpenReports != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                IntentSecondaryButton(text = "Path & progress", onClick = onOpenReports)
+            }
         }
 
         if (projection.approachSectionTitle != null && projection.approachSteps.isNotEmpty()) {

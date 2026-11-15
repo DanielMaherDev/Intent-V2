@@ -144,6 +144,12 @@ class CapabilityRegistry(
     fun canDailyCheckOut(): Boolean =
         isActionable(ID_DAILY_CHECK_OUT)
 
+    fun canUseTrackerModules(): Boolean =
+        isActionable(ID_TRACKER_MODULES)
+
+    fun canViewProgressReports(): Boolean =
+        isActionable(ID_PROGRESS_REPORTS)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -171,6 +177,8 @@ class CapabilityRegistry(
         const val ID_EXTERNAL_ACTION_UNDO = "external_action_undo"
         const val ID_DAILY_CHECK_IN = "daily_check_in"
         const val ID_DAILY_CHECK_OUT = "daily_check_out"
+        const val ID_TRACKER_MODULES = "tracker_modules"
+        const val ID_PROGRESS_REPORTS = "progress_reports"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -341,6 +349,20 @@ class CapabilityRegistry(
                 title = "Daily check-out",
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Evening SAID review + keep/defer on the same intention snapshot."
+            ),
+            CapabilityEntry(
+                id = ID_TRACKER_MODULES,
+                title = "Tracker modules",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Shape-default modules in the intention store; manual entries are SAID. " +
+                    "No partner autofill or fabricated streak charts."
+            ),
+            CapabilityEntry(
+                id = ID_PROGRESS_REPORTS,
+                title = "Progress reports",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "PathSummary + labeled SAID/OBSERVED/INFERRED proof from the same store. " +
+                    "Missing partner data stays empty — never invents completion."
             )
         )
 

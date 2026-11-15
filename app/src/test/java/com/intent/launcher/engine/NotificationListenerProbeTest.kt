@@ -46,7 +46,8 @@ class NotificationListenerProbeTest {
                 .contains("not built yet", ignoreCase = true)
         )
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
-        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        // v0.0.29: screen capture is consent-at-ask (PERMISSION_NEEDED), not NOT_SUPPORTED.
+        assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
     }
 
@@ -91,6 +92,7 @@ class NotificationListenerProbeTest {
         assertTrue(registry.canUseVoiceInput())
         assertTrue(registry.canReadNotificationSummaries())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
-        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        // Default FakeScreenCaptureAccess is available + NOT_ASKED → PERMISSION_NEEDED.
+        assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
     }
 }
