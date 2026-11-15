@@ -7,7 +7,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,11 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,6 +64,15 @@ fun IntentionDrawerScreen(
     modifier: Modifier = Modifier
 ) {
     var reorderId by remember { mutableStateOf<String?>(null) }
+    val resolved = remember(intentions, layouts, activeIntentionId) {
+        intentions.map { intention ->
+            intention to (
+                layouts[intention.id]
+                    ?: DrawerCards.defaultLayout(intention, activeIntentionId)
+                )
+        }
+    }
+    val rows = remember(resolved) { packDrawerRows(resolved) }
 
     Column(
         modifier = modifier
@@ -77,6 +83,7 @@ fun IntentionDrawerScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
             ScreenTopBar(contextLabel = "Drawer", onBack = onBackHome)
@@ -102,57 +109,58 @@ fun IntentionDrawerScreen(
                     text = "No intentions yet. Start exploring from Home — the drawer lists what you create."
                 )
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 12.dp)
-                ) {
-                    itemsIndexed(
-                        items = intentions,
-                        key = { _, intention -> intention.id },
-                        span = { _, intention ->
-                            val layout = layouts[intention.id]
-                                ?: DrawerCards.defaultLayout(intention, activeIntentionId)
-                            GridItemSpan(DrawerCards.normalizeSpan(layout.spanColumns))
+                rows.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        row.forEach { (intention, layout) ->
+                            val index = intentions.indexOfFirst { it.id == intention.id }
+                            Box(
+                                modifier = Modifier.weight(
+                                    if (DrawerCards.normalizeSpan(layout.spanColumns) >= 2) 2f else 1f
+                                )
+                            ) {
+                                IntentionDrawerCard(
+                                    intention = intention,
+                                    layout = layout,
+                                    selected = intention.id == activeIntentionId,
+                                    reorderMode = reorderId == intention.id,
+                                    canMoveUp = index > 0,
+                                    canMoveDown = index >= 0 && index < intentions.lastIndex,
+                                    onOpen = { onOpenIntention(intention.id) },
+                                    onLongPressReorder = {
+                                        reorderId =
+                                            if (reorderId == intention.id) null else intention.id
+                                    },
+                                    onMoveUp = { onMoveIntention(intention.id, -1) },
+                                    onMoveDown = { onMoveIntention(intention.id, 1) },
+                                    onToggleWidth = {
+                                        val nextSpan = if (layout.spanColumns >= 2) 1 else 2
+                                        onUpdateCardLayout(
+                                            intention.id,
+                                            nextSpan,
+                                            layout.priorityBorder
+                                        )
+                                    },
+                                    onTogglePriority = {
+                                        onUpdateCardLayout(
+                                            intention.id,
+                                            layout.spanColumns,
+                                            !layout.priorityBorder
+                                        )
+                                    },
+                                    onDoneReorder = { reorderId = null }
+                                )
+                            }
                         }
-                    ) { index, intention ->
-                        val layout = layouts[intention.id]
-                            ?: DrawerCards.defaultLayout(intention, activeIntentionId)
-                        IntentionDrawerCard(
-                            intention = intention,
-                            layout = layout,
-                            selected = intention.id == activeIntentionId,
-                            reorderMode = reorderId == intention.id,
-                            canMoveUp = index > 0,
-                            canMoveDown = index < intentions.lastIndex,
-                            onOpen = { onOpenIntention(intention.id) },
-                            onLongPressReorder = {
-                                reorderId = if (reorderId == intention.id) null else intention.id
-                            },
-                            onMoveUp = { onMoveIntention(intention.id, -1) },
-                            onMoveDown = { onMoveIntention(intention.id, 1) },
-                            onToggleWidth = {
-                                val nextSpan = if (layout.spanColumns >= 2) 1 else 2
-                                onUpdateCardLayout(
-                                    intention.id,
-                                    nextSpan,
-                                    layout.priorityBorder
-                                )
-                            },
-                            onTogglePriority = {
-                                onUpdateCardLayout(
-                                    intention.id,
-                                    layout.spanColumns,
-                                    !layout.priorityBorder
-                                )
-                            },
-                            onDoneReorder = { reorderId = null }
-                        )
+                        if (row.size == 1 &&
+                            DrawerCards.normalizeSpan(row.first().second.spanColumns) < 2
+                        ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
             }
 
@@ -174,6 +182,37 @@ fun IntentionDrawerScreen(
             onAgent = onAgent
         )
     }
+}
+
+private fun packDrawerRows(
+    items: List<Pair<Intention, DrawerCardLayout>>
+): List<List<Pair<Intention, DrawerCardLayout>>> {
+    val rows = mutableListOf<MutableList<Pair<Intention, DrawerCardLayout>>>()
+    var pendingHalf: Pair<Intention, DrawerCardLayout>? = null
+    for (item in items) {
+        val span = DrawerCards.normalizeSpan(item.second.spanColumns)
+        if (span >= 2) {
+            val leftover = pendingHalf
+            if (leftover != null) {
+                rows.add(mutableListOf(leftover))
+                pendingHalf = null
+            }
+            rows.add(mutableListOf(item))
+        } else {
+            val first = pendingHalf
+            if (first == null) {
+                pendingHalf = item
+            } else {
+                rows.add(mutableListOf(first, item))
+                pendingHalf = null
+            }
+        }
+    }
+    val leftover = pendingHalf
+    if (leftover != null) {
+        rows.add(mutableListOf(leftover))
+    }
+    return rows
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -208,9 +247,9 @@ private fun IntentionDrawerCard(
     }
     val borderWidth = if (layout.priorityBorder) 2.5.dp else 1.dp
     val shape = RoundedCornerShape(16.dp)
-    val coverBrush = drawerCoverBrush(layout.imageKey.ifBlank {
-        DrawerCards.coverKeyForShape(intention.shapeTag)
-    })
+    val coverBrush = drawerCoverBrush(
+        layout.imageKey.ifBlank { DrawerCards.coverKeyForShape(intention.shapeTag) }
+    )
 
     Column(
         modifier = Modifier
@@ -233,8 +272,8 @@ private fun IntentionDrawerCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (layout.spanColumns >= 2) Modifier.aspectRatio(1.85f)
-                    else Modifier.aspectRatio(1.05f)
+                    if (layout.spanColumns >= 2) Modifier.aspectRatio(2.2f)
+                    else Modifier.aspectRatio(1.15f)
                 )
                 .background(coverBrush)
         ) {
