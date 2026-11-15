@@ -31,6 +31,7 @@ import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
+import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
@@ -163,6 +164,17 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (vm.deferConfirmPending) {
+                        val preview = vm.deferPreview
+                        if (preview != null) {
+                            DeferConfirmDialog(
+                                preview = preview,
+                                onConfirm = { vm.confirmDefer() },
+                                onDismiss = { vm.cancelDefer() }
+                            )
+                        }
+                    }
+
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
                             HomeScreen(
@@ -175,7 +187,8 @@ class MainActivity : ComponentActivity() {
                                 onOpenIntention = { nav.navigate("intention") },
                                 onReviewProposal = { nav.navigate("proposal") },
                                 onBegin = { vm.beginSession() },
-                                onDefer = { vm.deferNext() },
+                                onDefer = { vm.requestDefer() },
+                                deferPreviewLine = vm.deferPreview?.oneLine,
                                 onDiscuss = {
                                     val route = vm.openDiscussFromHome()
                                     if (route != null) {

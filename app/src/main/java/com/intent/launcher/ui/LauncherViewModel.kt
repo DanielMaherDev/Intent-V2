@@ -21,6 +21,7 @@ import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
+import com.intent.launcher.engine.DeferralPreview
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
@@ -38,6 +39,7 @@ import com.intent.launcher.engine.UsageStatsProbe
 import com.intent.launcher.engine.VoiceInputProbe
 import com.intent.launcher.engine.VoicePermissionAccess
 import com.intent.launcher.store.IntentionFlowStore
+import java.util.TimeZone
 
 class LauncherViewModel(
     private val store: IntentionFlowStore = IntentApp.instance.store,
@@ -119,10 +121,19 @@ class LauncherViewModel(
     var undoTrashNote by mutableStateOf<String?>(null)
         private set
 
+    /** Explainable deferral preview when Later is offered (null when not applicable). */
+    var deferPreview by mutableStateOf<DeferralPreview.Preview?>(null)
+        private set
+
+    /** True after Later is tapped — confirm before [FlowCommand.DeferNextSession]. */
+    var deferConfirmPending by mutableStateOf(false)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
         floatingPresence = resolveFloatingPresence()
+        deferPreview = resolveDeferPreview()
     }
 
     fun lastUndoableTransaction(): FlowTransaction? =
@@ -149,6 +160,8 @@ class LauncherViewModel(
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
         floatingPresence = resolveFloatingPresence()
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
+        deferPreview = resolveDeferPreview()
+        if (deferPreview == null) deferConfirmPending = false
     }
 
     /** True when mic may start platform speech recognition. */
@@ -349,19 +362,51 @@ class LauncherViewModel(
         refresh()
     }
 
-    fun deferNext() {
+    private fun resolveDeferPreview(): DeferralPreview.Preview? {
+        if (nextAction.deferLabel == null) return null
         val sessionId = nextAction.sessionId
             ?: snapshot.sessions.firstOrNull { it.intentionId == activeIntention()?.id }?.id
-            ?: return
-        val until = System.currentTimeMillis() + 2 * 60 * 60 * 1000L
+            ?: return null
+        return DeferralPreview.previewForNextAction(
+            snapshot = snapshot,
+            sessionId = sessionId,
+            nowEpochMs = System.currentTimeMillis(),
+            timeZone = TimeZone.getDefault()
+        )
+    }
+
+    /** Later tapped — show preview confirm; does not mutate until [confirmDefer]. */
+    fun requestDefer() {
+        deferPreview = resolveDeferPreview()
+        if (deferPreview == null) return
+        deferConfirmPending = true
+    }
+
+    fun cancelDefer() {
+        deferConfirmPending = false
+    }
+
+    /** Commit deferral via [FlowCommand.DeferNextSession] using the previewed window. */
+    fun confirmDefer() {
+        val preview = deferPreview ?: resolveDeferPreview() ?: return
+        val now = System.currentTimeMillis()
         store.apply(
             FlowCommand.DeferNextSession(
-                sessionId = sessionId,
-                deferUntilEpochMs = until,
-                nowEpochMs = System.currentTimeMillis()
+                sessionId = preview.sessionId,
+                deferUntilEpochMs = preview.deferUntilEpochMs,
+                nowEpochMs = now
             )
         )
+        deferConfirmPending = false
         refresh()
+    }
+
+    /**
+     * Home Later entry — opens preview confirm ([requestDefer]).
+     * Commit only via [confirmDefer] → [FlowCommand.DeferNextSession].
+     */
+    fun deferNext() {
+        requestDefer()
     }
 
     /**
