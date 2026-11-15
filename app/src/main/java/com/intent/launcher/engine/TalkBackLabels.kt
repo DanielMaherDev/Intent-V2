@@ -123,6 +123,11 @@ object TalkBackLabels {
                 title = "Today's focus",
                 support = "Confirm today's focus, or adjust it in Discuss."
             )
+            NextActionKind.MIDDAY -> KindDefaults(
+                status = "Midday check",
+                title = "How is the day going?",
+                support = "Log a midday note, or defer if plans slipped."
+            )
             NextActionKind.CHECK_OUT -> KindDefaults(
                 status = "Evening check-out",
                 title = "How did today go?",
