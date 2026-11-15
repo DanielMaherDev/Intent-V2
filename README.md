@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.48**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.49**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.48**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.48.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.49.apk`
 
 ## Scope
 
@@ -39,17 +39,17 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.23:** Floater / Home quick thought capture — `FlowCommand.CaptureThought`, SAID provenance, no LLM summary
 - **v0.0.24:** Undo last reversible FlowCommand via transaction history; soft-delete intentions/sessions to recoverable trash with restore; honest irreversible notes for external opens / purge
 - **v0.0.25:** Daily check-in / check-out (worksheet §10) — morning focus confirm/adjust, evening SAID review + defer/keep; same Home model; SessionCard unchanged
-- **v0.0.29:** Stage 6 screen-capture consent — MediaProjection at-ask; no OCR / lesson completion / continuous recording
-- **v0.0.27:** Stage 4 deferral deadline preview — Later shows window + siblings; confirm before defer
 - **v0.0.26:** OBSERVED provenance — UsageStats package foreground stored as `Evidence` distinct from SAID/INFERRED; SessionCard / check-out surface; never auto-Complete or lesson claims
+- **v0.0.27:** Stage 4 deferral deadline preview — Later shows window + siblings; confirm before defer
 - **v0.0.28:** Quiet mode / DND honesty — SessionCard request never claims silence; deep link to system DND; `quiet_mode` stays `NOT_SUPPORTED`
+- **v0.0.29:** Stage 6 screen-capture consent — MediaProjection at-ask; no OCR / lesson completion / continuous recording
 - **v0.0.30:** Tracker modules + PathSummary / progress proof — shape-default modules in the same intention store; SAID/OBSERVED/INFERRED labeled; no fabricated charts
 - **v0.0.31:** Privacy-safe session notification review — package counts only; no titles/bodies; no auto-Complete
 - **v0.0.44:** CASE-08 six-week move — finite dependency / landlord-gated plan on shared intention model (`Plan a six-week move` on Home)
 - **v0.0.46:** Floater Ask / Today / Capture drawer — long-press menu; same agent as Conversation (reclaimed from 0.0.33)
 - **v0.0.47:** Guided intention builder + multi-thought triage — heuristic shape/split (no LLM); SAID facts only on confirm; rejected triage keeps RAW evidence (reclaimed; was staged as 0.0.32)
 - **v0.0.48:** Home clutter-free attention strip — one next-action strip + optional elapsed/OBSERVED line; quiet grants; no first-viewport clutter
-- **v0.0.48:** Home clutter-free attention strip — one next-action strip + optional elapsed/OBSERVED line; quiet grants; no first-viewport clutter
+- **v0.0.49:** Intention drawer + hold-for-apps reorder — accessible intention list, SAID app affinity, not a classic app grid (reclaim; was planned as 0.0.36)
 
 ## Shapes
 
@@ -143,20 +143,17 @@ Long-press (or Home **Companion menu**) shows **Ask** (Conversation + optional i
 
 Home **Start a new intention** opens a guided builder (heuristic shape suggestion, missing-fact prompts). Confirm writes SAID facts only — no auto-INFERRED. **Triage thoughts** splits a dump or raw captures into proposed intentions; confirm creates one, reject leaves RAW evidence. No live LLM.
 
-## Sideload packaging (v0.0.17–v0.0.48)
-
-## Sideload packaging (v0.0.17–v0.0.48)
-
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.48.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
-
-## Home attention strip (v0.0.48)
-
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.48.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
-
 ## Home attention strip (v0.0.48)
 
 One calm Home strip: next action + Begin/Discuss/Later (or Complete/Abandon). Optional secondary line is session elapsed **or** OBSERVED package minutes when UsageStats is granted — never both, never invented. Grant prompts, companion menu, and session notification rows stay quiet; builder/triage/move explore stay under Your space.
 
+## Intention drawer / hold-for-apps (v0.0.49)
+
+Home **Intentions** opens an accessible drawer of active intentions (tap → Intention Space). Long-press enables reorder persisted via `FlowCommand.ReorderIntentions` (undoable when undo is LIVE). Intention Space **Apps you hold** lets you confirm package affinity as SAID — no UsageStats auto-ranking, not a classic app grid; the system app drawer stays available. Held apps prefer destination launch over shape defaults.
+
+## Sideload packaging (v0.0.17–v0.0.49)
+
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.49.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -164,6 +161,6 @@ Conversation mic uses platform speech recognition when `RECORD_AUDIO` is granted
 
 ## Download
 
-Sideload APK (v0.0.48, release): [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/home-attention-strip-v035-6cfd/artifacts/INTENT-v0.0.48.apk)
+Sideload APK (v0.0.49, release): [INTENT-v0.0.49.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/intention-drawer-hold-apps-v036-f888/artifacts/INTENT-v0.0.49.apk)
 
-(Prior: [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk) · [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk))
+(Prior: [INTENT-v0.0.48.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.48.apk) · [INTENT-v0.0.47.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.47.apk) · [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.46.apk) · [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk) · [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk))

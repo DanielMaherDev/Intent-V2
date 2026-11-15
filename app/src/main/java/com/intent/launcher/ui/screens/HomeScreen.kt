@@ -60,6 +60,7 @@ fun HomeScreen(
     intentionTitle: String,
     onContinueExploring: () -> Unit,
     onOpenIntention: () -> Unit,
+    onOpenIntentionDrawer: () -> Unit = onOpenIntention,
     onReviewProposal: () -> Unit,
     onBegin: () -> Unit,
     onDefer: () -> Unit,
@@ -337,7 +338,7 @@ fun HomeScreen(
         HomeBottomNav(
             selected = "home",
             onHome = { },
-            onIntentions = onOpenIntention,
+            onIntentions = onOpenIntentionDrawer,
             onAgent = onDiscuss
         )
     }

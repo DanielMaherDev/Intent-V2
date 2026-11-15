@@ -84,6 +84,14 @@ object CommandReversibility {
                 Reversibility(true, "Rejected triage item ${command.itemId}")
             is FlowCommand.ClearTriageBatch ->
                 Reversibility(true, "Cleared triage batch")
+            is FlowCommand.ReorderIntentions ->
+                Reversibility(true, "Reordered intentions")
+            is FlowCommand.HoldAppForIntention ->
+                Reversibility(true, "Held app ${command.packageName} for ${command.intentionId}")
+            is FlowCommand.ReorderHeldApps ->
+                Reversibility(true, "Reordered held apps for ${command.intentionId}")
+            is FlowCommand.ReleaseHeldApp ->
+                Reversibility(true, "Released held app ${command.heldAppId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

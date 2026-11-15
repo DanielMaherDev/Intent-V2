@@ -2,13 +2,13 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.DestinationApp
+import com.intent.launcher.domain.HeldApps
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.NextAction
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ScheduledSession
-import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
 import java.util.Calendar
@@ -66,7 +66,7 @@ object NextActionEngine {
             )
         }
 
-        val destination = SessionDestinations.forIntention(intention)
+        val destination = HeldApps.primaryDestination(snapshot, intention)
 
         // An in-progress run outranks scheduling recommendations for this intention.
         val activeRun = snapshot.sessionRuns.firstOrNull {

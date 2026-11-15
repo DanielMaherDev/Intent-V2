@@ -38,6 +38,7 @@ import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionBuilderScreen
+import com.intent.launcher.ui.screens.IntentionDrawerScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
 import com.intent.launcher.ui.screens.ReportScreen
@@ -243,6 +244,7 @@ class MainActivity : ComponentActivity() {
                                     nav.navigate("intention")
                                 },
                                 onOpenIntention = { nav.navigate("intention") },
+                                onOpenIntentionDrawer = { nav.navigate("drawer") },
                                 onReviewProposal = { nav.navigate("proposal") },
                                 onBegin = { vm.beginSession() },
                                 onDefer = { vm.requestDefer() },
@@ -432,6 +434,34 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
+                        composable("drawer") {
+                            IntentionDrawerScreen(
+                                intentions = vm.orderedIntentions(),
+                                activeIntentionId = vm.snapshot.activeIntentionId,
+                                onOpenIntention = { id ->
+                                    vm.openIntentionFromDrawer(id)
+                                    nav.navigate("intention") {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onMoveIntention = { id, direction ->
+                                    vm.moveIntentionInDrawer(id, direction)
+                                },
+                                onBackHome = {
+                                    nav.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onAgent = {
+                                    val route = vm.openDiscussFromHome()
+                                    if (route != null) {
+                                        nav.navigate(route)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         composable("intention") {
                             val active = vm.activeIntention()
                             IntentionSpaceScreen(
@@ -442,6 +472,11 @@ class MainActivity : ComponentActivity() {
                                 evidence = vm.snapshot.evidence.filter {
                                     it.intentionId == active?.id
                                 },
+                                heldApps = vm.heldAppsForActive(),
+                                holdSuggestions = vm.holdSuggestionsForActive(),
+                                onConfirmHold = { pkg, label -> vm.confirmHoldApp(pkg, label) },
+                                onMoveHeldApp = { id, direction -> vm.moveHeldApp(id, direction) },
+                                onReleaseHeldApp = { id -> vm.releaseHeldApp(id) },
                                 onWorkThisOut = {
                                     when (active?.phase) {
                                         IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
