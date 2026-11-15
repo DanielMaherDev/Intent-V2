@@ -57,8 +57,14 @@ class LauncherViewModel(
         private set
 
     /** Overlay permission honesty — floating agent not shipped even when granted. */
-    var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(null)
+    var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(
+        OverlayPermissionProbe.observe(overlayPermissionAccess)
+    )
         private set
+
+    init {
+        usageObservation = observeUsageIfActive()
+    }
 
     fun refresh() {
         capabilityRegistry =
