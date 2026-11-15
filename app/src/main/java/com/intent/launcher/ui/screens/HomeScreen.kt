@@ -90,6 +90,9 @@ fun HomeScreen(
     onRequestQuiet: () -> Unit = {},
     showOpenDndSettings: Boolean = false,
     onOpenDndSettings: () -> Unit = {},
+    screenCaptureNote: String? = null,
+    showCaptureScreen: Boolean = false,
+    onCaptureScreen: () -> Unit = {},
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
@@ -176,7 +179,10 @@ fun HomeScreen(
                     showRequestQuiet = showRequestQuiet,
                     onRequestQuiet = onRequestQuiet,
                     showOpenDndSettings = showOpenDndSettings,
-                    onOpenDndSettings = onOpenDndSettings
+                    onOpenDndSettings = onOpenDndSettings,
+                    screenCaptureNote = screenCaptureNote,
+                    showCaptureScreen = showCaptureScreen,
+                    onCaptureScreen = onCaptureScreen
                 )
             } else {
                 val cardTitle = when (nextAction.kind) {
@@ -551,7 +557,10 @@ private fun ActiveSessionCard(
     showRequestQuiet: Boolean = false,
     onRequestQuiet: () -> Unit = {},
     showOpenDndSettings: Boolean = false,
-    onOpenDndSettings: () -> Unit = {}
+    onOpenDndSettings: () -> Unit = {},
+    screenCaptureNote: String? = null,
+    showCaptureScreen: Boolean = false,
+    onCaptureScreen: () -> Unit = {}
 ) {
     val startedAt = nextAction.startedAtEpochMs
     var nowEpochMs by remember(startedAt) {
@@ -704,6 +713,21 @@ private fun ActiveSessionCard(
             IntentQuietButton(
                 text = "Open system Do Not Disturb",
                 onClick = onOpenDndSettings
+            )
+        }
+        if (screenCaptureNote != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = screenCaptureNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+        if (showCaptureScreen) {
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentQuietButton(
+                text = "Capture screen",
+                onClick = onCaptureScreen
             )
         }
         Spacer(modifier = Modifier.height(15.dp))

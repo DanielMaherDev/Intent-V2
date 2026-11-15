@@ -47,7 +47,6 @@ class CapabilityRegistryTest {
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_NOTIFICATION_LISTENER))
         assertFalse(registry.canReadNotificationSummaries())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_QUIET_MODE))
-        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_SCREEN_CAPTURE))
         assertTrue(
             registry.get(CapabilityRegistry.ID_NOTIFICATION_LISTENER)!!.limitNote
                 .contains("Does not silence", ignoreCase = true)
@@ -63,6 +62,22 @@ class CapabilityRegistryTest {
         assertEquals(
             CapabilityStatus.NOT_SUPPORTED,
             registry.get(CapabilityRegistry.ID_EXTERNAL_ACTION_UNDO)!!.status
+        )
+    }
+
+    @Test
+    fun registry_marksScreenCapturePermissionNeeded_withHonesty() {
+        assertTrue(registry.needsPermission(CapabilityRegistry.ID_SCREEN_CAPTURE))
+        assertFalse(registry.canUseScreenCapture())
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_SCREEN_CAPTURE)!!.limitNote
+                .contains("lesson completion", ignoreCase = true)
+        )
+        assertTrue(
+            registry.get(CapabilityRegistry.ID_SCREEN_CAPTURE)!!.limitNote
+                .contains("OCR", ignoreCase = true) ||
+                registry.get(CapabilityRegistry.ID_SCREEN_CAPTURE)!!.limitNote
+                    .contains("MediaProjection", ignoreCase = true)
         )
     }
 

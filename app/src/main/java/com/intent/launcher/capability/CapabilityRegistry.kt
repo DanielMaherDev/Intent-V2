@@ -111,6 +111,13 @@ class CapabilityRegistry(
     fun canReadNotificationSummaries(): Boolean =
         isActionable(ID_NOTIFICATION_LISTENER)
 
+    /**
+     * True when MediaProjection consent was granted this process.
+     * Does not mean OCR, lesson completion, or frame retention.
+     */
+    fun canUseScreenCapture(): Boolean =
+        isActionable(ID_SCREEN_CAPTURE)
+
     fun canUndoLast(): Boolean =
         isActionable(ID_UNDO_LAST)
 
@@ -290,10 +297,10 @@ class CapabilityRegistry(
             ),
             CapabilityEntry(
                 id = ID_SCREEN_CAPTURE,
-                title = "Screen capture for agent",
-                status = CapabilityStatus.NOT_SUPPORTED,
-                limitNote = "MediaProjection consent path not shipped. " +
-                    "No screenshot or continuing capture without an explicit future ask."
+                title = "Screen capture consent",
+                status = CapabilityStatus.PERMISSION_NEEDED,
+                limitNote = "Requires one-shot MediaProjection system consent when you ask. " +
+                    "Does not OCR screens or prove lesson completion; frames not retained by default."
             ),
             CapabilityEntry(
                 id = ID_UNDO_LAST,
