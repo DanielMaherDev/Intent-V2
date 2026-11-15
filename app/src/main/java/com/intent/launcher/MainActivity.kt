@@ -37,7 +37,9 @@ import com.intent.launcher.ui.screens.DeferConfirmDialog
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
+import com.intent.launcher.ui.screens.ReportScreen
 import com.intent.launcher.ui.screens.ThoughtCaptureDialog
+import com.intent.launcher.ui.screens.TrackerScreen
 import com.intent.launcher.ui.theme.IntentTheme
 
 class MainActivity : ComponentActivity() {
@@ -345,6 +347,39 @@ class MainActivity : ComponentActivity() {
                                 onRestoreTrash = { trashId -> vm.restoreTrashItem(trashId) },
                                 onPurgeTrash = { trashId -> vm.purgeTrashItem(trashId) },
                                 undoTrashNote = vm.undoTrashNote,
+                                onOpenTracker = if (vm.canOpenTracker()) {
+                                    { nav.navigate("tracker") }
+                                } else {
+                                    null
+                                },
+                                onOpenReports = if (vm.canOpenReports()) {
+                                    { nav.navigate("reports") }
+                                } else {
+                                    null
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("tracker") {
+                            TrackerScreen(
+                                intentionTitle = vm.activeIntention()?.title.orEmpty(),
+                                modules = vm.trackerModules(),
+                                entries = vm.trackerEntriesForActive(),
+                                honestyNote = vm.trackerHonestyNote(),
+                                onRecord = { moduleId, value ->
+                                    vm.recordTrackerEntry(moduleId, value)
+                                },
+                                onDelete = { entryId -> vm.deleteTrackerEntry(entryId) },
+                                onOpenReports = { nav.navigate("reports") },
+                                onBack = { nav.popBackStack() },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("reports") {
+                            ReportScreen(
+                                pathSummary = vm.pathSummary(),
+                                progressProof = vm.progressProof(),
+                                onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
