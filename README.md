@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.123** (this branch) · main tip **v0.0.123**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.124** (this branch) · main tip **v0.0.123**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.123** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.123.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.124.apk`
 
 ## Scope
 
@@ -203,9 +203,9 @@ Home **Intentions** opens an accessible drawer of active intentions (tap → Int
 
 At evening check-out (after what-happened), RAW SAID thoughts are walked one at a time. User picks **task / intention / reminder / keep / discard** — no LLM invent. Then Keep schedule / Defer tomorrow as before.
 
-## Sideload packaging (v0.0.123–v0.0.123)
+## Sideload packaging (v0.0.124–v0.0.124)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.123.apk` on this branch (main tip: `INTENT-v0.0.123.apk`).
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.124.apk` on this branch (main tip after merge: `INTENT-v0.0.124.apk`).
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -229,6 +229,6 @@ Home restores the four-core brand-first composition: ✦ INTENT brand, date, gre
 
 ## Download
 
-Sideload APK (v0.0.123, release): [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/chess-rating-case07-v045-a39c/artifacts/INTENT-v0.0.123.apk)
+Sideload APK (v0.0.124, release): [INTENT-v0.0.124.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/tip-models-shapetag-v124-d817/artifacts/INTENT-v0.0.124.apk)
 
-(Prior: [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk) · [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk))
+(Prior: [INTENT-v0.0.123.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.123.apk))
