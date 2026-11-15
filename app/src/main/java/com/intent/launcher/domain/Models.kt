@@ -15,6 +15,12 @@ enum class ProvenanceKind {
     OBSERVED
 }
 
+/** User correction of stored evidence without editing chat. */
+enum class EvidenceAccuracy {
+    ACTIVE,
+    DISMISSED
+}
+
 enum class IntentionPhase {
     EXPLORING,
     CLARIFYING,
@@ -81,7 +87,7 @@ data class ScheduledSession(
 /**
  * One started occurrence of a [ScheduledSession].
  * Begin creates an IN_PROGRESS run; Complete / Abandon end it.
- * Evidence is user-reported via the command path — not external calendar or LLM claims.
+ * Completion remains user-reported via the command path — not calendar/LLM/UsageStats claims.
  */
 data class SessionRun(
     val id: String,
@@ -91,6 +97,23 @@ data class SessionRun(
     val status: SessionRunStatus,
     val startedAtEpochMs: Long,
     val endedAtEpochMs: Long? = null
+)
+
+/**
+ * Device- or user-sourced evidence attached to an intention.
+ * OBSERVED rows come from package foreground (UsageStats) — never lesson completion.
+ */
+data class Evidence(
+    val id: String,
+    val intentionId: String,
+    val sessionRunId: String?,
+    val packageName: String?,
+    val appLabel: String?,
+    val foregroundMs: Long?,
+    val recordedAtEpochMs: Long,
+    val summaryText: String,
+    val provenance: Provenance,
+    val accuracy: EvidenceAccuracy = EvidenceAccuracy.ACTIVE
 )
 
 data class Proposal(
@@ -188,6 +211,7 @@ data class IntentionSnapshot(
     val proposals: List<Proposal> = emptyList(),
     val sessions: List<ScheduledSession> = emptyList(),
     val sessionRuns: List<SessionRun> = emptyList(),
+    val evidence: List<Evidence> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
     val thoughtCaptures: List<ThoughtCapture> = emptyList(),
     val activeIntentionId: String? = null,
@@ -280,6 +304,27 @@ sealed class FlowCommand {
 
     data class AbandonSessionRun(
         val runId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Persist package-foreground observation as [ProvenanceKind.OBSERVED] evidence.
+     * Does **not** complete or abandon the session run.
+     */
+    data class RecordObservedEvidence(
+        val evidenceId: String,
+        val intentionId: String,
+        val sessionRunId: String?,
+        val packageName: String?,
+        val appLabel: String?,
+        val foregroundMs: Long?,
+        val summaryText: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Mark evidence inaccurate / dismissed without editing chat. */
+    data class DismissEvidence(
+        val evidenceId: String,
         val nowEpochMs: Long
     ) : FlowCommand()
 

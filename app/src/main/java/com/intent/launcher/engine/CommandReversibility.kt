@@ -52,6 +52,10 @@ object CommandReversibility {
                 Reversibility(true, "Added conversation turn ${command.turnId}")
             is FlowCommand.CaptureThought ->
                 Reversibility(true, "Captured thought ${command.thoughtId}")
+            is FlowCommand.RecordObservedEvidence ->
+                Reversibility(true, "Recorded observed evidence ${command.evidenceId}")
+            is FlowCommand.DismissEvidence ->
+                Reversibility(true, "Dismissed evidence ${command.evidenceId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

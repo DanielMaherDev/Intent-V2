@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.BusinessScenario
+import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.Intention
@@ -30,6 +31,7 @@ import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.engine.NotificationListenerAccess
 import com.intent.launcher.engine.NotificationListenerProbe
+import com.intent.launcher.engine.ObservedProvenance
 import com.intent.launcher.engine.OverlayPermissionAccess
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.PlatformCapabilityLive
@@ -87,6 +89,14 @@ class LauncherViewModel(
     var notificationObservation by mutableStateOf<NotificationListenerProbe.Observation?>(null)
         private set
 
+    /** Durable OBSERVED evidence for the active session run (null when none / dismissed). */
+    var observedEvidence by mutableStateOf<Evidence?>(null)
+        private set
+
+    /** Post-Complete / check-out note from OBSERVED evidence — never auto-complete. */
+    var checkoutObservationNote by mutableStateOf<String?>(null)
+        private set
+
     /** Overlay permission honesty — floating companion when granted. */
     var overlayObservation by mutableStateOf<OverlayPermissionProbe.Observation?>(
         OverlayPermissionProbe.observe(overlayPermissionAccess)
@@ -132,6 +142,8 @@ class LauncherViewModel(
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
+        maybeRecordObservedEvidence(usageObservation)
+        observedEvidence = resolveObservedEvidence()
         floatingPresence = resolveFloatingPresence()
         deferPreview = resolveDeferPreview()
     }
@@ -157,6 +169,9 @@ class LauncherViewModel(
         nextAction = recommend()
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
+        maybeRecordObservedEvidence(usageObservation)
+        snapshot = store.snapshot()
+        observedEvidence = resolveObservedEvidence()
         overlayObservation = OverlayPermissionProbe.observe(overlayPermissionAccess)
         floatingPresence = resolveFloatingPresence()
         voiceObservation = VoiceInputProbe.observe(voicePermissionAccess, speechToTextAccess)
@@ -241,6 +256,51 @@ class LauncherViewModel(
     private fun observeNotificationsIfActive(): NotificationListenerProbe.Observation? {
         if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
         return NotificationListenerProbe.observeForSession(notificationListenerAccess)
+    }
+
+    /**
+     * Persist OBSERVED evidence while/after UsageStats is granted for the active window.
+     * Never changes session-run status.
+     */
+    private fun maybeRecordObservedEvidence(observation: UsageStatsProbe.Observation?) {
+        if (observation == null) return
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return
+        val intentionId = nextAction.intentionId ?: activeIntention()?.id ?: return
+        ObservedProvenance.recordIfObservable(
+            store = store,
+            observation = observation,
+            intentionId = intentionId,
+            sessionRunId = nextAction.sessionRunId,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+    }
+
+    private fun resolveObservedEvidence(): Evidence? =
+        ObservedProvenance.latestActiveForRun(store.snapshot(), nextAction.sessionRunId)
+            ?: ObservedProvenance.activeForIntention(
+                store.snapshot(),
+                activeIntention()?.id
+            ).maxByOrNull { it.recordedAtEpochMs }
+
+    /** SessionCard / Home copy for durable OBSERVED evidence (not lesson completion). */
+    fun observedEvidenceNote(): String? =
+        observedEvidence?.let { ObservedProvenance.sessionCardNote(it) }
+
+    fun dismissObservedEvidence(evidenceId: String? = observedEvidence?.id): Boolean {
+        val id = evidenceId ?: return false
+        store.apply(
+            FlowCommand.DismissEvidence(
+                evidenceId = id,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        refresh()
+        return true
+    }
+
+    fun clearCheckoutObservationNote() {
+        checkoutObservationNote = null
     }
 
     fun activeIntention(): Intention? {
@@ -602,12 +662,30 @@ class LauncherViewModel(
                 it.intentionId == activeIntention()?.id && it.status == SessionRunStatus.IN_PROGRESS
             }?.id
             ?: return false
+        val intentionId = nextAction.intentionId
+            ?: snapshot.sessionRuns.firstOrNull { it.id == runId }?.intentionId
+            ?: activeIntention()?.id
+        val now = System.currentTimeMillis()
+        // Capture OBSERVED evidence at check-out when UsageStats is granted — still user Completes.
+        val observation = usageObservation ?: observeUsageIfActive()
+        if (observation != null && intentionId != null) {
+            ObservedProvenance.recordIfObservable(
+                store = store,
+                observation = observation,
+                intentionId = intentionId,
+                sessionRunId = runId,
+                nowEpochMs = now,
+                registry = capabilityRegistry
+            )
+        }
+        val recorded = ObservedProvenance.latestActiveForRun(store.snapshot(), runId)
         store.apply(
             FlowCommand.CompleteSessionRun(
                 runId = runId,
-                nowEpochMs = System.currentTimeMillis()
+                nowEpochMs = now
             )
         )
+        checkoutObservationNote = recorded?.let { ObservedProvenance.checkoutNote(it) }
         destinationLaunchNote = null
         refresh()
         return true

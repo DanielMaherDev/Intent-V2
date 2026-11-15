@@ -31,18 +31,32 @@ object UsageStatsProbe {
     ): CapabilityRegistry {
         val granted = access.hasPermission()
         val entries = base.map { entry ->
-            if (entry.id != CapabilityRegistry.ID_USAGE_STATS) entry
-            else if (granted) {
-                entry.copy(
-                    status = CapabilityStatus.AVAILABLE,
-                    limitNote = "Package-level foreground time only — not lesson or video identity. " +
-                        "App use is not lesson completion."
-                )
-            } else {
-                entry.copy(
-                    status = CapabilityStatus.PERMISSION_NEEDED,
-                    limitNote = "Needs UsageStats access; package-level use only — not lesson or video identity."
-                )
+            when (entry.id) {
+                CapabilityRegistry.ID_USAGE_STATS -> if (granted) {
+                    entry.copy(
+                        status = CapabilityStatus.AVAILABLE,
+                        limitNote = "Package-level foreground time only — not lesson or video identity. " +
+                            "App use is not lesson completion."
+                    )
+                } else {
+                    entry.copy(
+                        status = CapabilityStatus.PERMISSION_NEEDED,
+                        limitNote = "Needs UsageStats access; package-level use only — not lesson or video identity."
+                    )
+                }
+                CapabilityRegistry.ID_OBSERVE_APP_USAGE -> if (granted) {
+                    entry.copy(
+                        status = CapabilityStatus.AVAILABLE,
+                        limitNote = "Can store OBSERVED package foreground evidence. " +
+                            "Never auto-completes a session or claims lesson completion."
+                    )
+                } else {
+                    entry.copy(
+                        status = CapabilityStatus.PERMISSION_NEEDED,
+                        limitNote = "Needs UsageStats; stores OBSERVED package foreground only — not lesson completion."
+                    )
+                }
+                else -> entry
             }
         }
         return CapabilityRegistry(entries)

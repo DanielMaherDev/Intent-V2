@@ -3,6 +3,8 @@ package com.intent.launcher.store
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.ConversationTurn
+import com.intent.launcher.domain.Evidence
+import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
@@ -249,6 +251,41 @@ class IntentionFlowStore(
                 endSessionRun(migrated, command.runId, SessionRunStatus.ABANDONED, command.nowEpochMs)
             }
 
+            is FlowCommand.RecordObservedEvidence -> {
+                val evidence = Evidence(
+                    id = command.evidenceId,
+                    intentionId = command.intentionId,
+                    sessionRunId = command.sessionRunId,
+                    packageName = command.packageName,
+                    appLabel = command.appLabel,
+                    foregroundMs = command.foregroundMs,
+                    recordedAtEpochMs = command.nowEpochMs,
+                    summaryText = command.summaryText,
+                    provenance = Provenance(
+                        kind = ProvenanceKind.OBSERVED,
+                        learnedAtEpochMs = command.nowEpochMs,
+                        sourceLabel = "usage_stats"
+                    ),
+                    accuracy = EvidenceAccuracy.ACTIVE
+                )
+                migrated.copy(
+                    evidence = migrated.evidence.filterNot { it.id == evidence.id } + evidence,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.DismissEvidence -> {
+                migrated.copy(
+                    evidence = migrated.evidence.map {
+                        if (it.id == command.evidenceId) {
+                            it.copy(accuracy = EvidenceAccuracy.DISMISSED)
+                        } else {
+                            it
+                        }
+                    }
+                )
+            }
+
             is FlowCommand.SetActiveIntention -> {
                 migrated.copy(activeIntentionId = command.intentionId)
             }
@@ -491,6 +528,8 @@ class IntentionFlowStore(
                     is FlowCommand.SetActiveIntention -> command.nowEpochMs
                     is FlowCommand.MarkPhase -> command.nowEpochMs
                     is FlowCommand.CaptureThought -> command.nowEpochMs
+                    is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
+                    is FlowCommand.DismissEvidence -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
                 }
         }
@@ -515,6 +554,8 @@ class IntentionFlowStore(
             is FlowCommand.SetActiveIntention -> command.nowEpochMs
             is FlowCommand.MarkPhase -> command.nowEpochMs
             is FlowCommand.CaptureThought -> command.nowEpochMs
+            is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
+            is FlowCommand.DismissEvidence -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
         }
         val txn = FlowTransaction(
@@ -862,6 +903,48 @@ class IntentionFlowStore(
         }
     }
 
+    data class WireEvidence(
+        val id: String = "",
+        val intentionId: String = "",
+        val sessionRunId: String? = null,
+        val packageName: String? = null,
+        val appLabel: String? = null,
+        val foregroundMs: Long? = null,
+        val recordedAtEpochMs: Long = 0L,
+        val summaryText: String = "",
+        val provenance: WireProvenance = WireProvenance(kind = ProvenanceKind.OBSERVED.name),
+        val accuracy: String = EvidenceAccuracy.ACTIVE.name
+    ) {
+        fun toDomain() = Evidence(
+            id = id,
+            intentionId = intentionId,
+            sessionRunId = sessionRunId,
+            packageName = packageName,
+            appLabel = appLabel,
+            foregroundMs = foregroundMs,
+            recordedAtEpochMs = recordedAtEpochMs,
+            summaryText = summaryText,
+            provenance = provenance.toDomain(),
+            accuracy = runCatching { EvidenceAccuracy.valueOf(accuracy) }
+                .getOrDefault(EvidenceAccuracy.ACTIVE)
+        )
+
+        companion object {
+            fun from(e: Evidence) = WireEvidence(
+                id = e.id,
+                intentionId = e.intentionId,
+                sessionRunId = e.sessionRunId,
+                packageName = e.packageName,
+                appLabel = e.appLabel,
+                foregroundMs = e.foregroundMs,
+                recordedAtEpochMs = e.recordedAtEpochMs,
+                summaryText = e.summaryText,
+                provenance = WireProvenance.from(e.provenance),
+                accuracy = e.accuracy.name
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -870,6 +953,7 @@ class IntentionFlowStore(
         val proposals: List<WireProposal> = emptyList(),
         val sessions: List<WireSession> = emptyList(),
         val sessionRuns: List<WireSessionRun> = emptyList(),
+        val evidence: List<WireEvidence> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
         val activeIntentionId: String? = null,
@@ -884,6 +968,7 @@ class IntentionFlowStore(
             proposals = proposals.map { it.toDomain() },
             sessions = sessions.map { it.toDomain() },
             sessionRuns = sessionRuns.map { it.toDomain() },
+            evidence = evidence.map { it.toDomain() },
             turns = turns.map { it.toDomain() },
             thoughtCaptures = thoughtCaptures.map { it.toDomain() },
             activeIntentionId = activeIntentionId,
@@ -900,6 +985,7 @@ class IntentionFlowStore(
                 proposals = s.proposals.map(WireProposal::from),
                 sessions = s.sessions.map(WireSession::from),
                 sessionRuns = s.sessionRuns.map(WireSessionRun::from),
+                evidence = s.evidence.map(WireEvidence::from),
                 turns = s.turns.map(WireTurn::from),
                 thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
                 activeIntentionId = s.activeIntentionId,

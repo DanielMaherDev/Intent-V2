@@ -72,6 +72,13 @@ fun HomeScreen(
     usageNote: String? = null,
     showGrantUsageAccess: Boolean = false,
     onGrantUsageAccess: () -> Unit = {},
+    /** Durable OBSERVED evidence summary (package foreground ≠ lesson completion). */
+    observedEvidenceNote: String? = null,
+    showDismissObserved: Boolean = false,
+    onDismissObserved: () -> Unit = {},
+    /** Post-Complete check-out note from OBSERVED evidence. */
+    checkoutObservationNote: String? = null,
+    onClearCheckoutNote: () -> Unit = {},
     notificationNote: String? = null,
     showGrantNotificationAccess: Boolean = false,
     onGrantNotificationAccess: () -> Unit = {},
@@ -121,6 +128,24 @@ fun HomeScreen(
             Lede(lede)
             Spacer(modifier = Modifier.height(26.dp))
 
+            if (checkoutObservationNote != null && nextAction.kind != NextActionKind.ACTIVE_SESSION) {
+                HeroCard(tone = HeroTone.Accent) {
+                    SmallLabel(text = "Check-out", color = IntentColors.Accent)
+                    Spacer(modifier = Modifier.height(7.dp))
+                    Text(
+                        text = checkoutObservationNote,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = IntentColors.Ink
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    IntentQuietButton(
+                        text = "Dismiss note",
+                        onClick = onClearCheckoutNote
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
             if (nextAction.kind == NextActionKind.ACTIVE_SESSION) {
                 ActiveSessionCard(
                     nextAction = nextAction,
@@ -133,6 +158,9 @@ fun HomeScreen(
                     usageNote = usageNote,
                     showGrantUsageAccess = showGrantUsageAccess,
                     onGrantUsageAccess = onGrantUsageAccess,
+                    observedEvidenceNote = observedEvidenceNote,
+                    showDismissObserved = showDismissObserved,
+                    onDismissObserved = onDismissObserved,
                     notificationNote = notificationNote,
                     showGrantNotificationAccess = showGrantNotificationAccess,
                     onGrantNotificationAccess = onGrantNotificationAccess
@@ -438,6 +466,9 @@ private fun ActiveSessionCard(
     usageNote: String? = null,
     showGrantUsageAccess: Boolean = false,
     onGrantUsageAccess: () -> Unit = {},
+    observedEvidenceNote: String? = null,
+    showDismissObserved: Boolean = false,
+    onDismissObserved: () -> Unit = {},
     notificationNote: String? = null,
     showGrantNotificationAccess: Boolean = false,
     onGrantNotificationAccess: () -> Unit = {}
@@ -535,6 +566,21 @@ private fun ActiveSessionCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
+        }
+        if (observedEvidenceNote != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = observedEvidenceNote,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink
+            )
+            if (showDismissObserved) {
+                Spacer(modifier = Modifier.height(4.dp))
+                IntentQuietButton(
+                    text = "Mark observation inaccurate",
+                    onClick = onDismissObserved
+                )
+            }
         }
         if (showGrantUsageAccess) {
             Spacer(modifier = Modifier.height(8.dp))
