@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.15**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.16**.
 
 ## Build
 
@@ -29,6 +29,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.13:** Stage 5 adaptive UI — Home / Intention / Conversation composition by shape (language · marathon · business) on one model
 - **v0.0.14:** Stage 6 UsageStats probe — live permission status, package-level foreground on SessionCard; never lesson completion
 - **v0.0.15:** Stage 6 overlay permission probe — live draw-over-apps status; floating agent still not shipped
+- **v0.0.16:** Floating agent companion — overlay-gated bubble for the same Conversation agent (`idle` / `attention_needed` / `active_session`); press → Discuss
 
 ## Shapes
 
@@ -68,10 +69,14 @@ Shapes with a destination package (Spanish → Duolingo / `com.duolingo`) launch
 
 ## Overlay permission (Stage 6 / v0.0.15)
 
-`OverlayPermissionProbe` refreshes `floating_overlay` from `Settings.canDrawOverlays`. Home shows an honest note and **Grant overlay permission** when needed. Granting permission does **not** ship a floating agent in this build — Home / SessionCard remain the surfaces.
+`OverlayPermissionProbe` refreshes `floating_overlay` from `Settings.canDrawOverlays`. Home shows an honest note and **Grant overlay permission** when needed.
+
+## Floating companion (Stage 6 / v0.0.16)
+
+When overlay is granted, `FloatingAgentService` shows a bubble for the **same** agent as Conversation (`idle` / `attention_needed` / `active_session`; stub labels for capture/think/reply). Press opens Discuss → Conversation. When overlay is denied, there is **no** fake bubble — use Home Agent / Discuss.
 
 ## Download
 
-Debug APK (v0.0.15): [INTENT-v0.0.15-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/stage6-overlay-930c/artifacts/INTENT-v0.0.15-debug.apk)
+Debug APK (v0.0.16): [INTENT-v0.0.16-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/floating-agent-v016-930c/artifacts/INTENT-v0.0.16-debug.apk)
 
-(Prior: [INTENT-v0.0.14-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.14-debug.apk) · [INTENT-v0.0.13-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.13-debug.apk) · [INTENT-v0.0.12-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.12-debug.apk) · [INTENT-v0.0.11-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.11-debug.apk) · [INTENT-v0.0.10-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.10-debug.apk) · [INTENT-v0.0.09-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.09-debug.apk) · [INTENT-v0.0.08-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.08-debug.apk) · [INTENT-v0.0.07-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.07-debug.apk) · [INTENT-v0.0.06-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.06-debug.apk) · [INTENT-v0.0.05-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.05-debug.apk) · [INTENT-v0.0.04-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.04-debug.apk) · [INTENT-v0.0.03-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.03-debug.apk) · [INTENT-v0.0.02-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.02-debug.apk) · [INTENT-v0.0.01-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk))
+(Prior: [INTENT-v0.0.15-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.15-debug.apk) · [INTENT-v0.0.14-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.14-debug.apk) · [INTENT-v0.0.13-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.13-debug.apk) · [INTENT-v0.0.12-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.12-debug.apk) · [INTENT-v0.0.11-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.11-debug.apk) · [INTENT-v0.0.10-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.10-debug.apk) · [INTENT-v0.0.09-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.09-debug.apk) · [INTENT-v0.0.08-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.08-debug.apk) · [INTENT-v0.0.07-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.07-debug.apk) · [INTENT-v0.0.06-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.06-debug.apk) · [INTENT-v0.0.05-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.05-debug.apk) · [INTENT-v0.0.04-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.04-debug.apk) · [INTENT-v0.0.03-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.03-debug.apk) · [INTENT-v0.0.02-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.02-debug.apk) · [INTENT-v0.0.01-debug.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.01-debug.apk))

@@ -9,6 +9,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.HomeScreen
@@ -26,8 +31,11 @@ import com.intent.launcher.ui.theme.IntentTheme
 class MainActivity : ComponentActivity() {
     private val vm: LauncherViewModel by viewModels()
 
+    private var openConversationRequest by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        consumeCompanionIntent(intent)
         setContent {
             IntentTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -46,6 +54,17 @@ class MainActivity : ComponentActivity() {
                     val intentionHint = intentionProjection.homeSpaceSubtitle
                     val showMarathonEntry = intention?.shapeTag != "marathon"
                     val showBusinessEntry = intention?.shapeTag != "business"
+
+                    LaunchedEffect(openConversationRequest) {
+                        if (openConversationRequest > 0) {
+                            val route = vm.openFromFloatingCompanion()
+                            if (route != null) {
+                                nav.navigate(route) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    }
 
                     NavHost(navController = nav, startDestination = "home") {
                         composable("home") {
@@ -91,6 +110,10 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 },
+                                floatingCompanionLabel = vm.floatingPresence.state?.let {
+                                    vm.floatingPresence.label
+                                },
+                                floatingManualRouteNote = vm.floatingPresence.manualRouteNote,
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
                                         vm.startMarathonExploration()
@@ -186,8 +209,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeCompanionIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         vm.refresh()
+        FloatingAgentService.sync(this, vm.floatingBubbleState())
+    }
+
+    private fun consumeCompanionIntent(intent: Intent?) {
+        if (intent?.action == FloatingAgentService.ACTION_OPEN_CONVERSATION) {
+            openConversationRequest++
+        }
     }
 }

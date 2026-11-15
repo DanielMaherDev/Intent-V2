@@ -9,7 +9,7 @@ import org.junit.Test
 
 /**
  * Stage 6 — floating overlay permission probe honesty.
- * Grant ≠ floating agent shipped.
+ * When granted, floating companion may show; when denied, manual Conversation route.
  */
 class OverlayPermissionProbeTest {
 
@@ -21,12 +21,12 @@ class OverlayPermissionProbeTest {
         assertFalse(registry.canUseFloatingOverlay())
         assertTrue(
             registry.get(CapabilityRegistry.ID_FLOATING_OVERLAY)!!.limitNote
-                .contains("not shipped", ignoreCase = true)
+                .contains("Discuss", ignoreCase = true)
         )
     }
 
     @Test
-    fun liveRegistry_availableWhenGranted_stillSaysNotShipped() {
+    fun liveRegistry_availableWhenGranted_companionReady() {
         val access = FakeOverlayPermissionAccess(granted = true)
         val registry = OverlayPermissionProbe.liveRegistry(access)
         assertTrue(registry.canUseFloatingOverlay())
@@ -36,25 +36,30 @@ class OverlayPermissionProbeTest {
         )
         assertTrue(
             registry.get(CapabilityRegistry.ID_FLOATING_OVERLAY)!!.limitNote
+                .contains("same agent", ignoreCase = true)
+        )
+        assertFalse(
+            registry.get(CapabilityRegistry.ID_FLOATING_OVERLAY)!!.limitNote
                 .contains("not shipped", ignoreCase = true)
         )
     }
 
     @Test
-    fun observe_denied_offersSettings() {
+    fun observe_denied_offersSettingsAndManualRoute() {
         val obs = OverlayPermissionProbe.observe(FakeOverlayPermissionAccess(false))
         assertFalse(obs.permissionGranted)
         assertTrue(obs.canOpenSettings)
-        assertTrue(obs.note.contains("not shipped", ignoreCase = true))
+        assertTrue(obs.note.contains("no floating", ignoreCase = true))
+        assertTrue(obs.note.contains("Discuss", ignoreCase = true))
     }
 
     @Test
-    fun observe_granted_doesNotClaimFloatingAgent() {
+    fun observe_granted_describesCompanion() {
         val obs = OverlayPermissionProbe.observe(FakeOverlayPermissionAccess(true))
         assertTrue(obs.permissionGranted)
         assertFalse(obs.canOpenSettings)
-        assertTrue(obs.note.contains("not shipped", ignoreCase = true))
-        assertTrue(obs.note.contains("Home", ignoreCase = true))
+        assertTrue(obs.note.contains("companion", ignoreCase = true))
+        assertTrue(obs.note.contains("Conversation", ignoreCase = true))
     }
 
     @Test

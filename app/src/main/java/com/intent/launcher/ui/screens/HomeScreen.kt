@@ -73,6 +73,10 @@ fun HomeScreen(
     overlayNote: String? = null,
     showGrantOverlay: Boolean = false,
     onGrantOverlay: () -> Unit = {},
+    /** Non-null when the overlay bubble is live (same agent as Conversation). */
+    floatingCompanionLabel: String? = null,
+    /** Honest manual route when overlay is denied — no fake floating UI. */
+    floatingManualRouteNote: String? = null,
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -256,6 +260,21 @@ fun HomeScreen(
                         onClick = onGrantOverlay
                     )
                 }
+            }
+            if (floatingCompanionLabel != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Floating companion: $floatingCompanionLabel — same agent as Conversation. Tap the bubble to Discuss.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            } else if (floatingManualRouteNote != null && overlayNote == null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                Text(
+                    text = floatingManualRouteNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
             }
 
             Spacer(modifier = Modifier.height(26.dp))
