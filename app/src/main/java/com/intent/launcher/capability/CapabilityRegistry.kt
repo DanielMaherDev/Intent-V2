@@ -484,6 +484,8 @@ class CapabilityRegistry(
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Lightweight errand inbox with optional reminder — " +
                     "does not create an exploring Intention (CASE-01 / OS-073)."
+            ),
+            CapabilityEntry(
                 id = ID_WEB_RESEARCH,
                 title = "Live web research",
                 status = CapabilityStatus.NOT_SUPPORTED,
