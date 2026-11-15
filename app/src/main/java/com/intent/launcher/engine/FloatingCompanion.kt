@@ -44,7 +44,7 @@ object FloatingCompanion {
                 state = null,
                 label = "Use Agent on Home",
                 manualRouteNote = "Overlay permission needed for the floating companion. " +
-                    "Use Home’s Agent tab or Discuss for Conversation, or Capture thought on Home."
+                    "Use Home’s Agent / Discuss (Ask), next-action strip (Today), or Capture thought."
             )
         }
         val state = resolveState(nextAction)

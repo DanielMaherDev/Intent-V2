@@ -31,6 +31,7 @@ import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DailyCycle
 import com.intent.launcher.engine.DeferralPreview
 import com.intent.launcher.engine.DiscussFromHome
+import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
 import com.intent.launcher.engine.FloatingCompanion
 import com.intent.launcher.engine.InstalledAppLauncher
@@ -184,6 +185,14 @@ class LauncherViewModel(
     )
         private set
 
+    /** Floater Today — points at Home next-action strip. */
+    var floaterTodayNote by mutableStateOf<String?>(null)
+        private set
+
+    /** Optional Ask context line (active intention title) — not an LLM prompt. */
+    var askContextChip by mutableStateOf<String?>(null)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
@@ -320,8 +329,40 @@ class LauncherViewModel(
             nowEpochMs = System.currentTimeMillis(),
             registry = capabilityRegistry
         )
+        askContextChip = null
         refresh()
         return result.navigateTo
+    }
+
+    /** Floater drawer Ask — ConversationCoordinator path + optional intention context chip. */
+    fun openAskFromDrawer(): String? {
+        val result = FloaterActionDrawer.openAsk(
+            store = store,
+            nextAction = nextAction,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        askContextChip = result.contextChip
+        floaterTodayNote = null
+        refresh()
+        return result.navigateTo
+    }
+
+    /** Floater drawer Today — Home next-action focus note. */
+    fun openTodayFromDrawer(): String {
+        val result = FloaterActionDrawer.openToday(nextAction)
+        floaterTodayNote = result.focusNote
+        askContextChip = null
+        refresh()
+        return result.navigateTo
+    }
+
+    fun clearFloaterTodayNote() {
+        floaterTodayNote = null
+    }
+
+    fun clearAskContextChip() {
+        askContextChip = null
     }
 
     /**

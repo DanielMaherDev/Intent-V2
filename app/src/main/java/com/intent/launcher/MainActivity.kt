@@ -27,6 +27,7 @@ import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.engine.CaptureThought
+import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.floating.FloatingAgentService
@@ -34,6 +35,7 @@ import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.DeferConfirmDialog
+import com.intent.launcher.ui.screens.FloaterActionDrawerDialog
 import com.intent.launcher.ui.screens.HomeScreen
 import com.intent.launcher.ui.screens.IntentionSpaceScreen
 import com.intent.launcher.ui.screens.ProposalReviewScreen
@@ -46,6 +48,9 @@ class MainActivity : ComponentActivity() {
     private val vm: LauncherViewModel by viewModels()
 
     private var openConversationRequest by mutableIntStateOf(0)
+    private var openAskFromDrawerRequest by mutableIntStateOf(0)
+    private var openTodayFromDrawerRequest by mutableIntStateOf(0)
+    private var showFloaterDrawer by mutableStateOf(false)
     private var showThoughtCapture by mutableStateOf(false)
     private var thoughtCaptureSource: String = CaptureThought.SOURCE_HOME
     /** When true, STT result goes to CaptureThought instead of Conversation. */
@@ -156,10 +161,46 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    LaunchedEffect(openAskFromDrawerRequest) {
+                        if (openAskFromDrawerRequest > 0) {
+                            val route = vm.openAskFromDrawer()
+                            if (route != null) {
+                                nav.navigate(route) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    }
+                    LaunchedEffect(openTodayFromDrawerRequest) {
+                        if (openTodayFromDrawerRequest > 0) {
+                            val route = vm.openTodayFromDrawer()
+                            nav.navigate(route) {
+                                popUpTo("home") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
                     LaunchedEffect(pendingOpenProposalAfterVoice) {
                         if (pendingOpenProposalAfterVoice > 0) {
                             nav.navigate("proposal")
                         }
+                    }
+
+                    if (showFloaterDrawer) {
+                        FloaterActionDrawerDialog(
+                            onDismiss = { showFloaterDrawer = false },
+                            onAction = { action ->
+                                showFloaterDrawer = false
+                                when (action) {
+                                    FloaterDrawerAction.ASK -> openAskFromDrawerRequest++
+                                    FloaterDrawerAction.TODAY -> openTodayFromDrawerRequest++
+                                    FloaterDrawerAction.CAPTURE -> {
+                                        thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
+                                        showThoughtCapture = true
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     if (showThoughtCapture) {
@@ -304,10 +345,12 @@ class MainActivity : ComponentActivity() {
                                     vm.floatingPresence.label
                                 },
                                 floatingManualRouteNote = vm.floatingPresence.manualRouteNote,
+                                floaterTodayNote = vm.floaterTodayNote,
                                 onCaptureThought = {
                                     thoughtCaptureSource = CaptureThought.SOURCE_HOME
                                     showThoughtCapture = true
                                 },
+                                onOpenFloaterDrawer = { showFloaterDrawer = true },
                                 thoughtCaptureNote = vm.thoughtCaptureNote,
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
@@ -405,17 +448,22 @@ class MainActivity : ComponentActivity() {
                             val convProjection = ShapeProjection.project(intention = active)
                             ConversationScreen(
                                 turns = vm.snapshot.turns.filter { it.intentionId == active?.id },
-                                chips = vm.conversationChips(),
+                                chips = listOfNotNull(vm.askContextChip) + vm.conversationChips(),
                                 intentionTitle = active?.title.orEmpty(),
                                 onChip = { chip ->
-                                    vm.onConversationChip(chip)
-                                    val after = vm.snapshot
-                                    if (after.proposals.any {
-                                            it.status == ProposalStatus.PENDING &&
-                                                it.intentionId == active?.id
+                                    if (chip == vm.askContextChip) {
+                                        vm.clearAskContextChip()
+                                    } else {
+                                        vm.clearAskContextChip()
+                                        vm.onConversationChip(chip)
+                                        val after = vm.snapshot
+                                        if (after.proposals.any {
+                                                it.status == ProposalStatus.PENDING &&
+                                                    it.intentionId == active?.id
+                                            }
+                                        ) {
+                                            nav.navigate("proposal")
                                         }
-                                    ) {
-                                        nav.navigate("proposal")
                                     }
                                 },
                                 onBack = { nav.popBackStack() },
@@ -477,6 +525,7 @@ class MainActivity : ComponentActivity() {
     private fun consumeCompanionIntent(intent: Intent?) {
         when (intent?.action) {
             FloatingAgentService.ACTION_OPEN_CONVERSATION -> openConversationRequest++
+            FloatingAgentService.ACTION_OPEN_DRAWER -> showFloaterDrawer = true
             FloatingAgentService.ACTION_CAPTURE_THOUGHT -> {
                 thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
                 showThoughtCapture = true

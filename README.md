@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.44**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.46**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.44**.
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.44.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.46.apk`
 
 ## Scope
 
@@ -46,6 +46,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.30:** Tracker modules + PathSummary / progress proof — shape-default modules in the same intention store; SAID/OBSERVED/INFERRED labeled; no fabricated charts
 - **v0.0.31:** Privacy-safe session notification review — package counts only; no titles/bodies; no auto-Complete
 - **v0.0.44:** CASE-08 six-week move — finite dependency / landlord-gated plan on shared intention model (`Plan a six-week move` on Home)
+- **v0.0.46:** Floater Ask / Today / Capture drawer — long-press menu; same agent as Conversation (reclaimed from 0.0.33)
 
 ## Shapes
 
@@ -93,7 +94,7 @@ When UsageStats is granted, package foreground for the active session is persist
 
 ## Floating companion (Stage 6 / v0.0.16)
 
-When overlay is granted, `FloatingAgentService` shows a bubble for the **same** agent as Conversation (`idle` / `attention_needed` / `active_session`; stub labels for capture/think/reply). **Tap** opens Discuss → Conversation; **long-press** opens Capture thought. When overlay is denied, there is **no** fake bubble — use Home Agent / Discuss / **Capture thought**.
+When overlay is granted, `FloatingAgentService` shows a bubble for the **same** agent as Conversation (`idle` / `attention_needed` / `active_session`; stub labels for capture/think/reply). **Tap** opens Ask (Discuss → Conversation); **long-press** opens the **Ask / Today / Capture** drawer. When overlay is denied, there is **no** fake bubble — use Home **Companion menu**, Discuss, or **Capture thought**.
 
 ## Notification summaries (Stage 6 / v0.0.22)
 
@@ -131,9 +132,13 @@ Intention Space opens **Tracker** (shape-default modules; manual SAID entries) a
 
 When Notification access is granted, INTENT tallies **package + coarse category counts** during an active session window. Titles/bodies are not retained. Rows can be dismissed; counts never auto-Complete. Denied → SessionCard grant path.
 
-## Sideload packaging (v0.0.17–v0.0.44)
+## Floater action drawer (v0.0.46)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.44.apk`. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
+Long-press (or Home **Companion menu**) shows **Ask** (Conversation + optional intention context chip), **Today** (Home next-action focus), and **Capture** (existing thought sheet). Same agent / `ConversationCoordinator` path — no second bot and no LLM unless `live_llm` is LIVE.
+
+## Sideload packaging (v0.0.17–v0.0.46)
+
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination apps via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.46.apk` on this branch. Debuggable or QUERY_ALL builds can fail PackageInstaller UI (silent abort or `INSTALL_FAILED_TEST_ONLY`) while ApkMirror still works. **Uninstall older INTENT once** before installing. Keep `SYSTEM_ALERT_WINDOW` so INTENT appears under Display over other apps.
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -141,6 +146,6 @@ Conversation mic uses platform speech recognition when `RECORD_AUDIO` is granted
 
 ## Download
 
-Sideload APK (v0.0.44, release): [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/six-week-move-case08-v044-cb74/artifacts/INTENT-v0.0.44.apk)
+Sideload APK (v0.0.46, release): [INTENT-v0.0.46.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/floater-action-drawer-v033-930c/artifacts/INTENT-v0.0.46.apk)
 
-(Prior: [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk) · [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk))
+(Prior: [INTENT-v0.0.44.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.44.apk) · [INTENT-v0.0.31.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.31.apk) · [INTENT-v0.0.30.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.30.apk) · [INTENT-v0.0.29.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.29.apk) · [INTENT-v0.0.25.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.25.apk) · [INTENT-v0.0.28.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.28.apk) · [INTENT-v0.0.27.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.27.apk) · [INTENT-v0.0.26.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.26.apk))
