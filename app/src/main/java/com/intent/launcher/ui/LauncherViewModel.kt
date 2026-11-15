@@ -30,7 +30,10 @@ import com.intent.launcher.domain.QuitSmokingScenario
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.domain.ThoughtCapture
 import com.intent.launcher.domain.ThoughtCaptureStatus
+import com.intent.launcher.domain.ThoughtDisposition
+import com.intent.launcher.engine.EveningThoughtTriage
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
@@ -248,6 +251,36 @@ class LauncherViewModel(
 
     fun rawThoughtCount(): Int =
         snapshot.thoughtCaptures.count { it.status == ThoughtCaptureStatus.RAW }
+
+    /** Unclassified RAW thoughts for evening check-out (OS-154). */
+    fun rawThoughtsForCheckOut(): List<ThoughtCapture> =
+        EveningThoughtTriage.listRawForEvening(store)
+
+    fun nextRawThoughtForCheckOut(): ThoughtCapture? =
+        EveningThoughtTriage.nextRaw(store)
+
+    /** Confirmation note after an evening disposition. */
+    var eveningTriageNote by mutableStateOf<String?>(null)
+        private set
+
+    fun clearEveningTriageNote() {
+        eveningTriageNote = null
+    }
+
+    /**
+     * User-picked evening disposition — no LLM invent.
+     */
+    fun classifyThought(thoughtId: String, disposition: ThoughtDisposition): Boolean {
+        val result = EveningThoughtTriage.classify(
+            store = store,
+            thoughtId = thoughtId,
+            disposition = disposition,
+            nowEpochMs = System.currentTimeMillis()
+        )
+        eveningTriageNote = result.confirmation
+        refresh()
+        return result.ok
+    }
 
     fun startBuilder(freeText: String): Boolean {
         val result = IntentionBuilder.start(
