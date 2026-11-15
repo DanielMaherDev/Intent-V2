@@ -34,7 +34,11 @@ object FloatingCompanion {
         /** Shared with Conversation when a proactive intervention is queued. */
         val interventionJobId: String? = null,
         val interventionTurnId: String? = null,
-        val unreadIntervention: Boolean = false
+        val unreadIntervention: Boolean = false,
+        /** OBSERVED | INFERRED — never blank when an intervention is active (Gate D2). */
+        val interventionProvenanceLabel: String? = null,
+        /** Short floater attention line including provenance chip. */
+        val interventionAttentionLine: String? = null
     )
 
     /**
@@ -48,6 +52,7 @@ object FloatingCompanion {
         snapshot: IntentionSnapshot? = null
     ): Presence {
         val intervention = snapshot?.let { TriggerCooldownPolicy.activeIntervention(it) }
+        val prompt = intervention?.let { InterventionProvenance.fromQueued(it) }
         if (!overlayGranted || !registry.canUseFloatingOverlay()) {
             return Presence(
                 state = null,
@@ -56,17 +61,25 @@ object FloatingCompanion {
                 manualRouteNote = TalkBackLabels.overlayDeniedFallbackNote(),
                 interventionJobId = intervention?.jobId,
                 interventionTurnId = intervention?.turnId,
-                unreadIntervention = intervention?.status == "queued"
+                unreadIntervention = intervention?.status == "queued",
+                interventionProvenanceLabel = prompt?.provenanceLabel,
+                interventionAttentionLine = prompt?.let {
+                    InterventionProvenance.floaterAttentionLine(it)
+                }
             )
         }
         val state = resolveState(nextAction, intervention)
         return Presence(
             state = state,
-            label = labelFor(state),
+            label = labelFor(state, prompt),
             manualRouteNote = null,
             interventionJobId = intervention?.jobId,
             interventionTurnId = intervention?.turnId,
-            unreadIntervention = intervention?.status == "queued"
+            unreadIntervention = intervention?.status == "queued",
+            interventionProvenanceLabel = prompt?.provenanceLabel,
+            interventionAttentionLine = prompt?.let {
+                InterventionProvenance.floaterAttentionLine(it)
+            }
         )
     }
 
@@ -101,13 +114,19 @@ object FloatingCompanion {
         }
     }
 
-    fun labelFor(state: FloatingAgentState): String =
+    fun labelFor(
+        state: FloatingAgentState,
+        intervention: InterventionProvenance.PromptView? = null
+    ): String =
         when (state) {
             FloatingAgentState.IDLE -> "INTENT"
             FloatingAgentState.CAPTURING -> "Listening…"
             FloatingAgentState.THINKING -> "Thinking…"
-            FloatingAgentState.RESPONSE_READY -> "Reply ready"
-            FloatingAgentState.ATTENTION_NEEDED -> "Needs you"
+            FloatingAgentState.RESPONSE_READY ->
+                intervention?.let { "${it.provenanceLabel} · Reply" } ?: "Reply ready"
+            FloatingAgentState.ATTENTION_NEEDED ->
+                intervention?.let { InterventionProvenance.floaterAttentionLine(it) }
+                    ?: "Needs you"
             FloatingAgentState.ACTIVE_SESSION -> "In session"
         }
 

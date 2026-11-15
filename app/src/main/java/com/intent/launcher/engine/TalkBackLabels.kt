@@ -69,9 +69,19 @@ object TalkBackLabels {
     }
 
     /** Overlay bubble FrameLayout — role + state; tap / long-press hints. */
-    fun floaterBubble(state: FloatingAgentState): String {
-        val label = FloatingCompanion.labelFor(state)
-        return "INTENT companion. $label. Same agent as Conversation. " +
+    fun floaterBubble(
+        state: FloatingAgentState,
+        /** Visible / spoken bubble label when set (includes OBSERVED|INFERRED). */
+        spokenLabel: String? = null,
+        interventionProvenanceLabel: String? = null
+    ): String {
+        val label = spokenLabel?.takeIf { it.isNotBlank() }
+            ?: FloatingCompanion.labelFor(state)
+        val provenance = interventionProvenanceLabel
+            ?.takeIf { it.isNotBlank() }
+            ?.let { " Provenance $it." }
+            .orEmpty()
+        return "INTENT companion. $label.$provenance Same agent as Conversation. " +
             "Tap to Ask. Long-press for Ask, Today, or Capture."
     }
 

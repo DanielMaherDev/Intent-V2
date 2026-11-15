@@ -198,6 +198,7 @@ private fun UserBubble(text: String) {
 @Composable
 private fun AgentBubble(text: String, blocks: List<ResponseBlock> = emptyList()) {
     val gap = blocks.firstOrNull { it.type == ResponseBlockType.CAPABILITY_GAP && it.active }
+    val question = blocks.firstOrNull { it.type == ResponseBlockType.QUESTION && it.active }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -218,34 +219,73 @@ private fun AgentBubble(text: String, blocks: List<ResponseBlock> = emptyList())
             letterSpacing = 0.6.sp,
             fontWeight = FontWeight.Bold
         )
-        if (gap != null) {
-            Spacer(modifier = Modifier.height(6.dp))
-            SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = gap.body.ifBlank { text },
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Ink,
-                lineHeight = 19.sp
-            )
-            if (gap.sourceLabel.isNotBlank()) {
+        when {
+            gap != null -> {
+                Spacer(modifier = Modifier.height(6.dp))
+                SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = gap.sourceLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = IntentColors.Muted
+                    text = gap.body.ifBlank { text },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    lineHeight = 19.sp
+                )
+                if (gap.sourceLabel.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = gap.sourceLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
+            question != null -> {
+                // Gate D2 — intervention QUESTION always shows OBSERVED vs INFERRED.
+                Spacer(modifier = Modifier.height(6.dp))
+                SmallLabel(
+                    text = interventionProvenanceChip(question.sourceLabel, question.title)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = question.body.ifBlank { text },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    lineHeight = 19.sp
+                )
+                if (question.sourceLabel.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = question.sourceLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
+            else -> {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    lineHeight = 19.sp
                 )
             }
-        } else {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Ink,
-                lineHeight = 19.sp
-            )
         }
     }
+}
+
+/** Prefer explicit OBSERVED / INFERRED chip from sourceLabel; never silent mix. */
+private fun interventionProvenanceChip(sourceLabel: String, title: String): String {
+    val upper = sourceLabel.uppercase()
+    val chip = when {
+        upper.startsWith("OBSERVED") -> "OBSERVED"
+        upper.startsWith("INFERRED") -> "INFERRED"
+        upper.contains("OBSERVED") -> "OBSERVED"
+        upper.contains("INFERRED") -> "INFERRED"
+        else -> "INFERRED"
+    }
+    val titlePart = title.trim().ifBlank { "Check-in" }
+    return "$chip · $titlePart"
 }
 
 @Composable

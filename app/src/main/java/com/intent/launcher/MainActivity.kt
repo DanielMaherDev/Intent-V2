@@ -449,6 +449,14 @@ class MainActivity : ComponentActivity() {
                                     vm.floatingPresence.label
                                 },
                                 floatingManualRouteNote = vm.floatingPresence.manualRouteNote,
+                                interventionPrompt = vm.activeInterventionPrompt(),
+                                onOpenIntervention = {
+                                    val route = vm.openDiscussFromHome()
+                                    if (route != null) {
+                                        nav.navigate(route)
+                                    }
+                                },
+                                onDismissIntervention = { vm.dismissActiveIntervention() },
                                 floaterTodayNote = vm.floaterTodayNote,
                                 onCaptureThought = {
                                     thoughtCaptureSource = CaptureThought.SOURCE_HOME
@@ -809,7 +817,15 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         vm.refresh()
-        FloatingAgentService.sync(this, vm.floatingBubbleState())
+        FloatingAgentService.sync(
+            context = this,
+            state = vm.floatingBubbleState(),
+            provenanceLabel = vm.floatingPresence.interventionProvenanceLabel,
+            attentionLabel = vm.floatingPresence.interventionAttentionLine
+                ?: vm.floatingPresence.label.takeIf {
+                    vm.floatingPresence.interventionProvenanceLabel != null
+                }
+        )
     }
 
     private fun consumeCompanionIntent(intent: Intent?) {
