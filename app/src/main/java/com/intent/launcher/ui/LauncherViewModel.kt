@@ -44,6 +44,7 @@ import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
+import com.intent.launcher.engine.AmbiguousChoiceSetCard
 import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.engine.AppDurationTask
@@ -1254,21 +1255,7 @@ class LauncherViewModel(
             ?: pendingList.singleOrNull()?.id
         val pending = pendingList.firstOrNull { it.id == targetId }
             ?: pendingList.first()
-        val sessionId = when (pending.id) {
-            MarathonScenario.PROPOSAL_ID -> MarathonScenario.SESSION_ID
-            BusinessScenario.PROPOSAL_ID -> BusinessScenario.SESSION_ID
-            MoveScenario.PROPOSAL_ID -> MoveScenario.SESSION_ID
-            JobOfferScenario.PROPOSAL_ID -> JobOfferScenario.SESSION_ID
-            QuitSmokingScenario.PROPOSAL_ID -> QuitSmokingScenario.SESSION_ID
-            AppUseReductionScenario.PROPOSAL_ID -> AppUseReductionScenario.SESSION_ID
-            EuWorkSpainScenario.PROPOSAL_ID -> EuWorkSpainScenario.SESSION_ID
-            ChessScenario.PROPOSAL_ID -> ChessScenario.SESSION_ID
-            SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
-            AppDurationTask.DURATION_PROPOSAL_ID -> AppDurationTask.DURATION_SESSION_ID
-            LongTermAdjustment.SCHEDULE_CHANGE_PROPOSAL_ID -> SpanishScenario.SESSION_ID
-            PhysicalConstraintChange.PROPOSAL_ID -> MarathonScenario.SESSION_ID
-            else -> "session-${pending.id}"
-        }
+        val sessionId = sessionIdForProposal(pending.id)
         // §17 case 33 — bare approve with two+ pending → clarify, never arbitrary.
         val result = CommandGateway.approveProposal(
             store = store,
@@ -1282,6 +1269,43 @@ class LauncherViewModel(
         )
         voicePathNote = result.message
         refresh()
+    }
+
+    /**
+     * Conversation AMBIGUOUS CHOICE_SET chip — resolves via [AmbiguousChoiceSetCard.select]
+     * (approval by proposal id, or tracker by intention|module|value).
+     */
+    fun onAmbiguousChoice(blockId: String, choiceIndex: Int) {
+        val block = snapshot.turns
+            .flatMap { it.blocks }
+            .firstOrNull { it.blockId == blockId && it.active }
+            ?: return
+        val now = System.currentTimeMillis()
+        val result = AmbiguousChoiceSetCard.select(
+            store = store,
+            block = block,
+            choiceIndex = choiceIndex,
+            nowEpochMs = now,
+            sessionIdForProposal = ::sessionIdForProposal
+        ) ?: return
+        voicePathNote = result.message
+        refresh()
+    }
+
+    private fun sessionIdForProposal(proposalId: String): String = when (proposalId) {
+        MarathonScenario.PROPOSAL_ID -> MarathonScenario.SESSION_ID
+        BusinessScenario.PROPOSAL_ID -> BusinessScenario.SESSION_ID
+        MoveScenario.PROPOSAL_ID -> MoveScenario.SESSION_ID
+        JobOfferScenario.PROPOSAL_ID -> JobOfferScenario.SESSION_ID
+        QuitSmokingScenario.PROPOSAL_ID -> QuitSmokingScenario.SESSION_ID
+        AppUseReductionScenario.PROPOSAL_ID -> AppUseReductionScenario.SESSION_ID
+        EuWorkSpainScenario.PROPOSAL_ID -> EuWorkSpainScenario.SESSION_ID
+        ChessScenario.PROPOSAL_ID -> ChessScenario.SESSION_ID
+        SpanishScenario.PROPOSAL_ID -> SpanishScenario.SESSION_ID
+        AppDurationTask.DURATION_PROPOSAL_ID -> AppDurationTask.DURATION_SESSION_ID
+        LongTermAdjustment.SCHEDULE_CHANGE_PROPOSAL_ID -> SpanishScenario.SESSION_ID
+        PhysicalConstraintChange.PROPOSAL_ID -> MarathonScenario.SESSION_ID
+        else -> "session-$proposalId"
     }
 
     fun declineProposal() {

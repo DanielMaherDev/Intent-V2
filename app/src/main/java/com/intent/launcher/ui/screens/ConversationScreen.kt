@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.ConversationTurn
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
+import com.intent.launcher.engine.AmbiguousChoiceSetCard
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SmallLabel
@@ -74,6 +75,8 @@ fun ConversationScreen(
     onMicClick: () -> Unit = {},
     onSendFreeText: (String) -> Unit = {},
     freeTextBusy: Boolean = false,
+    /** AMBIGUOUS CHOICE_SET chip — [blockId] + choice index from the card. */
+    onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val paperWash = Brush.verticalGradient(
@@ -137,7 +140,11 @@ fun ConversationScreen(
                     if (turn.role == "user") {
                         UserBubble(turn.text)
                     } else {
-                        AgentBubble(turn.text, turn.blocks)
+                        AgentBubble(
+                            text = turn.text,
+                            blocks = turn.blocks,
+                            onAmbiguousChoice = onAmbiguousChoice
+                        )
                     }
                 }
             }
@@ -196,9 +203,15 @@ private fun UserBubble(text: String) {
 }
 
 @Composable
-private fun AgentBubble(text: String, blocks: List<ResponseBlock> = emptyList()) {
+private fun AgentBubble(
+    text: String,
+    blocks: List<ResponseBlock> = emptyList(),
+    onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> }
+) {
     val gap = blocks.firstOrNull { it.type == ResponseBlockType.CAPABILITY_GAP && it.active }
     val question = blocks.firstOrNull { it.type == ResponseBlockType.QUESTION && it.active }
+    val choiceSet = blocks.firstOrNull { it.type == ResponseBlockType.CHOICE_SET && it.active }
+    val choiceModel = choiceSet?.let { AmbiguousChoiceSetCard.fromBlock(it) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -220,6 +233,35 @@ private fun AgentBubble(text: String, blocks: List<ResponseBlock> = emptyList())
             fontWeight = FontWeight.Bold
         )
         when {
+            choiceModel != null -> {
+                // GatewayStatus.AMBIGUOUS — first-class CHOICE_SET card with chips.
+                Spacer(modifier = Modifier.height(6.dp))
+                SmallLabel(text = choiceModel.eyebrow)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = choiceModel.body.ifBlank { text },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    lineHeight = 19.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    choiceModel.choices.forEach { choice ->
+                        ChoiceRow(
+                            text = choice.label,
+                            onClick = { onAmbiguousChoice(choiceModel.blockId, choice.index) }
+                        )
+                    }
+                }
+                if (choiceModel.sourceLabel.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = choiceModel.sourceLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = IntentColors.Muted
+                    )
+                }
+            }
             gap != null -> {
                 Spacer(modifier = Modifier.height(6.dp))
                 SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")

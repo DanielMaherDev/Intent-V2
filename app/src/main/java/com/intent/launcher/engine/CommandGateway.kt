@@ -162,8 +162,14 @@ object CommandGateway {
                 type = ResponseBlockType.CHOICE_SET,
                 title = "Which tracker?",
                 body = ambiguity.message,
-                sourceLabel = "scope_clarification",
-                linkedObjectIds = ambiguity.candidates.map { it.intentionId },
+                sourceLabel = AmbiguousChoiceSetCard.SOURCE_SCOPE,
+                linkedObjectIds = ambiguity.candidates.map {
+                    AmbiguousChoiceSetCard.encodeTrackerLink(
+                        intentionId = it.intentionId,
+                        moduleId = it.moduleId,
+                        valueText = valueText
+                    )
+                },
                 actions = ambiguity.candidates.map { "${it.intentionTitle} · ${it.moduleTitle}" },
                 active = true
             )
@@ -267,13 +273,16 @@ object CommandGateway {
                     message = outcome.message
                 )
             is ApprovalAmbiguityResolver.Outcome.Ambiguous -> {
-                val intentionId = outcome.candidates.first().intentionId
+                // Prefer active intention so Conversation shows the AMBIGUOUS card.
+                val intentionId = snap.activeIntentionId
+                    ?.takeIf { id -> outcome.candidates.any { it.intentionId == id } }
+                    ?: outcome.candidates.first().intentionId
                 val block = ResponseBlock(
                     blockId = "block-approve-ambiguous-$commandId",
                     type = ResponseBlockType.CHOICE_SET,
                     title = "Which proposal?",
                     body = outcome.message,
-                    sourceLabel = "approval_clarification",
+                    sourceLabel = AmbiguousChoiceSetCard.SOURCE_APPROVAL,
                     linkedObjectIds = outcome.candidates.map { it.proposalId },
                     actions = outcome.candidates.map { it.title },
                     active = true
