@@ -1,11 +1,15 @@
 package com.intent.launcher
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -21,6 +25,7 @@ import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.floating.FloatingAgentService
+import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
 import com.intent.launcher.ui.screens.ConversationScreen
 import com.intent.launcher.ui.screens.HomeScreen
@@ -32,6 +37,47 @@ class MainActivity : ComponentActivity() {
     private val vm: LauncherViewModel by viewModels()
 
     private var openConversationRequest by mutableIntStateOf(0)
+
+    private val requestMicPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        vm.refresh()
+        if (granted && vm.canStartVoiceCapture()) {
+            launchSpeechRecognition()
+        } else {
+            vm.onMicDenied()
+        }
+    }
+
+    private val speechRecognition = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            vm.onVoiceUnavailable(
+                "Speech capture cancelled — use chips for the same Conversation path."
+            )
+            return@registerForActivityResult
+        }
+        val matches = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            .orEmpty()
+        val best = matches.firstOrNull().orEmpty()
+        if (best.isBlank()) {
+            vm.onVoiceUnavailable("No speech recognized — try again or tap a chip.")
+        } else {
+            vm.onVoiceTranscript(best)
+            val after = vm.snapshot
+            val activeId = vm.activeIntention()?.id
+            if (after.proposals.any {
+                    it.status == ProposalStatus.PENDING && it.intentionId == activeId
+                }
+            ) {
+                pendingOpenProposalAfterVoice++
+            }
+        }
+    }
+
+    private var pendingOpenProposalAfterVoice by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +109,11 @@ class MainActivity : ComponentActivity() {
                                     launchSingleTop = true
                                 }
                             }
+                        }
+                    }
+                    LaunchedEffect(pendingOpenProposalAfterVoice) {
+                        if (pendingOpenProposalAfterVoice > 0) {
+                            nav.navigate("proposal")
                         }
                     }
 
@@ -173,6 +224,9 @@ class MainActivity : ComponentActivity() {
                                 hasPendingProposal = pending != null,
                                 conversationEyebrow = convProjection.conversationEyebrow,
                                 conversationHeadline = convProjection.conversationHeadline,
+                                voiceNote = vm.voicePathNote ?: vm.voiceObservation.note,
+                                voiceEnabled = vm.canStartVoiceCapture(),
+                                onMicClick = { onConversationMicClick() },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -224,6 +278,34 @@ class MainActivity : ComponentActivity() {
     private fun consumeCompanionIntent(intent: Intent?) {
         if (intent?.action == FloatingAgentService.ACTION_OPEN_CONVERSATION) {
             openConversationRequest++
+        }
+    }
+
+    private fun onConversationMicClick() {
+        vm.refresh()
+        when {
+            vm.canStartVoiceCapture() -> launchSpeechRecognition()
+            vm.voiceNeedsPermission() ->
+                requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+            else -> vm.onVoiceUnavailable(
+                vm.voiceObservation.note.ifBlank {
+                    "Voice isn’t available — use chips for the same Conversation path."
+                }
+            )
+        }
+    }
+
+    private fun launchSpeechRecognition() {
+        try {
+            speechRecognition.launch(
+                AndroidSpeechToTextAccess.listenIntent(
+                    prompt = "Speak a conversation choice"
+                )
+            )
+        } catch (_: Exception) {
+            vm.onVoiceUnavailable(
+                "Could not start speech recognition — use chips instead."
+            )
         }
     }
 }

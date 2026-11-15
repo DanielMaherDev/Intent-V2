@@ -93,6 +93,10 @@ class CapabilityRegistry(
     fun canUseFloatingOverlay(): Boolean =
         isActionable(ID_FLOATING_OVERLAY)
 
+    /** Mic + platform STT available for voice turns (same ConversationCoordinator as chips). */
+    fun canUseVoiceInput(): Boolean =
+        isActionable(ID_VOICE_INPUT)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -109,6 +113,7 @@ class CapabilityRegistry(
         const val ID_USAGE_STATS = "usage_stats"
         const val ID_EXTERNAL_CALENDAR = "external_calendar_sync"
         const val ID_FLOATING_OVERLAY = "floating_overlay"
+        const val ID_VOICE_INPUT = "voice_input"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -203,6 +208,13 @@ class CapabilityRegistry(
                 status = CapabilityStatus.PERMISSION_NEEDED,
                 limitNote = "Requires overlay permission for the floating companion. " +
                     "Use Home’s Agent tab or Discuss without it."
+            ),
+            CapabilityEntry(
+                id = ID_VOICE_INPUT,
+                title = "Voice conversation input",
+                status = CapabilityStatus.PERMISSION_NEEDED,
+                limitNote = "Requires microphone permission and platform speech recognition. " +
+                    "Use conversation chips without it — same command path, no live LLM."
             )
         )
 

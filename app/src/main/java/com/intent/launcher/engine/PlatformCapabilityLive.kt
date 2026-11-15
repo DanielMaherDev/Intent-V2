@@ -6,9 +6,16 @@ import com.intent.launcher.capability.CapabilityRegistry
 object PlatformCapabilityLive {
     fun registry(
         usage: UsageStatsAccess,
-        overlay: OverlayPermissionAccess
+        overlay: OverlayPermissionAccess,
+        voicePermission: VoicePermissionAccess = FakeVoicePermissionAccess(granted = false),
+        speech: SpeechToTextAccess = FakeSpeechToTextAccess(available = false)
     ): CapabilityRegistry {
         val withUsage = UsageStatsProbe.liveRegistry(usage)
-        return OverlayPermissionProbe.liveRegistry(overlay, base = withUsage.all())
+        val withOverlay = OverlayPermissionProbe.liveRegistry(overlay, base = withUsage.all())
+        return VoiceInputProbe.liveRegistry(
+            permission = voicePermission,
+            speech = speech,
+            base = withOverlay.all()
+        )
     }
 }
