@@ -1,5 +1,6 @@
 package com.intent.launcher.capability
 
+import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.QuitSmokingScenario
@@ -168,6 +169,21 @@ class CapabilityRegistryTest {
         assertFalse(labels.any { it.contains("smoke-free streak", ignoreCase = true) })
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_CESSATION))
         assertTrue(registry.canUseTrackerModules())
+    }
+
+    @Test
+    fun filterChips_dropsDishonestShortsIdentitySuggestion() {
+        val mixed = AppUseReductionScenario.suggestedChips +
+            AppUseReductionScenario.dishonestShortsIdentityChip
+        val labels = registry.filterChips(mixed)
+        assertTrue(labels.any { it.contains("45") })
+        assertTrue(labels.any { it.contains("proxy", ignoreCase = true) })
+        assertFalse(labels.any { it.contains("Auto-detect", ignoreCase = true) })
+        assertFalse(labels.any { it.contains("Shorts minutes", ignoreCase = true) })
+        assertEquals(
+            AppUseReductionScenario.conversationChips(registry),
+            registry.filterChips(AppUseReductionScenario.suggestedChips)
+        )
     }
 
     @Test

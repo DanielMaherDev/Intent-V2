@@ -75,6 +75,14 @@ class ShapeProjectionTest {
         assertTrue(cessation.emptyNote!!.contains("No quit date"))
         assertEquals("Baseline and support still open", cessation.homeSpaceSubtitle)
         assertEquals("A conversation about quitting smoking", cessation.conversationEyebrow)
+        AppUseReductionScenario.seed(store, now + 5)
+        val appUse = ShapeProjection.project(
+            store.snapshot().intentions.first { it.id == AppUseReductionScenario.INTENTION_ID }
+        )
+        assertEquals("How will you hold the cap?", appUse.hero.heroTitle)
+        assertTrue(appUse.emptyNote!!.contains("Shorts", ignoreCase = true))
+        assertEquals("Usage target still taking shape", appUse.homeSpaceSubtitle)
+        assertEquals("A conversation about your usage target", appUse.conversationEyebrow)
     }
 
     @Test
@@ -103,6 +111,29 @@ class ShapeProjectionTest {
         assertEquals("Comparing — no choice made yet", decision.homeSpaceSubtitle)
         assertEquals("A conversation about your offer", decision.conversationEyebrow)
         assertTrue(decision.conversationHeadline.contains("will not choose", ignoreCase = true))
+    }
+
+    @Test
+    fun activeAppUse_showsUsageApproachAndShortsHonesty() {
+        AppUseReductionScenario.seed(store, now)
+        AppUseReductionScenario.onChip(store, "I want under 45 minutes a day", now + 1)
+        AppUseReductionScenario.approve(store, now + 2)
+        val intention = store.snapshot().intentions.first {
+            it.id == AppUseReductionScenario.INTENTION_ID
+        }
+        val sessions = store.snapshot().sessions.filter { it.intentionId == intention.id }
+        val projection = ShapeProjection.project(
+            intention = intention,
+            sessions = sessions,
+            destination = SessionDestinations.forIntention(intention)
+        )
+        assertEquals("Your usage approach", projection.approachSectionTitle)
+        assertTrue(projection.approachSteps.first().title.contains("usage", ignoreCase = true))
+        assertNotNull(projection.resourceLine)
+        assertTrue(projection.resourceLine!!.contains("Shorts", ignoreCase = true) ||
+            projection.resourceLine!!.contains("package", ignoreCase = true))
+        assertEquals("Daily usage target in motion", projection.homeSpaceSubtitle)
+        assertEquals("Prepare your next usage review", projection.hero.heroTitle)
     }
 
     @Test
@@ -216,6 +247,20 @@ class ShapeProjectionTest {
         )
         assertTrue(decision.defaultFacts.any { it.contains("job offer", ignoreCase = true) })
         assertTrue(decision.defaultFacts.any { it.contains("does not choose", ignoreCase = true) })
+
+        val appUseFacts = ShapeProjection.project(
+            Intention(
+                id = "z-app",
+                title = "T",
+                statement = "S",
+                phase = IntentionPhase.EXPLORING,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+                shapeTag = "app_use"
+            )
+        )
+        assertTrue(appUseFacts.defaultFacts.any { it.contains("45") })
+        assertTrue(appUseFacts.defaultFacts.any { it.contains("Shorts", ignoreCase = true) })
     }
 
     @Test

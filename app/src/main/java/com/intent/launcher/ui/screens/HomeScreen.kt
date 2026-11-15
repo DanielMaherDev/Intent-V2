@@ -126,6 +126,7 @@ fun HomeScreen(
     onExploreMove: (() -> Unit)? = null,
     onExploreJobOffer: (() -> Unit)? = null,
     onExploreQuitSmoking: (() -> Unit)? = null,
+    onExploreAppUse: (() -> Unit)? = null,
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
@@ -328,6 +329,15 @@ fun HomeScreen(
                     title = "Explore quitting smoking",
                     subtitle = "CASE-05 — baseline + honest self-report",
                     onClick = onExploreQuitSmoking,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onExploreAppUse != null) {
+                LineRow(
+                    title = "Cut Instagram & Shorts time",
+                    subtitle = "CASE-06 — 45-min target; package ≠ Shorts identity",
+                    onClick = onExploreAppUse,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
                 )

@@ -6,15 +6,20 @@ import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.ProvenanceKind
+import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionElapsed
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
  * OBSERVED provenance from UsageStats package foreground.
  * Distinct from SAID / INFERRED. Never treats observation as lesson completion
- * or auto-completes a session run.
+ * or auto-completes a session run. CASE-06: package time ≠ Shorts/Reels identity.
  */
 object ObservedProvenance {
+
+    /** Shared honesty for Instagram / YouTube observations. */
+    const val SHORTS_LIMITATION =
+        "Package foreground ≠ Shorts, Reels, or other video identity."
 
     fun formatMinutes(foregroundMs: Long): Long =
         (foregroundMs.coerceAtLeast(0L) / 60_000L)
@@ -25,12 +30,28 @@ object ObservedProvenance {
         return "Observed $minutes min in $appLabel"
     }
 
-    fun checkoutNote(evidence: Evidence): String =
-        "${evidence.summaryText}. Package foreground is not lesson completion — " +
+    fun checkoutNote(evidence: Evidence): String {
+        val base = "${evidence.summaryText}. Package foreground is not lesson completion — " +
             "you marked Complete yourself."
+        return if (SessionDestinations.isAppUsePackage(evidence.packageName)) {
+            "$base $SHORTS_LIMITATION"
+        } else {
+            base
+        }
+    }
 
-    fun sessionCardNote(evidence: Evidence): String =
-        "${evidence.summaryText} (OBSERVED · package-level). Not lesson completion."
+    fun sessionCardNote(evidence: Evidence): String {
+        val base = "${evidence.summaryText} (OBSERVED · package-level). Not lesson completion."
+        return if (SessionDestinations.isAppUsePackage(evidence.packageName)) {
+            "$base $SHORTS_LIMITATION"
+        } else {
+            base
+        }
+    }
+
+    /** True when observed minutes meet or exceed a daily target (honest package proxy only). */
+    fun meetsOrExceedsTargetMinutes(foregroundMs: Long, targetMinutes: Int): Boolean =
+        formatMinutes(foregroundMs) >= targetMinutes.toLong()
 
     /**
      * Build a record command when UsageStats is granted and foreground was measured.

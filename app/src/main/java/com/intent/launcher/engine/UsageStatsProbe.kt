@@ -4,6 +4,7 @@ import com.intent.launcher.capability.CapabilityEntry
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.capability.CapabilityStatus
 import com.intent.launcher.domain.DestinationApp
+import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionElapsed
 
 /**
@@ -35,25 +36,27 @@ object UsageStatsProbe {
                 CapabilityRegistry.ID_USAGE_STATS -> if (granted) {
                     entry.copy(
                         status = CapabilityStatus.AVAILABLE,
-                        limitNote = "Package-level foreground time only — not lesson or video identity. " +
-                            "App use is not lesson completion."
+                        limitNote = "Package-level foreground time only — not lesson or video identity " +
+                            "(Shorts/Reels not identifiable). App use is not lesson completion."
                     )
                 } else {
                     entry.copy(
                         status = CapabilityStatus.PERMISSION_NEEDED,
-                        limitNote = "Needs UsageStats access; package-level use only — not lesson or video identity."
+                        limitNote = "Needs UsageStats access; package-level use only — not lesson or video identity " +
+                            "(Shorts/Reels not identifiable)."
                     )
                 }
                 CapabilityRegistry.ID_OBSERVE_APP_USAGE -> if (granted) {
                     entry.copy(
                         status = CapabilityStatus.AVAILABLE,
                         limitNote = "Can store OBSERVED package foreground evidence. " +
-                            "Never auto-completes a session or claims lesson completion."
+                            "Never auto-completes a session or claims lesson/Shorts/Reels identity."
                     )
                 } else {
                     entry.copy(
                         status = CapabilityStatus.PERMISSION_NEEDED,
-                        limitNote = "Needs UsageStats; stores OBSERVED package foreground only — not lesson completion."
+                        limitNote = "Needs UsageStats; stores OBSERVED package foreground only — " +
+                            "not lesson completion or Shorts/Reels identity."
                     )
                 }
                 else -> entry
@@ -85,7 +88,13 @@ object UsageStatsProbe {
                 canOpenSettings = !access.hasPermission()
             )
         }
+        val appUse = SessionDestinations.isAppUsePackage(destination.packageName)
         if (!access.hasPermission()) {
+            val deniedExtra = if (appUse) {
+                "not Shorts/Reels identity or auto-Complete."
+            } else {
+                "not lesson completion."
+            }
             return Observation(
                 permissionGranted = false,
                 packageName = destination.packageName,
@@ -93,7 +102,7 @@ object UsageStatsProbe {
                 foregroundMs = null,
                 note = "Usage access not granted. INTENT can still Complete from your report — " +
                     "granting UsageStats only shows package-level time in ${destination.label}, " +
-                    "not lesson completion.",
+                    deniedExtra,
                 canOpenSettings = true
             )
         }
@@ -107,13 +116,19 @@ object UsageStatsProbe {
         } else {
             "—"
         }
+        val grantedNote = if (appUse) {
+            "${destination.label} foreground ~$formatted (package-level). " +
+                "Not Shorts/Reels identity — mark Complete yourself when finished."
+        } else {
+            "${destination.label} foreground ~$formatted (package-level). " +
+                "App foreground time is not lesson completion — mark Complete yourself when finished."
+        }
         return Observation(
             permissionGranted = true,
             packageName = destination.packageName,
             appLabel = destination.label,
             foregroundMs = ms,
-            note = "${destination.label} foreground ~$formatted (package-level). " +
-                "App foreground time is not lesson completion — mark Complete yourself when finished.",
+            note = grantedNote,
             canOpenSettings = false
         )
     }
