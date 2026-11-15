@@ -114,6 +114,92 @@ val DarkIntentColors = IntentColorTokens(
     UserBubble = Color(0xFF2A261F)
 )
 
+/**
+ * High-contrast light — near-white paper / near-black ink / hard lines.
+ * Same semantic roles as [LightIntentColors]; elevated contrast only.
+ */
+val HighContrastLightIntentColors = IntentColorTokens(
+    Paper = Color(0xFFFFFFFF),
+    Card = Color(0xFFFFFFFF),
+    Ink = Color(0xFF000000),
+    Muted = Color(0xFF2A2A2A),
+    Line = Color(0xFF000000),
+    Accent = Color(0xFF1E2278),
+    AccentDark = Color(0xFF12154A),
+    AccentSoft = Color(0xFFD8DAF8),
+    Success = Color(0xFF0F4F42),
+    SuccessSoft = Color(0xFFC8E8DE),
+    Warm = Color(0xFF7A3A0A),
+    WarmSoft = Color(0xFFF0DCC4),
+    NavBar = Color(0xFFF5F5F5),
+    Pill = Color(0xFFE8E8E8),
+    PillText = Color(0xFF000000),
+    EmptyBorder = Color(0xFF000000),
+    ComposerHint = Color(0xFF3A3A3A),
+    Lede = Color(0xFF1A1A1A),
+    Section = Color(0xFF1A1A1A),
+    FactText = Color(0xFF1A1A1A),
+    NavIdle = Color(0xFF2A2A2A),
+    Arrow = Color(0xFF000000),
+    GridCell = Color(0xFFF0F0F0),
+    CalloutText = Color(0xFF12154A),
+    ComposerBorder = Color(0xFF000000),
+    EmptyFill = Color(0xFFFFFFFF),
+    UserBubble = Color(0xFFEFEFEF)
+)
+
+/**
+ * High-contrast dark — pure black paper / pure white ink / hard lines.
+ * Same semantic roles as [DarkIntentColors]; elevated contrast only.
+ */
+val HighContrastDarkIntentColors = IntentColorTokens(
+    Paper = Color(0xFF000000),
+    Card = Color(0xFF000000),
+    Ink = Color(0xFFFFFFFF),
+    Muted = Color(0xFFD0D0D0),
+    Line = Color(0xFFFFFFFF),
+    Accent = Color(0xFFB8BCFF),
+    AccentDark = Color(0xFFE0E2FF),
+    AccentSoft = Color(0xFF1A1C4A),
+    Success = Color(0xFF7AD4BC),
+    SuccessSoft = Color(0xFF0A2A22),
+    Warm = Color(0xFFFFB060),
+    WarmSoft = Color(0xFF2A1808),
+    NavBar = Color(0xFF000000),
+    Pill = Color(0xFF1A1A1A),
+    PillText = Color(0xFFFFFFFF),
+    EmptyBorder = Color(0xFFFFFFFF),
+    ComposerHint = Color(0xFFC8C8C8),
+    Lede = Color(0xFFE8E8E8),
+    Section = Color(0xFFE0E0E0),
+    FactText = Color(0xFFE8E8E8),
+    NavIdle = Color(0xFFD0D0D0),
+    Arrow = Color(0xFFFFFFFF),
+    GridCell = Color(0xFF0A0A0A),
+    CalloutText = Color(0xFFE0E2FF),
+    ComposerBorder = Color(0xFFFFFFFF),
+    EmptyFill = Color(0xFF000000),
+    UserBubble = Color(0xFF1A1A1A)
+)
+
+/**
+ * Pure token selection for [IntentTheme] + JVM tests.
+ * [ThemePreference.HIGH_CONTRAST] picks HC light/dark from [systemDark];
+ * other prefs keep the standard light/dark palettes.
+ */
+fun resolveIntentColorTokens(
+    preference: ThemePreference,
+    systemDark: Boolean
+): IntentColorTokens {
+    val dark = preference.resolvesToDark(systemDark)
+    return when {
+        preference.usesHighContrastTokens() && dark -> HighContrastDarkIntentColors
+        preference.usesHighContrastTokens() -> HighContrastLightIntentColors
+        dark -> DarkIntentColors
+        else -> LightIntentColors
+    }
+}
+
 val LocalIntentColors = staticCompositionLocalOf { LightIntentColors }
 
 /**
@@ -318,10 +404,11 @@ private val IntentTypography = Typography(
 @Composable
 fun IntentTheme(
     themePreference: ThemePreference = ThemePreference.SYSTEM,
-    darkTheme: Boolean = themePreference.resolvesToDark(isSystemInDarkTheme()),
+    systemDark: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = themePreference.resolvesToDark(systemDark),
     content: @Composable () -> Unit
 ) {
-    val tokens = if (darkTheme) DarkIntentColors else LightIntentColors
+    val tokens = resolveIntentColorTokens(themePreference, systemDark)
     val scheme = if (darkTheme) intentDarkScheme(tokens) else intentLightScheme(tokens)
     CompositionLocalProvider(LocalIntentColors provides tokens) {
         MaterialTheme(
