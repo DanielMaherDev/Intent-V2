@@ -84,6 +84,9 @@ fun HomeScreen(
     thoughtCaptureNote: String? = null,
     onExploreMarathon: (() -> Unit)? = null,
     onExploreBusiness: (() -> Unit)? = null,
+    undoLabel: String? = null,
+    onUndo: (() -> Unit)? = null,
+    undoTrashNote: String? = null,
     modifier: Modifier = Modifier
 ) {
     val dateLabel = SimpleDateFormat("EEEE · d MMMM", Locale.getDefault())
@@ -325,6 +328,19 @@ fun HomeScreen(
                     onClick = onExploreBusiness,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
+                )
+            }
+
+            if (onUndo != null && undoLabel != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                IntentQuietButton(text = undoLabel, onClick = onUndo)
+            }
+            if (undoTrashNote != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = undoTrashNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Warm
                 )
             }
         }

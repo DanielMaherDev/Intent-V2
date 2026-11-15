@@ -8,6 +8,7 @@ import com.intent.launcher.IntentApp
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.BusinessScenario
 import com.intent.launcher.domain.FlowCommand
+import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.NextAction
@@ -16,7 +17,9 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.CaptureThought
+import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.FloatingAgentState
@@ -112,11 +115,23 @@ class LauncherViewModel(
     var thoughtCaptureNote by mutableStateOf<String?>(null)
         private set
 
+    /** Undo / trash honesty (irreversible external, expired trash, capability lock). */
+    var undoTrashNote by mutableStateOf<String?>(null)
+        private set
+
     init {
         usageObservation = observeUsageIfActive()
         notificationObservation = observeNotificationsIfActive()
         floatingPresence = resolveFloatingPresence()
     }
+
+    fun lastUndoableTransaction(): FlowTransaction? =
+        CommandReversibility.lastUndoable(snapshot.transactions)
+
+    fun recoverableTrash(nowEpochMs: Long = System.currentTimeMillis()): List<TrashEntry> =
+        snapshot.trash.filter { entry ->
+            entry.expiresAtEpochMs == null || entry.expiresAtEpochMs >= nowEpochMs
+        }
 
     fun refresh() {
         capabilityRegistry =
@@ -414,7 +429,121 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         destinationLaunchNote = result.note
+        if (result.opened) {
+            val reason = capabilityRegistry.get(CapabilityRegistry.ID_EXTERNAL_ACTION_UNDO)
+                ?.limitNote
+                ?: "Opening another app cannot be undone by INTENT."
+            store.apply(
+                FlowCommand.RecordExternalAction(
+                    transactionId = "ext-launch-${System.currentTimeMillis()}",
+                    summary = "Opened ${destination?.label ?: "destination app"}",
+                    irreversibleReason = reason,
+                    nowEpochMs = System.currentTimeMillis()
+                )
+            )
+            undoTrashNote = reason
+            refresh()
+        }
         return result
+    }
+
+    /** Undo last reversible FlowCommand via transaction history. */
+    fun undoLast(): Boolean {
+        if (!capabilityRegistry.canUndoLast()) {
+            undoTrashNote = capabilityRegistry.get(CapabilityRegistry.ID_UNDO_LAST)?.limitNote
+                ?: "Undo is unavailable."
+            return false
+        }
+        val target = lastUndoableTransaction()
+        if (target == null) {
+            val last = snapshot.transactions.lastOrNull()
+            undoTrashNote = last?.irreversibleReason
+                ?: "Nothing to undo."
+            return false
+        }
+        store.apply(
+            FlowCommand.UndoLastReversible(
+                transactionId = "undo-${System.currentTimeMillis()}",
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        undoTrashNote = "Undid: ${target.summary}"
+        refresh()
+        return true
+    }
+
+    fun softDeleteActiveIntention(): Boolean {
+        if (!capabilityRegistry.canSoftDelete()) {
+            undoTrashNote = capabilityRegistry.get(CapabilityRegistry.ID_TRASH_SOFT_DELETE)?.limitNote
+            return false
+        }
+        val intention = activeIntention() ?: return false
+        val now = System.currentTimeMillis()
+        store.apply(
+            FlowCommand.SoftDeleteIntention(
+                trashId = "trash-intention-${intention.id}-$now",
+                intentionId = intention.id,
+                nowEpochMs = now,
+                expiresAtEpochMs = null
+            )
+        )
+        undoTrashNote = "Moved “${intention.title}” to trash — restore anytime, or purge to delete permanently."
+        refresh()
+        return true
+    }
+
+    fun softDeleteSession(sessionId: String): Boolean {
+        if (!capabilityRegistry.canSoftDelete()) {
+            undoTrashNote = capabilityRegistry.get(CapabilityRegistry.ID_TRASH_SOFT_DELETE)?.limitNote
+            return false
+        }
+        val now = System.currentTimeMillis()
+        store.apply(
+            FlowCommand.SoftDeleteSession(
+                trashId = "trash-session-$sessionId-$now",
+                sessionId = sessionId,
+                nowEpochMs = now,
+                expiresAtEpochMs = null
+            )
+        )
+        undoTrashNote = "Moved session to trash — restore anytime until purge."
+        refresh()
+        return true
+    }
+
+    fun restoreTrashItem(trashId: String): Boolean {
+        if (!capabilityRegistry.canRestoreTrash()) {
+            undoTrashNote = capabilityRegistry.get(CapabilityRegistry.ID_TRASH_RESTORE)?.limitNote
+            return false
+        }
+        val entry = snapshot.trash.firstOrNull { it.id == trashId } ?: return false
+        val now = System.currentTimeMillis()
+        if (entry.expiresAtEpochMs != null && entry.expiresAtEpochMs < now) {
+            undoTrashNote = "Trash item expired — purge only."
+            return false
+        }
+        store.apply(
+            FlowCommand.RestoreTrashItem(
+                trashId = trashId,
+                nowEpochMs = now
+            )
+        )
+        undoTrashNote = "Restored “${entry.title}” from trash."
+        refresh()
+        return true
+    }
+
+    fun purgeTrashItem(trashId: String): Boolean {
+        val entry = snapshot.trash.firstOrNull { it.id == trashId } ?: return false
+        store.apply(
+            FlowCommand.PurgeTrashItem(
+                trashId = trashId,
+                nowEpochMs = System.currentTimeMillis()
+            )
+        )
+        undoTrashNote = "Permanently deleted “${entry.title}” — cannot undo."
+        refresh()
+        return true
     }
 
     fun clearDestinationLaunchNote() {

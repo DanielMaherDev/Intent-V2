@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.ConversationTurn
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.FlowCommand
+import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
@@ -19,12 +20,16 @@ import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.ThoughtCapture
 import com.intent.launcher.domain.ThoughtCaptureStatus
+import com.intent.launcher.domain.TrashEntry
+import com.intent.launcher.domain.TrashKind
+import com.intent.launcher.engine.CommandReversibility
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Single command path into the persistent intention model.
  * Agents propose FlowCommands; they never rewrite the file directly.
+ * Reversible commitments append to the transaction log for undo (Rule 3 / §9).
  */
 class IntentionFlowStore(
     private val file: File
@@ -44,7 +49,14 @@ class IntentionFlowStore(
 
     @Synchronized
     fun apply(command: FlowCommand): IntentionSnapshot {
-        val next = reduce(state.get(), command)
+        val current = migrate(state.get())
+        val next = when (command) {
+            is FlowCommand.UndoLastReversible -> undoLast(current, command)
+            else -> {
+                val reduced = reduce(current, command)
+                appendHistory(current, reduced, command)
+            }
+        }
         state.set(next)
         persist(next)
         return next
@@ -187,7 +199,6 @@ class IntentionFlowStore(
 
             is FlowCommand.DeferNextSession -> {
                 val session = migrated.sessions.firstOrNull { it.id == command.sessionId }
-                // Do not defer while a run for this session is already in progress.
                 val inProgress = migrated.sessionRuns.any {
                     it.sessionId == command.sessionId && it.status == SessionRunStatus.IN_PROGRESS
                 }
@@ -223,7 +234,6 @@ class IntentionFlowStore(
                 )
                 migrated.copy(
                     sessionRuns = migrated.sessionRuns.filterNot { it.id == run.id } + run,
-                    // Starting clears a pending deferral for this session.
                     sessions = migrated.sessions.map {
                         if (it.id == session.id) it.copy(deferredUntilEpochMs = null) else it
                     },
@@ -285,7 +295,263 @@ class IntentionFlowStore(
                     intentions = intentions
                 )
             }
+
+            is FlowCommand.SoftDeleteIntention -> softDeleteIntention(migrated, command)
+            is FlowCommand.SoftDeleteSession -> softDeleteSession(migrated, command)
+            is FlowCommand.RestoreTrashItem -> restoreTrash(migrated, command)
+            is FlowCommand.PurgeTrashItem -> {
+                if (migrated.trash.none { it.id == command.trashId }) return migrated
+                migrated.copy(trash = migrated.trash.filterNot { it.id == command.trashId })
+            }
+
+            is FlowCommand.RecordExternalAction -> migrated
+
+            is FlowCommand.UndoLastReversible -> migrated
         }
+    }
+
+    private fun softDeleteIntention(
+        migrated: IntentionSnapshot,
+        command: FlowCommand.SoftDeleteIntention
+    ): IntentionSnapshot {
+        val intention = migrated.intentions.firstOrNull { it.id == command.intentionId }
+            ?: return migrated
+        val payload = IntentionTrashPayload(
+            intention = WireIntention.from(intention),
+            facts = migrated.facts.filter { it.intentionId == intention.id }.map(WireFact::from),
+            hypotheses = migrated.hypotheses.filter { it.intentionId == intention.id }
+                .map(WireHypothesis::from),
+            proposals = migrated.proposals.filter { it.intentionId == intention.id }
+                .map(WireProposal::from),
+            sessions = migrated.sessions.filter { it.intentionId == intention.id }
+                .map(WireSession::from),
+            sessionRuns = migrated.sessionRuns.filter { it.intentionId == intention.id }
+                .map(WireSessionRun::from),
+            turns = migrated.turns.filter { it.intentionId == intention.id }.map(WireTurn::from),
+            thoughtCaptures = migrated.thoughtCaptures.filter { it.intentionId == intention.id }
+                .map(WireThoughtCapture::from)
+        )
+        val entry = TrashEntry(
+            id = command.trashId,
+            kind = TrashKind.INTENTION,
+            entityId = intention.id,
+            title = intention.title,
+            deletedAtEpochMs = command.nowEpochMs,
+            expiresAtEpochMs = command.expiresAtEpochMs,
+            parentIntentionId = null,
+            pathLabel = intention.title,
+            payloadJson = gson.toJson(payload)
+        )
+        return migrated.copy(
+            intentions = migrated.intentions.filterNot { it.id == intention.id },
+            facts = migrated.facts.filterNot { it.intentionId == intention.id },
+            hypotheses = migrated.hypotheses.filterNot { it.intentionId == intention.id },
+            proposals = migrated.proposals.filterNot { it.intentionId == intention.id },
+            sessions = migrated.sessions.filterNot { it.intentionId == intention.id },
+            sessionRuns = migrated.sessionRuns.filterNot { it.intentionId == intention.id },
+            turns = migrated.turns.filterNot { it.intentionId == intention.id },
+            thoughtCaptures = migrated.thoughtCaptures.filterNot { it.intentionId == intention.id },
+            activeIntentionId = if (migrated.activeIntentionId == intention.id) {
+                migrated.intentions.firstOrNull { it.id != intention.id }?.id
+            } else {
+                migrated.activeIntentionId
+            },
+            trash = migrated.trash.filterNot { it.id == entry.id } + entry
+        )
+    }
+
+    private fun softDeleteSession(
+        migrated: IntentionSnapshot,
+        command: FlowCommand.SoftDeleteSession
+    ): IntentionSnapshot {
+        val session = migrated.sessions.firstOrNull { it.id == command.sessionId }
+            ?: return migrated
+        val parent = migrated.intentions.firstOrNull { it.id == session.intentionId }
+        val runs = migrated.sessionRuns.filter { it.sessionId == session.id }
+        val payload = SessionTrashPayload(
+            session = WireSession.from(session),
+            sessionRuns = runs.map(WireSessionRun::from)
+        )
+        val entry = TrashEntry(
+            id = command.trashId,
+            kind = TrashKind.SESSION,
+            entityId = session.id,
+            title = session.title,
+            deletedAtEpochMs = command.nowEpochMs,
+            expiresAtEpochMs = command.expiresAtEpochMs,
+            parentIntentionId = session.intentionId,
+            pathLabel = listOfNotNull(parent?.title, session.title).joinToString(" / "),
+            payloadJson = gson.toJson(payload)
+        )
+        return migrated.copy(
+            sessions = migrated.sessions.filterNot { it.id == session.id },
+            sessionRuns = migrated.sessionRuns.filterNot { it.sessionId == session.id },
+            intentions = touch(migrated.intentions, session.intentionId, command.nowEpochMs),
+            trash = migrated.trash.filterNot { it.id == entry.id } + entry
+        )
+    }
+
+    private fun restoreTrash(
+        migrated: IntentionSnapshot,
+        command: FlowCommand.RestoreTrashItem
+    ): IntentionSnapshot {
+        val entry = migrated.trash.firstOrNull { it.id == command.trashId } ?: return migrated
+        if (entry.expiresAtEpochMs != null && entry.expiresAtEpochMs < command.nowEpochMs) {
+            return migrated
+        }
+        return when (entry.kind) {
+            TrashKind.INTENTION -> {
+                val payload = gson.fromJson(entry.payloadJson, IntentionTrashPayload::class.java)
+                    ?: return migrated
+                val intention = payload.intention.toDomain()
+                migrated.copy(
+                    intentions = migrated.intentions.filterNot { it.id == intention.id } +
+                        intention.copy(updatedAtEpochMs = command.nowEpochMs),
+                    facts = mergeById(migrated.facts, payload.facts.map { it.toDomain() }) { it.id },
+                    hypotheses = mergeById(
+                        migrated.hypotheses,
+                        payload.hypotheses.map { it.toDomain() }
+                    ) { it.id },
+                    proposals = mergeById(
+                        migrated.proposals,
+                        payload.proposals.map { it.toDomain() }
+                    ) { it.id },
+                    sessions = mergeById(
+                        migrated.sessions,
+                        payload.sessions.map { it.toDomain() }
+                    ) { it.id },
+                    sessionRuns = mergeById(
+                        migrated.sessionRuns,
+                        payload.sessionRuns.map { it.toDomain() }
+                    ) { it.id },
+                    turns = migrated.turns + payload.turns.map { it.toDomain() }.filter { restored ->
+                        migrated.turns.none { it.id == restored.id }
+                    },
+                    thoughtCaptures = mergeById(
+                        migrated.thoughtCaptures,
+                        payload.thoughtCaptures.map { it.toDomain() }
+                    ) { it.id },
+                    activeIntentionId = migrated.activeIntentionId ?: intention.id,
+                    trash = migrated.trash.filterNot { it.id == entry.id }
+                )
+            }
+            TrashKind.SESSION -> {
+                val payload = gson.fromJson(entry.payloadJson, SessionTrashPayload::class.java)
+                    ?: return migrated
+                val session = payload.session.toDomain()
+                migrated.copy(
+                    sessions = migrated.sessions.filterNot { it.id == session.id } + session,
+                    sessionRuns = mergeById(
+                        migrated.sessionRuns,
+                        payload.sessionRuns.map { it.toDomain() }
+                    ) { it.id },
+                    intentions = touch(migrated.intentions, session.intentionId, command.nowEpochMs),
+                    trash = migrated.trash.filterNot { it.id == entry.id }
+                )
+            }
+        }
+    }
+
+    private fun <T> mergeById(existing: List<T>, incoming: List<T>, idOf: (T) -> String): List<T> {
+        val ids = incoming.map(idOf).toSet()
+        return existing.filterNot { idOf(it) in ids } + incoming
+    }
+
+    private fun appendHistory(
+        before: IntentionSnapshot,
+        after: IntentionSnapshot,
+        command: FlowCommand
+    ): IntentionSnapshot {
+        if (after === before || after == before) {
+            // No-op reduce (e.g. missing entity) — still record irreversible external notes.
+            if (command !is FlowCommand.RecordExternalAction) return after
+        }
+        val classification = CommandReversibility.classify(command)
+        val txnId = when (command) {
+            is FlowCommand.RecordExternalAction -> command.transactionId
+            else -> "txn-${command.javaClass.simpleName}-${classification.summary.hashCode()}-" +
+                when (command) {
+                    is FlowCommand.ApproveProposal -> command.nowEpochMs
+                    is FlowCommand.DeclineProposal -> command.nowEpochMs
+                    is FlowCommand.EditProposal -> command.nowEpochMs
+                    is FlowCommand.DeferNextSession -> command.nowEpochMs
+                    is FlowCommand.BeginSession -> command.nowEpochMs
+                    is FlowCommand.CompleteSessionRun -> command.nowEpochMs
+                    is FlowCommand.AbandonSessionRun -> command.nowEpochMs
+                    is FlowCommand.SoftDeleteIntention -> command.nowEpochMs
+                    is FlowCommand.SoftDeleteSession -> command.nowEpochMs
+                    is FlowCommand.RestoreTrashItem -> command.nowEpochMs
+                    is FlowCommand.PurgeTrashItem -> command.nowEpochMs
+                    is FlowCommand.RecordExternalAction -> command.nowEpochMs
+                    is FlowCommand.SeedExploring -> command.nowEpochMs
+                    is FlowCommand.AddUserFact -> command.nowEpochMs
+                    is FlowCommand.AddHypothesis -> command.nowEpochMs
+                    is FlowCommand.AddConversationTurn -> command.nowEpochMs
+                    is FlowCommand.ProposeRecurringSession -> command.nowEpochMs
+                    is FlowCommand.SetActiveIntention -> command.nowEpochMs
+                    is FlowCommand.MarkPhase -> command.nowEpochMs
+                    is FlowCommand.CaptureThought -> command.nowEpochMs
+                    is FlowCommand.UndoLastReversible -> command.nowEpochMs
+                }
+        }
+        val occurredAt = when (command) {
+            is FlowCommand.ApproveProposal -> command.nowEpochMs
+            is FlowCommand.DeclineProposal -> command.nowEpochMs
+            is FlowCommand.EditProposal -> command.nowEpochMs
+            is FlowCommand.DeferNextSession -> command.nowEpochMs
+            is FlowCommand.BeginSession -> command.nowEpochMs
+            is FlowCommand.CompleteSessionRun -> command.nowEpochMs
+            is FlowCommand.AbandonSessionRun -> command.nowEpochMs
+            is FlowCommand.SoftDeleteIntention -> command.nowEpochMs
+            is FlowCommand.SoftDeleteSession -> command.nowEpochMs
+            is FlowCommand.RestoreTrashItem -> command.nowEpochMs
+            is FlowCommand.PurgeTrashItem -> command.nowEpochMs
+            is FlowCommand.RecordExternalAction -> command.nowEpochMs
+            is FlowCommand.SeedExploring -> command.nowEpochMs
+            is FlowCommand.AddUserFact -> command.nowEpochMs
+            is FlowCommand.AddHypothesis -> command.nowEpochMs
+            is FlowCommand.AddConversationTurn -> command.nowEpochMs
+            is FlowCommand.ProposeRecurringSession -> command.nowEpochMs
+            is FlowCommand.SetActiveIntention -> command.nowEpochMs
+            is FlowCommand.MarkPhase -> command.nowEpochMs
+            is FlowCommand.CaptureThought -> command.nowEpochMs
+            is FlowCommand.UndoLastReversible -> command.nowEpochMs
+        }
+        val txn = FlowTransaction(
+            id = txnId,
+            commandKind = command.javaClass.simpleName,
+            summary = classification.summary,
+            occurredAtEpochMs = occurredAt,
+            reversible = classification.reversible,
+            irreversibleReason = classification.irreversibleReason,
+            beforeJson = if (classification.reversible) encodeDomain(before) else null
+        )
+        return after.copy(transactions = after.transactions + txn)
+    }
+
+    private fun undoLast(
+        current: IntentionSnapshot,
+        command: FlowCommand.UndoLastReversible
+    ): IntentionSnapshot {
+        val target = CommandReversibility.lastUndoable(current.transactions) ?: return current
+        val restoredDomain = decodeDomain(target.beforeJson!!)
+        val undoTxn = FlowTransaction(
+            id = command.transactionId,
+            commandKind = "UndoLastReversible",
+            summary = "Undid: ${target.summary}",
+            occurredAtEpochMs = command.nowEpochMs,
+            reversible = false,
+            irreversibleReason = null,
+            beforeJson = null,
+            undone = false,
+            undoOfTransactionId = target.id
+        )
+        return restoredDomain.copy(
+            schemaVersion = SCHEMA_VERSION,
+            transactions = current.transactions.map {
+                if (it.id == target.id) it.copy(undone = true) else it
+            } + undoTxn
+        )
     }
 
     private fun endSessionRun(
@@ -331,12 +597,40 @@ class IntentionFlowStore(
 
     fun encode(snapshot: IntentionSnapshot): String = gson.toJson(WireSnapshot.from(snapshot))
 
+    /** Domain-only encode used as undo beforeRef (keeps history out of nested before blobs). */
+    fun encodeDomain(snapshot: IntentionSnapshot): String =
+        gson.toJson(
+            WireSnapshot.from(
+                snapshot.copy(transactions = emptyList())
+            )
+        )
+
     fun decode(raw: String): IntentionSnapshot {
         val wire = gson.fromJson(raw, WireSnapshot::class.java) ?: WireSnapshot()
         return migrate(wire.toDomain())
     }
 
-    /** Gson-friendly wire format (enums as strings). */
+    fun decodeDomain(raw: String): IntentionSnapshot {
+        val wire = gson.fromJson(raw, WireSnapshot::class.java) ?: WireSnapshot()
+        return migrate(wire.toDomain()).copy(transactions = emptyList())
+    }
+
+    data class IntentionTrashPayload(
+        val intention: WireIntention = WireIntention(),
+        val facts: List<WireFact> = emptyList(),
+        val hypotheses: List<WireHypothesis> = emptyList(),
+        val proposals: List<WireProposal> = emptyList(),
+        val sessions: List<WireSession> = emptyList(),
+        val sessionRuns: List<WireSessionRun> = emptyList(),
+        val turns: List<WireTurn> = emptyList(),
+        val thoughtCaptures: List<WireThoughtCapture> = emptyList()
+    )
+
+    data class SessionTrashPayload(
+        val session: WireSession = WireSession(),
+        val sessionRuns: List<WireSessionRun> = emptyList()
+    )
+
     data class WireProvenance(
         val kind: String = ProvenanceKind.SAID.name,
         val learnedAtEpochMs: Long = 0L,
@@ -360,21 +654,48 @@ class IntentionFlowStore(
         val createdAtEpochMs: Long = 0L,
         val updatedAtEpochMs: Long = 0L,
         val shapeTag: String = "other"
-    )
+    ) {
+        fun toDomain() = Intention(
+            id = id,
+            title = title,
+            statement = statement,
+            phase = IntentionPhase.valueOf(phase),
+            createdAtEpochMs = createdAtEpochMs,
+            updatedAtEpochMs = updatedAtEpochMs,
+            shapeTag = shapeTag
+        )
+        companion object {
+            fun from(it: Intention) = WireIntention(
+                it.id, it.title, it.statement, it.phase.name,
+                it.createdAtEpochMs, it.updatedAtEpochMs, it.shapeTag
+            )
+        }
+    }
 
     data class WireFact(
         val id: String = "",
         val intentionId: String = "",
         val text: String = "",
         val provenance: WireProvenance = WireProvenance()
-    )
+    ) {
+        fun toDomain() = Fact(id, intentionId, text, provenance.toDomain())
+        companion object {
+            fun from(f: Fact) = WireFact(f.id, f.intentionId, f.text, WireProvenance.from(f.provenance))
+        }
+    }
 
     data class WireHypothesis(
         val id: String = "",
         val intentionId: String = "",
         val text: String = "",
         val provenance: WireProvenance = WireProvenance()
-    )
+    ) {
+        fun toDomain() = Hypothesis(id, intentionId, text, provenance.toDomain())
+        companion object {
+            fun from(h: Hypothesis) =
+                WireHypothesis(h.id, h.intentionId, h.text, WireProvenance.from(h.provenance))
+        }
+    }
 
     data class WireProposal(
         val id: String = "",
@@ -387,7 +708,27 @@ class IntentionFlowStore(
         val status: String = ProposalStatus.PENDING.name,
         val basedOnFactIds: List<String> = emptyList(),
         val provenance: WireProvenance = WireProvenance()
-    )
+    ) {
+        fun toDomain() = Proposal(
+            id = id,
+            intentionId = intentionId,
+            title = title,
+            summary = summary,
+            proposedDayOfWeek = proposedDayOfWeek,
+            proposedHour = proposedHour,
+            proposedMinute = proposedMinute,
+            status = ProposalStatus.valueOf(status),
+            basedOnFactIds = basedOnFactIds,
+            provenance = provenance.toDomain()
+        )
+        companion object {
+            fun from(p: Proposal) = WireProposal(
+                p.id, p.intentionId, p.title, p.summary,
+                p.proposedDayOfWeek, p.proposedHour, p.proposedMinute,
+                p.status.name, p.basedOnFactIds, WireProvenance.from(p.provenance)
+            )
+        }
+    }
 
     data class WireSession(
         val id: String = "",
@@ -397,7 +738,16 @@ class IntentionFlowStore(
         val hour: Int = 0,
         val minute: Int = 0,
         val deferredUntilEpochMs: Long? = null
-    )
+    ) {
+        fun toDomain() = ScheduledSession(
+            id, intentionId, title, dayOfWeek, hour, minute, deferredUntilEpochMs
+        )
+        companion object {
+            fun from(s: ScheduledSession) = WireSession(
+                s.id, s.intentionId, s.title, s.dayOfWeek, s.hour, s.minute, s.deferredUntilEpochMs
+            )
+        }
+    }
 
     data class WireSessionRun(
         val id: String = "",
@@ -407,7 +757,18 @@ class IntentionFlowStore(
         val status: String = SessionRunStatus.IN_PROGRESS.name,
         val startedAtEpochMs: Long = 0L,
         val endedAtEpochMs: Long? = null
-    )
+    ) {
+        fun toDomain() = SessionRun(
+            id, sessionId, intentionId, title,
+            SessionRunStatus.valueOf(status), startedAtEpochMs, endedAtEpochMs
+        )
+        companion object {
+            fun from(r: SessionRun) = WireSessionRun(
+                r.id, r.sessionId, r.intentionId, r.title,
+                r.status.name, r.startedAtEpochMs, r.endedAtEpochMs
+            )
+        }
+    }
 
     data class WireTurn(
         val id: String = "",
@@ -415,7 +776,59 @@ class IntentionFlowStore(
         val role: String = "",
         val text: String = "",
         val atEpochMs: Long = 0L
-    )
+    ) {
+        fun toDomain() = ConversationTurn(id, intentionId, role, text, atEpochMs)
+        companion object {
+            fun from(t: ConversationTurn) =
+                WireTurn(t.id, t.intentionId, t.role, t.text, t.atEpochMs)
+        }
+    }
+
+    data class WireTransaction(
+        val id: String = "",
+        val commandKind: String = "",
+        val summary: String = "",
+        val occurredAtEpochMs: Long = 0L,
+        val reversible: Boolean = false,
+        val irreversibleReason: String? = null,
+        val beforeJson: String? = null,
+        val undone: Boolean = false,
+        val undoOfTransactionId: String? = null
+    ) {
+        fun toDomain() = FlowTransaction(
+            id, commandKind, summary, occurredAtEpochMs, reversible,
+            irreversibleReason, beforeJson, undone, undoOfTransactionId
+        )
+        companion object {
+            fun from(t: FlowTransaction) = WireTransaction(
+                t.id, t.commandKind, t.summary, t.occurredAtEpochMs, t.reversible,
+                t.irreversibleReason, t.beforeJson, t.undone, t.undoOfTransactionId
+            )
+        }
+    }
+
+    data class WireTrashEntry(
+        val id: String = "",
+        val kind: String = TrashKind.INTENTION.name,
+        val entityId: String = "",
+        val title: String = "",
+        val deletedAtEpochMs: Long = 0L,
+        val expiresAtEpochMs: Long? = null,
+        val parentIntentionId: String? = null,
+        val pathLabel: String = "",
+        val payloadJson: String = ""
+    ) {
+        fun toDomain() = TrashEntry(
+            id, TrashKind.valueOf(kind), entityId, title, deletedAtEpochMs,
+            expiresAtEpochMs, parentIntentionId, pathLabel, payloadJson
+        )
+        companion object {
+            fun from(t: TrashEntry) = WireTrashEntry(
+                t.id, t.kind.name, t.entityId, t.title, t.deletedAtEpochMs,
+                t.expiresAtEpochMs, t.parentIntentionId, t.pathLabel, t.payloadJson
+            )
+        }
+    }
 
     data class WireThoughtCapture(
         val id: String = "",
@@ -425,7 +838,29 @@ class IntentionFlowStore(
         val capturedAtEpochMs: Long = 0L,
         val source: String = "home",
         val status: String = ThoughtCaptureStatus.RAW.name
-    )
+    ) {
+        fun toDomain() = ThoughtCapture(
+            id = id,
+            intentionId = intentionId,
+            text = text,
+            provenance = provenance.toDomain(),
+            capturedAtEpochMs = capturedAtEpochMs,
+            source = source,
+            status = runCatching { ThoughtCaptureStatus.valueOf(status) }
+                .getOrDefault(ThoughtCaptureStatus.RAW)
+        )
+        companion object {
+            fun from(t: ThoughtCapture) = WireThoughtCapture(
+                id = t.id,
+                intentionId = t.intentionId,
+                text = t.text,
+                provenance = WireProvenance.from(t.provenance),
+                capturedAtEpochMs = t.capturedAtEpochMs,
+                source = t.source,
+                status = t.status.name
+            )
+        }
+    }
 
     data class WireSnapshot(
         val schemaVersion: Int = 0,
@@ -437,130 +872,39 @@ class IntentionFlowStore(
         val sessionRuns: List<WireSessionRun> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
-        val activeIntentionId: String? = null
+        val activeIntentionId: String? = null,
+        val transactions: List<WireTransaction> = emptyList(),
+        val trash: List<WireTrashEntry> = emptyList()
     ) {
         fun toDomain() = IntentionSnapshot(
             schemaVersion = schemaVersion,
-            intentions = intentions.map {
-                Intention(
-                    id = it.id,
-                    title = it.title,
-                    statement = it.statement,
-                    phase = IntentionPhase.valueOf(it.phase),
-                    createdAtEpochMs = it.createdAtEpochMs,
-                    updatedAtEpochMs = it.updatedAtEpochMs,
-                    shapeTag = it.shapeTag
-                )
-            },
-            facts = facts.map {
-                Fact(it.id, it.intentionId, it.text, it.provenance.toDomain())
-            },
-            hypotheses = hypotheses.map {
-                Hypothesis(it.id, it.intentionId, it.text, it.provenance.toDomain())
-            },
-            proposals = proposals.map {
-                Proposal(
-                    id = it.id,
-                    intentionId = it.intentionId,
-                    title = it.title,
-                    summary = it.summary,
-                    proposedDayOfWeek = it.proposedDayOfWeek,
-                    proposedHour = it.proposedHour,
-                    proposedMinute = it.proposedMinute,
-                    status = ProposalStatus.valueOf(it.status),
-                    basedOnFactIds = it.basedOnFactIds,
-                    provenance = it.provenance.toDomain()
-                )
-            },
-            sessions = sessions.map {
-                ScheduledSession(
-                    id = it.id,
-                    intentionId = it.intentionId,
-                    title = it.title,
-                    dayOfWeek = it.dayOfWeek,
-                    hour = it.hour,
-                    minute = it.minute,
-                    deferredUntilEpochMs = it.deferredUntilEpochMs
-                )
-            },
-            sessionRuns = sessionRuns.map {
-                SessionRun(
-                    id = it.id,
-                    sessionId = it.sessionId,
-                    intentionId = it.intentionId,
-                    title = it.title,
-                    status = SessionRunStatus.valueOf(it.status),
-                    startedAtEpochMs = it.startedAtEpochMs,
-                    endedAtEpochMs = it.endedAtEpochMs
-                )
-            },
-            turns = turns.map {
-                ConversationTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
-            },
-            thoughtCaptures = thoughtCaptures.map {
-                ThoughtCapture(
-                    id = it.id,
-                    intentionId = it.intentionId,
-                    text = it.text,
-                    provenance = it.provenance.toDomain(),
-                    capturedAtEpochMs = it.capturedAtEpochMs,
-                    source = it.source,
-                    status = runCatching { ThoughtCaptureStatus.valueOf(it.status) }
-                        .getOrDefault(ThoughtCaptureStatus.RAW)
-                )
-            },
-            activeIntentionId = activeIntentionId
+            intentions = intentions.map { it.toDomain() },
+            facts = facts.map { it.toDomain() },
+            hypotheses = hypotheses.map { it.toDomain() },
+            proposals = proposals.map { it.toDomain() },
+            sessions = sessions.map { it.toDomain() },
+            sessionRuns = sessionRuns.map { it.toDomain() },
+            turns = turns.map { it.toDomain() },
+            thoughtCaptures = thoughtCaptures.map { it.toDomain() },
+            activeIntentionId = activeIntentionId,
+            transactions = transactions.map { it.toDomain() },
+            trash = trash.map { it.toDomain() }
         )
 
         companion object {
             fun from(s: IntentionSnapshot) = WireSnapshot(
                 schemaVersion = s.schemaVersion,
-                intentions = s.intentions.map {
-                    WireIntention(
-                        it.id, it.title, it.statement, it.phase.name,
-                        it.createdAtEpochMs, it.updatedAtEpochMs, it.shapeTag
-                    )
-                },
-                facts = s.facts.map {
-                    WireFact(it.id, it.intentionId, it.text, WireProvenance.from(it.provenance))
-                },
-                hypotheses = s.hypotheses.map {
-                    WireHypothesis(it.id, it.intentionId, it.text, WireProvenance.from(it.provenance))
-                },
-                proposals = s.proposals.map {
-                    WireProposal(
-                        it.id, it.intentionId, it.title, it.summary,
-                        it.proposedDayOfWeek, it.proposedHour, it.proposedMinute,
-                        it.status.name, it.basedOnFactIds, WireProvenance.from(it.provenance)
-                    )
-                },
-                sessions = s.sessions.map {
-                    WireSession(
-                        it.id, it.intentionId, it.title, it.dayOfWeek, it.hour, it.minute,
-                        it.deferredUntilEpochMs
-                    )
-                },
-                sessionRuns = s.sessionRuns.map {
-                    WireSessionRun(
-                        it.id, it.sessionId, it.intentionId, it.title,
-                        it.status.name, it.startedAtEpochMs, it.endedAtEpochMs
-                    )
-                },
-                turns = s.turns.map {
-                    WireTurn(it.id, it.intentionId, it.role, it.text, it.atEpochMs)
-                },
-                thoughtCaptures = s.thoughtCaptures.map {
-                    WireThoughtCapture(
-                        id = it.id,
-                        intentionId = it.intentionId,
-                        text = it.text,
-                        provenance = WireProvenance.from(it.provenance),
-                        capturedAtEpochMs = it.capturedAtEpochMs,
-                        source = it.source,
-                        status = it.status.name
-                    )
-                },
-                activeIntentionId = s.activeIntentionId
+                intentions = s.intentions.map(WireIntention::from),
+                facts = s.facts.map(WireFact::from),
+                hypotheses = s.hypotheses.map(WireHypothesis::from),
+                proposals = s.proposals.map(WireProposal::from),
+                sessions = s.sessions.map(WireSession::from),
+                sessionRuns = s.sessionRuns.map(WireSessionRun::from),
+                turns = s.turns.map(WireTurn::from),
+                thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
+                activeIntentionId = s.activeIntentionId,
+                transactions = s.transactions.map(WireTransaction::from),
+                trash = s.trash.map(WireTrashEntry::from)
             )
         }
     }

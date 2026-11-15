@@ -104,6 +104,19 @@ class CapabilityRegistry(
     fun canReadNotificationSummaries(): Boolean =
         isActionable(ID_NOTIFICATION_LISTENER)
 
+    fun canUndoLast(): Boolean =
+        isActionable(ID_UNDO_LAST)
+
+    fun canSoftDelete(): Boolean =
+        isActionable(ID_TRASH_SOFT_DELETE)
+
+    fun canRestoreTrash(): Boolean =
+        isActionable(ID_TRASH_RESTORE)
+
+    /** External side effects (app launch, calendar write-back) are not undoable. */
+    fun canUndoExternalAction(): Boolean =
+        isActionable(ID_EXTERNAL_ACTION_UNDO)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
@@ -124,6 +137,10 @@ class CapabilityRegistry(
         const val ID_NOTIFICATION_LISTENER = "notification_listener"
         const val ID_QUIET_MODE = "quiet_mode"
         const val ID_SCREEN_CAPTURE = "screen_capture"
+        const val ID_UNDO_LAST = "undo_last"
+        const val ID_TRASH_SOFT_DELETE = "trash_soft_delete"
+        const val ID_TRASH_RESTORE = "trash_restore"
+        const val ID_EXTERNAL_ACTION_UNDO = "external_action_undo"
 
         val DEFAULT_ENTRIES: List<CapabilityEntry> = listOf(
             CapabilityEntry(
@@ -247,6 +264,33 @@ class CapabilityRegistry(
                 status = CapabilityStatus.NOT_SUPPORTED,
                 limitNote = "MediaProjection consent path not shipped. " +
                     "No screenshot or continuing capture without an explicit future ask."
+            ),
+            CapabilityEntry(
+                id = ID_UNDO_LAST,
+                title = "Undo last reversible commitment",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Reverses the last local FlowCommand via transaction history " +
+                    "(approve / decline / defer / session / trash). External app opens cannot be undone."
+            ),
+            CapabilityEntry(
+                id = ID_TRASH_SOFT_DELETE,
+                title = "Soft-delete to trash",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Moves intentions and sessions into recoverable trash; " +
+                    "keeps until purge unless an expiry is set."
+            ),
+            CapabilityEntry(
+                id = ID_TRASH_RESTORE,
+                title = "Restore from trash",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Restores a soft-deleted intention or session with preserved child context."
+            ),
+            CapabilityEntry(
+                id = ID_EXTERNAL_ACTION_UNDO,
+                title = "Undo external action",
+                status = CapabilityStatus.NOT_SUPPORTED,
+                limitNote = "Opening another app, calendar write-back, messages, and purchases " +
+                    "cannot be reversed by INTENT — only logged honestly."
             )
         )
 
