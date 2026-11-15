@@ -125,6 +125,7 @@ fun HomeScreen(
     onExploreBusiness: (() -> Unit)? = null,
     onExploreMove: (() -> Unit)? = null,
     onExploreJobOffer: (() -> Unit)? = null,
+    onExploreQuitSmoking: (() -> Unit)? = null,
     undoLabel: String? = null,
     onUndo: (() -> Unit)? = null,
     undoTrashNote: String? = null,
@@ -318,6 +319,15 @@ fun HomeScreen(
                     title = "Decide on a job offer",
                     subtitle = "Comparison support — INTENT does not choose for you",
                     onClick = onExploreJobOffer,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Accent
+                )
+            }
+            if (onExploreQuitSmoking != null) {
+                LineRow(
+                    title = "Explore quitting smoking",
+                    subtitle = "CASE-05 — baseline + honest self-report",
+                    onClick = onExploreQuitSmoking,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
                 )

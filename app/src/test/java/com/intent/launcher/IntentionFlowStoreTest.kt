@@ -9,9 +9,12 @@ import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ProvenanceKind
+import com.intent.launcher.domain.QuitSmokingScenario
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.SpanishScenario
+import com.intent.launcher.domain.TrackerEntryStatus
+import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
 import java.io.File
@@ -521,6 +524,81 @@ class IntentionFlowStoreTest {
     }
 
     @Test
+    fun quitSmokingFlow_baselineSelfReport_approveDeferPersist() {
+        QuitSmokingScenario.seed(store, now)
+        var snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
+        assertEquals(QuitSmokingScenario.SHAPE_TAG, snap.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.shapeTag)
+
+        QuitSmokingScenario.onChip(store, "I smoke about eight a day", now + 10)
+        QuitSmokingScenario.onChip(store, "No quit date yet", now + 20)
+        QuitSmokingScenario.onChip(store, "Evenings are hardest", now + 30)
+        snap = store.snapshot()
+
+        val baseline = snap.facts.first { it.id == QuitSmokingScenario.FACT_BASELINE_ID }
+        assertEquals(ProvenanceKind.SAID, baseline.provenance.kind)
+        assertTrue(baseline.text.contains("8"))
+        assertTrue(snap.hypotheses.any { it.text.contains("No quit date", ignoreCase = true) })
+
+        val proposal = snap.proposals.first { it.id == QuitSmokingScenario.PROPOSAL_ID }
+        assertEquals(ProposalStatus.PENDING, proposal.status)
+        assertNotEquals(baseline.text, proposal.summary)
+        assertTrue(proposal.summary.contains("evening", ignoreCase = true))
+        assertEquals(IntentionPhase.PROPOSAL_PENDING, snap.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
+
+        QuitSmokingScenario.approve(store, now + 40)
+        snap = store.snapshot()
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == QuitSmokingScenario.PROPOSAL_ID }.status)
+        assertEquals(1, snap.sessions.count { it.id == QuitSmokingScenario.SESSION_ID })
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
+
+        QuitSmokingScenario.onChip(store, "I smoked fewer than usual today", now + 50)
+        QuitSmokingScenario.onChip(store, "I rode out a craving", now + 60)
+        snap = store.snapshot()
+        val activeEntries = snap.trackerEntries.filter { it.status == TrackerEntryStatus.ACTIVE }
+        assertEquals(2, activeEntries.size)
+        assertTrue(activeEntries.all { it.provenance.kind == ProvenanceKind.SAID })
+        assertTrue(activeEntries.any { it.moduleId == "cigarettes_today" })
+        assertTrue(activeEntries.any { it.moduleId == "craving_log" })
+        assertFalse(activeEntries.any { it.valueText.contains("100%", ignoreCase = true) })
+        assertFalse(activeEntries.any { it.valueText.contains("streak", ignoreCase = true) })
+
+        val modules = TrackerModules.forShape(QuitSmokingScenario.SHAPE_TAG)
+        assertTrue(modules.any { it.id == "cigarettes_today" })
+        assertTrue(modules.any { it.id == "craving_log" })
+        assertTrue(modules.any { it.id == "support_check" })
+        assertFalse(modules.any { it.id == "general_log" })
+
+        val mondayEvening = 1_700_165_280_000L // approx Mon 20:00-ish for schedule
+        val deferUntil = mondayEvening + 3 * 60 * 60 * 1000L
+        QuitSmokingScenario.deferSession(store, deferUntil, mondayEvening + 10)
+        snap = store.snapshot()
+        assertEquals(deferUntil, snap.sessions.first { it.id == QuitSmokingScenario.SESSION_ID }.deferredUntilEpochMs)
+
+        val encoded = store.encode(snap)
+        val againFile = tmp.newFile("cessation-again.json")
+        againFile.writeText(encoded)
+        val again = IntentionFlowStore(againFile).snapshot()
+        assertEquals(4, again.schemaVersion)
+        assertEquals(IntentionPhase.ACTIVE, again.intentions.first { it.id == QuitSmokingScenario.INTENTION_ID }.phase)
+        assertEquals(deferUntil, again.sessions.first { it.id == QuitSmokingScenario.SESSION_ID }.deferredUntilEpochMs)
+        assertEquals(ProvenanceKind.SAID, again.facts.first { it.id == QuitSmokingScenario.FACT_BASELINE_ID }.provenance.kind)
+        assertEquals(2, again.trackerEntries.count { it.status == TrackerEntryStatus.ACTIVE })
+    }
+
+    @Test
+    fun fourShapes_shareCoreRecordsIncludingCessation() {
+        SpanishScenario.seed(store, now)
+        MarathonScenario.seed(store, now + 1)
+        BusinessScenario.seed(store, now + 2)
+        QuitSmokingScenario.seed(store, now + 3)
+        val snap = store.snapshot()
+        assertEquals(4, snap.intentions.size)
+        assertTrue(snap.intentions.any { it.shapeTag == QuitSmokingScenario.SHAPE_TAG })
+        assertEquals(QuitSmokingScenario.INTENTION_ID, snap.activeIntentionId)
+    }
+
+    @Test
     fun migration_stampsCurrentSchema() {
         val raw = """{"schemaVersion":0,"intentions":[],"facts":[],"hypotheses":[],"proposals":[],"sessions":[],"turns":[],"activeIntentionId":null}"""
         val f = tmp.newFile("old.json")
@@ -528,6 +606,7 @@ class IntentionFlowStoreTest {
         val s = IntentionFlowStore(f)
         assertEquals(com.intent.launcher.domain.SCHEMA_VERSION, s.snapshot().schemaVersion)
         assertTrue(s.snapshot().sessionRuns.isEmpty())
+        assertTrue(s.snapshot().trackerEntries.isEmpty())
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.intent.launcher.capability
 
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.QuitSmokingScenario
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.NextActionEngine
 import com.intent.launcher.store.IntentionFlowStore
@@ -157,6 +158,16 @@ class CapabilityRegistryTest {
         assertFalse(labels.any { it.contains("Duolingo", ignoreCase = true) })
         assertFalse(labels.any { it.contains("lesson completion", ignoreCase = true) })
         assertEquals(SpanishScenario.conversationChips(registry), registry.filterChips(SpanishScenario.suggestedChips))
+    }
+
+    @Test
+    fun filterChips_dropsDishonestSmokeFreeStreakSuggestion() {
+        val mixed = QuitSmokingScenario.suggestedChips + QuitSmokingScenario.dishonestAutoStreakChip
+        val labels = registry.filterChips(mixed)
+        assertTrue(labels.contains("I smoke about eight a day"))
+        assertFalse(labels.any { it.contains("smoke-free streak", ignoreCase = true) })
+        assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_CESSATION))
+        assertTrue(registry.canUseTrackerModules())
     }
 
     @Test

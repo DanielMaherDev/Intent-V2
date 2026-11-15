@@ -3,6 +3,7 @@ package com.intent.launcher.domain
 /**
  * Shape-default tracker modules — configuration only, not a separate progress DB.
  * Entries live in [IntentionSnapshot.trackerEntries] with explicit provenance.
+ * Cessation modules are SAID self-report only — never invented smoke-free streaks.
  */
 data class TrackerModuleDef(
     val id: String,
@@ -79,6 +80,41 @@ object TrackerModules {
                         "One useful conversation",
                         "No signal yet",
                         "Need a clearer offer"
+                    )
+                )
+            )
+            QuitSmokingScenario.SHAPE_TAG, "quit_smoking" -> listOf(
+                TrackerModuleDef(
+                    id = "cigarettes_today",
+                    title = "Cigarettes today",
+                    prompt = "How many cigarettes today? (self-report only)",
+                    suggestedValues = listOf(
+                        "0 today (self-reported)",
+                        "Fewer than baseline (8)",
+                        "About baseline (8)",
+                        "More than usual"
+                    )
+                ),
+                TrackerModuleDef(
+                    id = "craving_log",
+                    title = "Craving log",
+                    prompt = "How did a craving go?",
+                    suggestedValues = listOf(
+                        "Rode it out",
+                        "Smoked one",
+                        "Used a substitute",
+                        "Hard evening — noted"
+                    )
+                ),
+                TrackerModuleDef(
+                    id = "support_check",
+                    title = "Support check",
+                    prompt = "What helped (or did not)?",
+                    suggestedValues = listOf(
+                        "Told someone",
+                        "Changed routine",
+                        "Nothing helped today — noted",
+                        "Skipped check-in — honest"
                     )
                 )
             )

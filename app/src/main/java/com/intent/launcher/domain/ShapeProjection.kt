@@ -75,6 +75,7 @@ object ShapeProjection {
                 "business" -> "Still in discovery"
                 "move" -> "Move plan · landlord steps gated"
                 "decision" -> "Comparing — no choice made yet"
+                "cessation" -> "Baseline and support still open"
                 else -> "Open your intention"
             }
             IntentionPhase.PROPOSAL_PENDING -> when (shapeTag) {
@@ -82,6 +83,7 @@ object ShapeProjection {
                 "business" -> "A research habit is pending"
                 "move" -> "Apartment search pending approval"
                 "decision" -> "A decision-review block is pending"
+                "cessation" -> "An evening check-in is pending"
                 else -> "Your approach is taking shape"
             }
             IntentionPhase.ACTIVE -> when (shapeTag) {
@@ -89,6 +91,7 @@ object ShapeProjection {
                 "business" -> "Discovery habit in motion"
                 "move" -> "Search rhythm in motion · lease still gated"
                 "decision" -> "Decision support in motion"
+                "cessation" -> "Self-report check-in in motion"
                 else -> "Speaking practice in motion"
             }
             IntentionPhase.PAUSED -> "Paused — facts kept"
@@ -102,6 +105,7 @@ object ShapeProjection {
             phase == IntentionPhase.ACTIVE && shapeTag == "move" -> "Move constraints"
             phase == IntentionPhase.ACTIVE && shapeTag == "decision" -> "Your comparison matrix"
             phase == IntentionPhase.CLARIFYING && shapeTag == "decision" -> "Your comparison matrix"
+            phase == IntentionPhase.ACTIVE && shapeTag == "cessation" -> "Baseline and reports"
             phase == IntentionPhase.ACTIVE -> "What we know"
             else -> "What we know"
         }
@@ -112,6 +116,7 @@ object ShapeProjection {
             "business" -> "Your discovery approach"
             "move" -> "Your move plan"
             "decision" -> "Your decision support"
+            "cessation" -> "Your first-phase support"
             else -> "Your approach"
         }
 
@@ -126,6 +131,8 @@ object ShapeProjection {
                     "lease, notice, and movers stay gated until a place is confirmed."
             "decision" ->
                 "No accept/decline has been chosen for you. Add SAID criteria to compare before the deadline."
+            "cessation" ->
+                "No quit date or smoke-free streak has been invented. Baseline and self-report come first."
             else ->
                 "No tasks have been invented. This intention stays open while you decide on an approach."
         }
@@ -143,6 +150,7 @@ object ShapeProjection {
                 "Timeframe · about ten days",
                 "Support · compare criteria — INTENT does not choose"
             )
+            "cessation" -> listOf("Goal · quit smoking", "Baseline · self-reported cigarettes/day", "Quit date · none yet")
             else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
         }
 
@@ -162,6 +170,7 @@ object ShapeProjection {
                 "Destination · listings & notes — no invented landlord confirmation or lease."
             "decision" ->
                 "Destination · your notes & criteria — INTENT never accepts or declines for you."
+            "cessation" -> "Measures · SAID self-report only — no biometric or automatic smoke-free streak."
             else -> null
         }
     }
@@ -212,6 +221,17 @@ object ShapeProjection {
                 ApproachStep(
                     title = "You choose accept or decline",
                     detail = "INTENT only holds your SAID criteria — never picks for you.",
+                    muted = true
+                )
+            )
+            "cessation" -> listOf(
+                ApproachStep(
+                    title = session?.title ?: "Evening craving check-in",
+                    detail = (whenLabel?.let { "$it · approved" } ?: "Approved evening support rhythm")
+                ),
+                ApproachStep(
+                    title = "Log cigarettes and cravings",
+                    detail = "Self-reported SAID only — not a smoke-free streak chart.",
                     muted = true
                 )
             )
@@ -307,6 +327,7 @@ object ShapeProjection {
                     "business" -> "How will you learn?"
                     "move" -> "What depends on a landlord?"
                     "decision" -> "What will you weigh?"
+                    "cessation" -> "What is your baseline?"
                     else -> "How will you practise?"
                 },
                 heroBody = when (shapeTag) {
@@ -318,6 +339,8 @@ object ShapeProjection {
                         "Search and budget can start now. Lease, notice, and movers stay gated until a place is confirmed — nothing invents a landlord."
                     "decision" ->
                         "Capture SAID criteria into a comparison matrix. INTENT will not accept or decline for you."
+                    "cessation" ->
+                        "Start with cigarettes/day and when cravings hit. No quit date is forced; measures stay self-reported."
                     else ->
                         "We can make a routine around an app, a tutor, conversations with your agent, or a mix."
                 },
@@ -332,6 +355,7 @@ object ShapeProjection {
                     "business" -> "Add a research hour?"
                     "move" -> "Add a weekly search block?"
                     "decision" -> "Add a decision-review block?"
+                    "cessation" -> "Add an evening check-in?"
                     else -> "Add your session?"
                 },
                 heroBody = when (shapeTag) {
@@ -352,6 +376,7 @@ object ShapeProjection {
                     "business" -> "Prepare your next research block"
                     "move" -> "Prepare your next search block"
                     "decision" -> "Prepare your decision review"
+                    "cessation" -> "Prepare your evening check-in"
                     else -> "Prepare for your next session"
                 },
                 heroBody = when (shapeTag) {
@@ -361,6 +386,7 @@ object ShapeProjection {
                         "Look at listings within budget — no invented lease or move-in date."
                     "decision" ->
                         "Revisit your SAID matrix. You still choose accept or decline."
+                    "cessation" -> "Log cigarettes and cravings honestly — no invented smoke-free streak."
                     else -> "Bring one situation you want to rehearse."
                 },
                 heroCta = "Begin preparation",
@@ -383,6 +409,7 @@ object ShapeProjection {
                 "business" -> "Contextual conversation · discovery"
                 "move" -> "Contextual conversation · move plan"
                 "decision" -> "Contextual conversation · decision support"
+                "cessation" -> "Contextual conversation · cessation support"
                 else -> "Contextual conversation"
             }
             IntentionPhase.PROPOSAL_PENDING -> "Your ongoing conversation"
@@ -391,6 +418,7 @@ object ShapeProjection {
                 "business" -> "A conversation about your idea"
                 "move" -> "A conversation about your move"
                 "decision" -> "A conversation about your offer"
+                "cessation" -> "A conversation about quitting smoking"
                 else -> "A conversation about your goal"
             }
         }
@@ -402,6 +430,7 @@ object ShapeProjection {
                 "business" -> "Your next research hour"
                 "move" -> "Your next apartment search"
                 "decision" -> "Your decision review"
+                "cessation" -> "Your evening check-in"
                 else -> "Your next session"
             }
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"

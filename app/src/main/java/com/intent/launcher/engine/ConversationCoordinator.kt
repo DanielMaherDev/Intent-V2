@@ -7,6 +7,7 @@ import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.JobOfferScenario
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.MoveScenario
+import com.intent.launcher.domain.QuitSmokingScenario
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.store.IntentionFlowStore
 
@@ -161,6 +162,7 @@ object ConversationCoordinator {
             "business" -> BusinessScenario.onChip(store, chip, nowEpochMs, registry)
             "move" -> MoveScenario.onChip(store, chip, nowEpochMs, registry)
             "decision" -> JobOfferScenario.onChip(store, chip, nowEpochMs, registry)
+            QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.onChip(store, chip, nowEpochMs, registry)
             else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry)
         }
     }
