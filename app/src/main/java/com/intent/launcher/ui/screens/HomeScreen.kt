@@ -109,6 +109,8 @@ fun HomeScreen(
     onAbandonSession: () -> Unit = {},
     onOpenDestination: () -> Unit = {},
     onConfirmCheckIn: () -> Unit = {},
+    onConfirmMidday: () -> Unit = {},
+    onDeferMidday: () -> Unit = {},
     onCheckOutKeepSchedule: () -> Unit = {},
     onCheckOutDeferTomorrow: () -> Unit = {},
     destinationLaunchNote: String? = null,
@@ -309,6 +311,8 @@ fun HomeScreen(
                     onAbandonSession = onAbandonSession,
                     onOpenDestination = onOpenDestination,
                     onConfirmCheckIn = onConfirmCheckIn,
+                    onConfirmMidday = onConfirmMidday,
+                    onDeferMidday = onDeferMidday,
                     onCheckOutKeepSchedule = onCheckOutKeepSchedule,
                     onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
                     destinationLaunchNote = destinationLaunchNote,
@@ -669,6 +673,16 @@ private fun homeGreeting(
             "Confirm or adjust" to PillTone.Neutral
         )
     )
+    NextActionKind.MIDDAY -> HomeGreeting(
+        headline = "How is the day going?",
+        lede = nextAction.reason.ifBlank {
+            "Confirm the plan still holds, or defer if things slipped."
+        },
+        pills = listOf(
+            intentionTitle.ifBlank { "Midday" } to PillTone.Warm,
+            "Keep or defer" to PillTone.Neutral
+        )
+    )
     NextActionKind.CHECK_OUT -> HomeGreeting(
         headline = "How did today go?",
         lede = nextAction.reason.ifBlank {
@@ -741,6 +755,14 @@ private fun attentionStripMeta(
             heroTone = HeroTone.Accent,
             title = nextAction.label.ifBlank { "Today's focus" },
             support = support.ifBlank { "Confirm today's focus, or adjust it in Discuss." }
+        )
+        NextActionKind.MIDDAY -> AttentionStripMeta(
+            smallLabel = "Midday check",
+            heroTone = HeroTone.Warm,
+            title = nextAction.label.ifBlank { "How is the day going?" },
+            support = support.ifBlank {
+                "Confirm the plan still holds, or defer if things slipped."
+            }
         )
         NextActionKind.CHECK_OUT -> AttentionStripMeta(
             smallLabel = "Evening check-out",
@@ -1067,6 +1089,8 @@ private fun AttentionStripCard(
     onAbandonSession: () -> Unit,
     onOpenDestination: () -> Unit,
     onConfirmCheckIn: () -> Unit,
+    onConfirmMidday: () -> Unit,
+    onDeferMidday: () -> Unit,
     onCheckOutKeepSchedule: () -> Unit,
     onCheckOutDeferTomorrow: () -> Unit,
     destinationLaunchNote: String?,
@@ -1312,6 +1336,8 @@ private fun AttentionStripCard(
             onAbandonSession = onAbandonSession,
             onOpenDestination = onOpenDestination,
             onConfirmCheckIn = onConfirmCheckIn,
+            onConfirmMidday = onConfirmMidday,
+            onDeferMidday = onDeferMidday,
             onCheckOutKeepSchedule = onCheckOutKeepSchedule,
             onCheckOutDeferTomorrow = onCheckOutDeferTomorrow,
             showResumeSession = showResumeSession,
@@ -1334,6 +1360,8 @@ private fun AttentionStripActions(
     onAbandonSession: () -> Unit,
     onOpenDestination: () -> Unit,
     onConfirmCheckIn: () -> Unit,
+    onConfirmMidday: () -> Unit,
+    onDeferMidday: () -> Unit,
     onCheckOutKeepSchedule: () -> Unit,
     onCheckOutDeferTomorrow: () -> Unit,
     showResumeSession: Boolean = false,
@@ -1451,6 +1479,32 @@ private fun AttentionStripActions(
             IntentSecondaryButton(
                 text = nextAction.adjustLabel ?: nextAction.discussLabel
                     ?: "Adjust in Discuss",
+                onClick = onDiscuss
+            )
+        }
+        NextActionKind.MIDDAY -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IntentPrimaryButton(
+                    text = nextAction.confirmLabel ?: "Keep plan",
+                    onClick = onConfirmMidday,
+                    modifier = Modifier.weight(1.4f)
+                )
+                if (nextAction.adjustLabel != null || nextAction.deferLabel != null) {
+                    IntentSecondaryButton(
+                        text = nextAction.adjustLabel
+                            ?: nextAction.deferLabel
+                            ?: "Defer later",
+                        onClick = onDeferMidday,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentQuietButton(
+                text = nextAction.discussLabel ?: "Discuss",
                 onClick = onDiscuss
             )
         }

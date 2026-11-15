@@ -139,6 +139,18 @@ class FloatingCompanionTest {
             FloatingCompanion.resolveState(na(NextActionKind.REVIEW_PROPOSAL))
         )
         assertEquals(
+            FloatingAgentState.ATTENTION_NEEDED,
+            FloatingCompanion.resolveState(na(NextActionKind.CHECK_IN))
+        )
+        assertEquals(
+            FloatingAgentState.ATTENTION_NEEDED,
+            FloatingCompanion.resolveState(na(NextActionKind.MIDDAY))
+        )
+        assertEquals(
+            FloatingAgentState.ATTENTION_NEEDED,
+            FloatingCompanion.resolveState(na(NextActionKind.CHECK_OUT))
+        )
+        assertEquals(
             FloatingAgentState.ACTIVE_SESSION,
             FloatingCompanion.resolveState(na(NextActionKind.ACTIVE_SESSION))
         )

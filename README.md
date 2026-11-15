@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.125** (this branch) · main tip **v0.0.124**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.130** (this branch) · main tip **v0.0.129**.
 
 ## Build
 
@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.125** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.125.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.130.apk`
 
 ## Scope
 
@@ -77,6 +77,7 @@ Evolving-intention foundation on a brand-new HOME launcher — not the full INTE
 - **v0.0.117:** Floater system UI OS-156 — overlay yields to recents, gesture nav, permission dialogs, and IME (reclaimed from 0.0.85; additive with Gate D #53 / 0.0.109)
 - **v0.0.118:** Home attention OS-135 — today's recommendation, due work, next deadline, and agent attention without clutter; additive to four-core Home visual reclaim (#52 / 0.0.104); reclaimed from 0.0.100 after tip 0.0.101
 - **v0.0.119:** CASE-07 chess rating — manual SAID baseline (900→1200) + practice/review log; Chess.com auto-sync `NOT_SUPPORTED` (reclaim; was 0.0.102 / 0.0.67); coexists with CASE-03 research + OS-154 evening triage
+- **v0.0.130:** Gate C frontend — Home MIDDAY Keep plan / Defer later → `recordMiddayCheck`; Tracker Correct entry → `CorrectTrackerEntry` (honest `user_correction` source); IntentionFlowStore unchanged
 
 ## Shapes
 
@@ -229,6 +230,6 @@ Home restores the four-core brand-first composition: ✦ INTENT brand, date, gre
 
 ## Download
 
-Sideload APK (v0.0.127, release): [INTENT-v0.0.127.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/discuss-voice-live-openai-fb17/artifacts/INTENT-v0.0.127.apk)
+Sideload APK (v0.0.130, release): [INTENT-v0.0.130.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/gate-c-midday-correction-ui-b974/artifacts/INTENT-v0.0.130.apk)
 
-(Prior: [INTENT-v0.0.126.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.126.apk))
+(Prior tip: [INTENT-v0.0.129.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.129.apk) when published; earlier [INTENT-v0.0.127.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/discuss-voice-live-openai-fb17/artifacts/INTENT-v0.0.127.apk))
