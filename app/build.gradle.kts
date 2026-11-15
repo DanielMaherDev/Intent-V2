@@ -11,14 +11,33 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 16
-        versionName = "0.0.16"
+        versionCode = 17
+        versionName = "0.0.17"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Stable sideload key so GitHub/raw artifacts update via native Package Installer.
+    // Ephemeral ~/.android/debug.keystore differs per machine and causes
+    // INSTALL_FAILED_UPDATE_INCOMPATIBLE ("App not installed") on upgrade.
+    signingConfigs {
+        create("sideload") {
+            storeFile = rootProject.file("keystore/intent-sideload.jks")
+            storePassword = "intent-sideload"
+            keyAlias = "intent-sideload"
+            keyPassword = "intent-sideload"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("sideload")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("sideload")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
