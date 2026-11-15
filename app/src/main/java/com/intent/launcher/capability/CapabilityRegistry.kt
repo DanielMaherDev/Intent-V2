@@ -82,6 +82,10 @@ class CapabilityRegistry(
     fun canLaunchInstalledApp(): Boolean =
         isActionable(ID_LAUNCH_INSTALLED_APP)
 
+    /** True when UsageStats permission is granted and package-level reads are allowed. */
+    fun canReadUsageStats(): Boolean =
+        isActionable(ID_USAGE_STATS)
+
     companion object {
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"

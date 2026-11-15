@@ -11,20 +11,28 @@ import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.NextAction
+import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.SessionRunStatus
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
 import com.intent.launcher.engine.NextActionEngine
+import com.intent.launcher.engine.UsageStatsAccess
+import com.intent.launcher.engine.UsageStatsProbe
 import com.intent.launcher.store.IntentionFlowStore
 
 class LauncherViewModel(
     private val store: IntentionFlowStore = IntentApp.instance.store,
-    private val capabilityRegistry: CapabilityRegistry = CapabilityRegistry.default,
-    private val appLauncher: InstalledAppLauncher = IntentApp.instance.appLauncher
+    private val appLauncher: InstalledAppLauncher = IntentApp.instance.appLauncher,
+    private val usageStatsAccess: UsageStatsAccess = IntentApp.instance.usageStatsAccess,
+    initialRegistry: CapabilityRegistry? = null
 ) : ViewModel() {
+
+    private var capabilityRegistry: CapabilityRegistry =
+        initialRegistry ?: UsageStatsProbe.liveRegistry(usageStatsAccess)
 
     var snapshot by mutableStateOf(store.snapshot())
         private set
@@ -39,9 +47,15 @@ class LauncherViewModel(
     var destinationLaunchNote by mutableStateOf<String?>(null)
         private set
 
+    /** Package-level UsageStats observation for the active SessionCard (never completion). */
+    var usageObservation by mutableStateOf<UsageStatsProbe.Observation?>(null)
+        private set
+
     fun refresh() {
+        capabilityRegistry = UsageStatsProbe.liveRegistry(usageStatsAccess)
         snapshot = store.snapshot()
         nextAction = recommend()
+        usageObservation = observeUsageIfActive()
     }
 
     private fun recommend(): NextAction =
@@ -50,6 +64,19 @@ class LauncherViewModel(
             System.currentTimeMillis(),
             registry = capabilityRegistry
         )
+
+    private fun observeUsageIfActive(): UsageStatsProbe.Observation? {
+        if (nextAction.kind != NextActionKind.ACTIVE_SESSION) return null
+        val destination = LaunchDestinationApp.resolve(activeIntention(), nextAction)
+            ?: SessionDestinations.forIntention(activeIntention())
+        return UsageStatsProbe.observeSessionForeground(
+            access = usageStatsAccess,
+            destination = destination,
+            sessionStartedAtEpochMs = nextAction.startedAtEpochMs,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+    }
 
     fun activeIntention(): Intention? {
         val snap = snapshot

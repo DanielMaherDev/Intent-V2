@@ -1,6 +1,8 @@
 package com.intent.launcher
 
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -67,6 +69,15 @@ class MainActivity : ComponentActivity() {
                                 onAbandonSession = { vm.abandonActiveSession() },
                                 onOpenDestination = { vm.launchDestinationApp() },
                                 destinationLaunchNote = vm.destinationLaunchNote,
+                                usageNote = vm.usageObservation?.note,
+                                showGrantUsageAccess = vm.usageObservation?.canOpenSettings == true,
+                                onGrantUsageAccess = {
+                                    startActivity(
+                                        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                },
                                 onExploreMarathon = if (showMarathonEntry) {
                                     {
                                         vm.startMarathonExploration()
