@@ -24,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
@@ -155,7 +156,11 @@ class MainActivity : ComponentActivity() {
                                     startActivity(
                                         Intent(
                                             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                            Uri.parse("package:$packageName")
+                                            Uri.parse(
+                                                OverlayPermissionProbe.manageOverlayDataUri(
+                                                    packageName
+                                                )
+                                            )
                                         ).apply {
                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }

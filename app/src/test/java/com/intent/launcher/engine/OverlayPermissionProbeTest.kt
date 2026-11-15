@@ -2,6 +2,7 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.capability.CapabilityStatus
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -70,5 +71,31 @@ class OverlayPermissionProbeTest {
         assertTrue(registry.canReadUsageStats())
         assertTrue(registry.needsPermission(CapabilityRegistry.ID_FLOATING_OVERLAY))
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION))
+    }
+
+    @Test
+    fun manageOverlayDataUri_targetsPackage() {
+        assertEquals(
+            "package:com.intent.launcher",
+            OverlayPermissionProbe.manageOverlayDataUri("com.intent.launcher")
+        )
+        assertEquals(
+            "android.settings.action.MANAGE_OVERLAY_PERMISSION",
+            OverlayPermissionProbe.SETTINGS_ACTION
+        )
+    }
+
+    @Test
+    fun manifestDeclaresSystemAlertWindow_forOverlaySettingsList() {
+        val candidates = listOf(
+            File("src/main/AndroidManifest.xml"),
+            File("app/src/main/AndroidManifest.xml")
+        )
+        val manifest = candidates.firstOrNull { it.isFile }?.readText().orEmpty()
+        assertTrue(
+            "SYSTEM_ALERT_WINDOW must be declared or the app is invisible in " +
+                "Settings → Display over other apps",
+            manifest.contains("android.permission.SYSTEM_ALERT_WINDOW")
+        )
     }
 }
