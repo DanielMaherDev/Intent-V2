@@ -82,7 +82,7 @@ object NextActionEngine {
                 urgency(it.deferredUntilEpochMs, it.dayOfWeek, it.hour, it.minute, nowEpochMs, timeZone)
             }
 
-        // Worksheet §10 — evening check-out (after active session), then morning check-in.
+        // Worksheet §10 / Gate C — evening → midday → morning (clock windows).
         if (session != null && intention.phase == IntentionPhase.ACTIVE) {
             val checkOut = recommendCheckOutIfNeeded(
                 snapshot = snapshot,
@@ -94,6 +94,17 @@ object NextActionEngine {
                 registry = registry
             )
             if (checkOut != null) return checkOut
+
+            val midday = recommendMiddayIfNeeded(
+                snapshot = snapshot,
+                intentionId = intentionId,
+                intentionTitle = intention.title,
+                session = session,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone,
+                registry = registry
+            )
+            if (midday != null) return midday
 
             val checkIn = recommendCheckInIfNeeded(
                 snapshot = snapshot,
@@ -248,6 +259,46 @@ object NextActionEngine {
             confirmLabel = "Keep schedule",
             adjustLabel = if (registry.canRecommendDefer()) "Defer tomorrow" else null,
             deferLabel = if (registry.canRecommendDefer()) "Defer tomorrow" else null
+        )
+    }
+
+    private fun recommendMiddayIfNeeded(
+        snapshot: IntentionSnapshot,
+        intentionId: String,
+        intentionTitle: String,
+        session: ScheduledSession,
+        nowEpochMs: Long,
+        timeZone: TimeZone,
+        registry: CapabilityRegistry
+    ): NextAction? {
+        if (!DailyCycle.shouldOfferMidday(snapshot, intentionId, nowEpochMs, timeZone)) {
+            return null
+        }
+        if (!registry.canDailyMidday()) {
+            return null
+        }
+        val focus = snapshot.dayCycle.focusSummary
+            ?.takeIf { snapshot.dayCycle.localDate == DailyCycle.localDateString(nowEpochMs, timeZone) }
+            ?: "Focus: ${intentionTitle.ifBlank { "Your intention" }}"
+        val deferred = session.deferredUntilEpochMs != null &&
+            session.deferredUntilEpochMs > nowEpochMs
+        return NextAction(
+            kind = NextActionKind.MIDDAY,
+            label = "Midday check",
+            detail = focus,
+            reason = if (deferred) {
+                "Midday drift check — session already deferred locally. " +
+                    "Record DailyContext + Occurrence (not chat prose)."
+            } else {
+                "Midday drift check — confirm plan or defer with conflict check. " +
+                    "Writes durable Occurrence + DailyContext, not chat prose alone."
+            },
+            intentionId = intentionId,
+            sessionId = session.id,
+            discussLabel = if (registry.canDiscuss()) "Discuss" else null,
+            confirmLabel = "Keep plan",
+            adjustLabel = if (registry.canRecommendDefer()) "Defer later" else null,
+            deferLabel = if (registry.canRecommendDefer()) "Defer later" else null
         )
     }
 

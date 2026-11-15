@@ -77,10 +77,14 @@ object CommandReversibility {
                 Reversibility(true, "Dismissed evidence ${command.evidenceId}")
             is FlowCommand.ConfirmDailyCheckIn ->
                 Reversibility(true, "Confirmed daily check-in for ${command.localDate}")
+            is FlowCommand.RecordMiddayCheck ->
+                Reversibility(true, "Recorded midday check for ${command.localDate}")
             is FlowCommand.CompleteDailyCheckOut ->
                 Reversibility(true, "Completed daily check-out for ${command.localDate}")
             is FlowCommand.RecordTrackerEntry ->
                 Reversibility(true, "Recorded tracker entry ${command.entryId}")
+            is FlowCommand.CorrectTrackerEntry ->
+                Reversibility(true, "Corrected tracker entry ${command.priorEntryId} → ${command.newEntryId}")
             is FlowCommand.DeleteTrackerEntry ->
                 Reversibility(true, "Deleted tracker entry ${command.entryId}")
             is FlowCommand.MarkThoughtStatus ->

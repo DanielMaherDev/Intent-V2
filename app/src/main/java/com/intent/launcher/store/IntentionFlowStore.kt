@@ -2,7 +2,10 @@ package com.intent.launcher.store
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.intent.launcher.domain.BuilderDraft
+import com.intent.launcher.domain.BuilderPhase
 import com.intent.launcher.domain.ConversationTurn
+import com.intent.launcher.domain.DailyContext
 import com.intent.launcher.domain.DayCycleState
 import com.intent.launcher.domain.DrawerCardLayout
 import com.intent.launcher.domain.DrawerCards
@@ -12,12 +15,13 @@ import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.FlowCommand
-import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.FlowTransaction
+import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.IntentionSnapshot
+import com.intent.launcher.domain.Occurrence
 import com.intent.launcher.domain.Proposal
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.Provenance
@@ -26,12 +30,9 @@ import com.intent.launcher.domain.SCHEMA_VERSION
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionRun
 import com.intent.launcher.domain.SessionRunStatus
-import com.intent.launcher.domain.BuilderDraft
-import com.intent.launcher.domain.BuilderPhase
 import com.intent.launcher.domain.ThoughtCapture
 import com.intent.launcher.domain.ThoughtCaptureStatus
 import com.intent.launcher.domain.ThoughtDisposition
-import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrashEntry
@@ -40,6 +41,7 @@ import com.intent.launcher.domain.TriageItem
 import com.intent.launcher.domain.TriageItemStatus
 import com.intent.launcher.domain.TriageState
 import com.intent.launcher.engine.CommandReversibility
+import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.engine.IntentionHierarchy
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
@@ -306,12 +308,14 @@ class IntentionFlowStore(
             }
 
             is FlowCommand.RecordTrackerEntry -> {
+                val eventAt = command.eventAtEpochMs ?: command.nowEpochMs
                 val entry = TrackerEntry(
                     id = command.entryId,
                     intentionId = command.intentionId,
                     moduleId = command.moduleId,
                     valueText = command.valueText,
                     recordedAtEpochMs = command.nowEpochMs,
+                    eventAtEpochMs = eventAt,
                     provenance = Provenance(
                         kind = command.provenanceKind,
                         learnedAtEpochMs = command.nowEpochMs,
@@ -322,6 +326,36 @@ class IntentionFlowStore(
                 migrated.copy(
                     trackerEntries = migrated.trackerEntries.filterNot { it.id == entry.id } + entry,
                     intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.CorrectTrackerEntry -> {
+                val prior = migrated.trackerEntries.firstOrNull { it.id == command.priorEntryId }
+                    ?: return migrated
+                if (prior.status != TrackerEntryStatus.ACTIVE) return migrated
+                val eventAt = command.eventTimeEpochMs ?: command.nowEpochMs
+                val correctedPrior = prior.copy(status = TrackerEntryStatus.CORRECTED)
+                val entry = TrackerEntry(
+                    id = command.newEntryId,
+                    intentionId = prior.intentionId,
+                    moduleId = prior.moduleId,
+                    valueText = command.valueText,
+                    recordedAtEpochMs = command.nowEpochMs,
+                    eventAtEpochMs = eventAt,
+                    provenance = Provenance(
+                        kind = command.provenanceKind,
+                        learnedAtEpochMs = command.nowEpochMs,
+                        sourceLabel = command.sourceLabel
+                    ),
+                    status = TrackerEntryStatus.ACTIVE,
+                    supersedesEntryId = prior.id
+                )
+                val withoutDup = migrated.trackerEntries
+                    .map { if (it.id == prior.id) correctedPrior else it }
+                    .filterNot { it.id == entry.id }
+                migrated.copy(
+                    trackerEntries = withoutDup + entry,
+                    intentions = touch(migrated.intentions, prior.intentionId, command.nowEpochMs)
                 )
             }
 
@@ -450,16 +484,118 @@ class IntentionFlowStore(
                     )
                     hypotheses = hypotheses.filterNot { it.id == hypothesis.id } + hypothesis
                 }
+                val said = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                var occurrences = migrated.occurrences
+                val occurrenceId = command.occurrenceId
+                if (occurrenceId != null) {
+                    val occurrence = Occurrence(
+                        id = occurrenceId,
+                        intentionId = command.intentionId,
+                        localDate = command.localDate,
+                        phase = "morning",
+                        kind = "check_in",
+                        summary = command.focusSummary,
+                        recordedAtEpochMs = command.nowEpochMs,
+                        provenance = said
+                    )
+                    occurrences = occurrences.filterNot { it.id == occurrence.id } + occurrence
+                }
+                var dailyContexts = migrated.dailyContexts
+                val dailyContextId = command.dailyContextId
+                if (dailyContextId != null) {
+                    val ctx = DailyContext(
+                        id = dailyContextId,
+                        localDate = command.localDate,
+                        intentionId = command.intentionId,
+                        phase = "morning",
+                        availability = command.availability,
+                        energy = command.energy,
+                        priorities = command.priorities ?: command.focusSummary,
+                        constraints = command.constraints,
+                        note = note.ifBlank { null },
+                        recordedAtEpochMs = command.nowEpochMs,
+                        provenance = said
+                    )
+                    dailyContexts = dailyContexts.filterNot { it.id == ctx.id } + ctx
+                }
                 migrated.copy(
                     facts = facts,
                     hypotheses = hypotheses,
+                    occurrences = occurrences,
+                    dailyContexts = dailyContexts,
                     dayCycle = DayCycleState(
                         localDate = command.localDate,
                         checkInAtEpochMs = command.nowEpochMs,
                         checkOutAtEpochMs = null,
                         focusIntentionId = command.intentionId,
-                        focusSummary = command.focusSummary
+                        focusSummary = command.focusSummary,
+                        middayAtEpochMs = null,
+                        middayNote = null
                     ),
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.RecordMiddayCheck -> {
+                val said = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                val occurrence = Occurrence(
+                    id = command.occurrenceId,
+                    intentionId = command.intentionId,
+                    localDate = command.localDate,
+                    phase = "midday",
+                    kind = "midday_check",
+                    summary = command.summary,
+                    recordedAtEpochMs = command.nowEpochMs,
+                    provenance = said
+                )
+                val ctx = DailyContext(
+                    id = command.contextId,
+                    localDate = command.localDate,
+                    intentionId = command.intentionId,
+                    phase = "midday",
+                    energy = command.energy,
+                    constraints = command.constraints,
+                    note = command.summary,
+                    recordedAtEpochMs = command.nowEpochMs,
+                    provenance = said
+                )
+                val prior = migrated.dayCycle
+                val dayCycle = if (prior.localDate == command.localDate) {
+                    prior.copy(
+                        middayAtEpochMs = command.nowEpochMs,
+                        middayNote = command.summary,
+                        focusIntentionId = command.intentionId
+                    )
+                } else {
+                    DayCycleState(
+                        localDate = command.localDate,
+                        focusIntentionId = command.intentionId,
+                        middayAtEpochMs = command.nowEpochMs,
+                        middayNote = command.summary
+                    )
+                }
+                var sessions = migrated.sessions
+                val deferSessionId = command.deferSessionId
+                val deferUntil = command.deferUntilEpochMs
+                if (deferSessionId != null && deferUntil != null) {
+                    val inProgress = migrated.sessionRuns.any {
+                        it.sessionId == deferSessionId && it.status == SessionRunStatus.IN_PROGRESS
+                    }
+                    if (!inProgress) {
+                        sessions = sessions.map {
+                            if (it.id == deferSessionId) {
+                                it.copy(deferredUntilEpochMs = deferUntil)
+                            } else {
+                                it
+                            }
+                        }
+                    }
+                }
+                migrated.copy(
+                    occurrences = migrated.occurrences.filterNot { it.id == occurrence.id } + occurrence,
+                    dailyContexts = migrated.dailyContexts.filterNot { it.id == ctx.id } + ctx,
+                    dayCycle = dayCycle,
+                    sessions = sessions,
                     intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
                 )
             }
@@ -493,7 +629,17 @@ class IntentionFlowStore(
                     },
                     checkOutAtEpochMs = command.nowEpochMs,
                     focusIntentionId = command.intentionId,
-                    focusSummary = prior.focusSummary
+                    focusSummary = prior.focusSummary,
+                    middayAtEpochMs = if (prior.localDate == command.localDate) {
+                        prior.middayAtEpochMs
+                    } else {
+                        null
+                    },
+                    middayNote = if (prior.localDate == command.localDate) {
+                        prior.middayNote
+                    } else {
+                        null
+                    }
                 )
                 var sessions = migrated.sessions
                 val deferSessionId = command.deferSessionId
@@ -512,10 +658,44 @@ class IntentionFlowStore(
                         }
                     }
                 }
+                val said = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user")
+                var occurrences = migrated.occurrences
+                val occurrenceId = command.occurrenceId
+                if (occurrenceId != null) {
+                    val occurrence = Occurrence(
+                        id = occurrenceId,
+                        intentionId = command.intentionId,
+                        localDate = command.localDate,
+                        phase = "evening",
+                        kind = "check_out",
+                        summary = command.whatHappened,
+                        recordedAtEpochMs = command.nowEpochMs,
+                        provenance = said
+                    )
+                    occurrences = occurrences.filterNot { it.id == occurrence.id } + occurrence
+                }
+                var dailyContexts = migrated.dailyContexts
+                val dailyContextId = command.dailyContextId
+                if (dailyContextId != null) {
+                    val ctx = DailyContext(
+                        id = dailyContextId,
+                        localDate = command.localDate,
+                        intentionId = command.intentionId,
+                        phase = "evening",
+                        energy = command.energy,
+                        constraints = command.constraints,
+                        note = command.whatHappened,
+                        recordedAtEpochMs = command.nowEpochMs,
+                        provenance = said
+                    )
+                    dailyContexts = dailyContexts.filterNot { it.id == ctx.id } + ctx
+                }
                 migrated.copy(
                     facts = facts,
                     hypotheses = hypotheses,
                     sessions = sessions,
+                    occurrences = occurrences,
+                    dailyContexts = dailyContexts,
                     dayCycle = dayCycle,
                     intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
                 )
@@ -1064,8 +1244,10 @@ class IntentionFlowStore(
                     is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
                     is FlowCommand.DismissEvidence -> command.nowEpochMs
                     is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
+                    is FlowCommand.RecordMiddayCheck -> command.nowEpochMs
                     is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
                     is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
+                    is FlowCommand.CorrectTrackerEntry -> command.nowEpochMs
                     is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
                     is FlowCommand.MarkThoughtStatus -> command.nowEpochMs
                     is FlowCommand.ClassifyThought -> command.nowEpochMs
@@ -1116,8 +1298,10 @@ class IntentionFlowStore(
             is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
             is FlowCommand.DismissEvidence -> command.nowEpochMs
             is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
+            is FlowCommand.RecordMiddayCheck -> command.nowEpochMs
             is FlowCommand.CompleteDailyCheckOut -> command.nowEpochMs
             is FlowCommand.RecordTrackerEntry -> command.nowEpochMs
+            is FlowCommand.CorrectTrackerEntry -> command.nowEpochMs
             is FlowCommand.DeleteTrackerEntry -> command.nowEpochMs
             is FlowCommand.MarkThoughtStatus -> command.nowEpochMs
             is FlowCommand.ClassifyThought -> command.nowEpochMs
@@ -1797,14 +1981,18 @@ class IntentionFlowStore(
         val checkInAtEpochMs: Long? = null,
         val checkOutAtEpochMs: Long? = null,
         val focusIntentionId: String? = null,
-        val focusSummary: String? = null
+        val focusSummary: String? = null,
+        val middayAtEpochMs: Long? = null,
+        val middayNote: String? = null
     ) {
         fun toDomain() = DayCycleState(
             localDate = localDate,
             checkInAtEpochMs = checkInAtEpochMs,
             checkOutAtEpochMs = checkOutAtEpochMs,
             focusIntentionId = focusIntentionId,
-            focusSummary = focusSummary
+            focusSummary = focusSummary,
+            middayAtEpochMs = middayAtEpochMs,
+            middayNote = middayNote
         )
 
         companion object {
@@ -1813,7 +2001,9 @@ class IntentionFlowStore(
                 checkInAtEpochMs = d.checkInAtEpochMs,
                 checkOutAtEpochMs = d.checkOutAtEpochMs,
                 focusIntentionId = d.focusIntentionId,
-                focusSummary = d.focusSummary
+                focusSummary = d.focusSummary,
+                middayAtEpochMs = d.middayAtEpochMs,
+                middayNote = d.middayNote
             )
         }
     }
@@ -1825,18 +2015,25 @@ class IntentionFlowStore(
         val valueText: String = "",
         val recordedAtEpochMs: Long = 0L,
         val provenance: WireProvenance = WireProvenance(),
-        val status: String = TrackerEntryStatus.ACTIVE.name
+        val status: String = TrackerEntryStatus.ACTIVE.name,
+        val eventAtEpochMs: Long? = null,
+        val supersedesEntryId: String? = null
     ) {
-        fun toDomain() = TrackerEntry(
-            id = id,
-            intentionId = intentionId,
-            moduleId = moduleId,
-            valueText = valueText,
-            recordedAtEpochMs = recordedAtEpochMs,
-            provenance = provenance.toDomain(),
-            status = runCatching { TrackerEntryStatus.valueOf(status) }
-                .getOrDefault(TrackerEntryStatus.ACTIVE)
-        )
+        fun toDomain(): TrackerEntry {
+            val recorded = recordedAtEpochMs
+            return TrackerEntry(
+                id = id,
+                intentionId = intentionId,
+                moduleId = moduleId,
+                valueText = valueText,
+                recordedAtEpochMs = recorded,
+                provenance = provenance.toDomain(),
+                status = runCatching { TrackerEntryStatus.valueOf(status) }
+                    .getOrDefault(TrackerEntryStatus.ACTIVE),
+                eventAtEpochMs = eventAtEpochMs ?: recorded,
+                supersedesEntryId = supersedesEntryId
+            )
+        }
 
         companion object {
             fun from(e: TrackerEntry) = WireTrackerEntry(
@@ -1846,7 +2043,88 @@ class IntentionFlowStore(
                 valueText = e.valueText,
                 recordedAtEpochMs = e.recordedAtEpochMs,
                 provenance = WireProvenance.from(e.provenance),
-                status = e.status.name
+                status = e.status.name,
+                eventAtEpochMs = e.eventAtEpochMs,
+                supersedesEntryId = e.supersedesEntryId
+            )
+        }
+    }
+
+    data class WireOccurrence(
+        val id: String = "",
+        val intentionId: String = "",
+        val localDate: String = "",
+        val phase: String = "",
+        val kind: String = "",
+        val summary: String = "",
+        val recordedAtEpochMs: Long = 0L,
+        val provenance: WireProvenance = WireProvenance()
+    ) {
+        fun toDomain() = Occurrence(
+            id = id,
+            intentionId = intentionId,
+            localDate = localDate,
+            phase = phase,
+            kind = kind,
+            summary = summary,
+            recordedAtEpochMs = recordedAtEpochMs,
+            provenance = provenance.toDomain()
+        )
+
+        companion object {
+            fun from(o: Occurrence) = WireOccurrence(
+                id = o.id,
+                intentionId = o.intentionId,
+                localDate = o.localDate,
+                phase = o.phase,
+                kind = o.kind,
+                summary = o.summary,
+                recordedAtEpochMs = o.recordedAtEpochMs,
+                provenance = WireProvenance.from(o.provenance)
+            )
+        }
+    }
+
+    data class WireDailyContext(
+        val id: String = "",
+        val localDate: String = "",
+        val intentionId: String? = null,
+        val phase: String = "",
+        val availability: String? = null,
+        val energy: String? = null,
+        val priorities: String? = null,
+        val constraints: String? = null,
+        val note: String? = null,
+        val recordedAtEpochMs: Long = 0L,
+        val provenance: WireProvenance = WireProvenance()
+    ) {
+        fun toDomain() = DailyContext(
+            id = id,
+            localDate = localDate,
+            intentionId = intentionId,
+            phase = phase,
+            availability = availability,
+            energy = energy,
+            priorities = priorities,
+            constraints = constraints,
+            note = note,
+            recordedAtEpochMs = recordedAtEpochMs,
+            provenance = provenance.toDomain()
+        )
+
+        companion object {
+            fun from(c: DailyContext) = WireDailyContext(
+                id = c.id,
+                localDate = c.localDate,
+                intentionId = c.intentionId,
+                phase = c.phase,
+                availability = c.availability,
+                energy = c.energy,
+                priorities = c.priorities,
+                constraints = c.constraints,
+                note = c.note,
+                recordedAtEpochMs = c.recordedAtEpochMs,
+                provenance = WireProvenance.from(c.provenance)
             )
         }
     }
@@ -2044,6 +2322,8 @@ class IntentionFlowStore(
         val sessionRuns: List<WireSessionRun> = emptyList(),
         val evidence: List<WireEvidence> = emptyList(),
         val trackerEntries: List<WireTrackerEntry> = emptyList(),
+        val occurrences: List<WireOccurrence> = emptyList(),
+        val dailyContexts: List<WireDailyContext> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
         val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
         val builderDraft: WireBuilderDraft = WireBuilderDraft(),
@@ -2067,6 +2347,8 @@ class IntentionFlowStore(
             sessionRuns = sessionRuns.map { it.toDomain() },
             evidence = evidence.map { it.toDomain() },
             trackerEntries = trackerEntries.map { it.toDomain() },
+            occurrences = occurrences.map { it.toDomain() },
+            dailyContexts = dailyContexts.map { it.toDomain() },
             turns = turns.map { it.toDomain() },
             thoughtCaptures = thoughtCaptures.map { it.toDomain() },
             builderDraft = builderDraft.toDomain(),
@@ -2092,6 +2374,8 @@ class IntentionFlowStore(
                 sessionRuns = s.sessionRuns.map(WireSessionRun::from),
                 evidence = s.evidence.map(WireEvidence::from),
                 trackerEntries = s.trackerEntries.map(WireTrackerEntry::from),
+                occurrences = s.occurrences.map(WireOccurrence::from),
+                dailyContexts = s.dailyContexts.map(WireDailyContext::from),
                 turns = s.turns.map(WireTurn::from),
                 thoughtCaptures = s.thoughtCaptures.map(WireThoughtCapture::from),
                 builderDraft = WireBuilderDraft.from(s.builderDraft),

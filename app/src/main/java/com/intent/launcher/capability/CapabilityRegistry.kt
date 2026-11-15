@@ -156,6 +156,9 @@ class CapabilityRegistry(
     fun canDailyCheckIn(): Boolean =
         isActionable(ID_DAILY_CHECK_IN)
 
+    fun canDailyMidday(): Boolean =
+        isActionable(ID_DAILY_MIDDAY)
+
     fun canDailyCheckOut(): Boolean =
         isActionable(ID_DAILY_CHECK_OUT)
 
@@ -228,6 +231,7 @@ class CapabilityRegistry(
         const val ID_TRASH_RESTORE = "trash_restore"
         const val ID_EXTERNAL_ACTION_UNDO = "external_action_undo"
         const val ID_DAILY_CHECK_IN = "daily_check_in"
+        const val ID_DAILY_MIDDAY = "daily_midday"
         const val ID_DAILY_CHECK_OUT = "daily_check_out"
         const val ID_TRACKER_MODULES = "tracker_modules"
         const val ID_PROGRESS_REPORTS = "progress_reports"
@@ -430,26 +434,34 @@ class CapabilityRegistry(
                 title = "Daily check-in",
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Morning focus confirm/adjust on the Home intention model — " +
-                    "not a separate daily-task store."
+                    "writes DailyContext + Occurrence, not a separate daily-task store."
+            ),
+            CapabilityEntry(
+                id = ID_DAILY_MIDDAY,
+                title = "Midday check",
+                status = CapabilityStatus.AVAILABLE,
+                limitNote = "Midday drift via durable Occurrence + DailyContext; " +
+                    "session defer refuses when a run is in progress."
             ),
             CapabilityEntry(
                 id = ID_DAILY_CHECK_OUT,
                 title = "Daily check-out",
                 status = CapabilityStatus.AVAILABLE,
-                limitNote = "Evening SAID review + keep/defer on the same intention snapshot."
+                limitNote = "Evening SAID review + keep/defer on the same intention snapshot " +
+                    "(Occurrence + DailyContext)."
             ),
             CapabilityEntry(
                 id = ID_TRACKER_MODULES,
                 title = "Tracker modules",
                 status = CapabilityStatus.AVAILABLE,
                 limitNote = "Shape-default modules in the intention store; manual entries are SAID. " +
-                    "No partner autofill, fabricated streak charts, or automatic smoke-free claims."
+                    "Corrections supersede prior ACTIVE rows. No partner autofill or fabricated streaks."
             ),
             CapabilityEntry(
                 id = ID_PROGRESS_REPORTS,
                 title = "Progress reports",
                 status = CapabilityStatus.AVAILABLE,
-                limitNote = "PathSummary + labeled SAID/OBSERVED/INFERRED proof from the same store. " +
+                limitNote = "PathSummary + labeled SAID/OBSERVED/INFERRED proof from ACTIVE rows only. " +
                     "Missing partner data stays empty — never invents completion."
             ),
             CapabilityEntry(

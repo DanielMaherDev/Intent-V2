@@ -16,6 +16,9 @@ object DailyCycle {
     /** Local hour before which Home may surface morning check-in. */
     const val CHECK_IN_END_HOUR: Int = 12
 
+    /** Local hour at/after which midday drift check may surface (until evening). */
+    const val MIDDAY_START_HOUR: Int = 12
+
     /** Local hour at/after which Home may surface evening check-out. */
     const val CHECK_OUT_START_HOUR: Int = 18
 
@@ -47,6 +50,11 @@ object DailyCycle {
 
     fun isMorningWindow(nowEpochMs: Long, timeZone: TimeZone): Boolean =
         localHour(nowEpochMs, timeZone) < CHECK_IN_END_HOUR
+
+    fun isMiddayWindow(nowEpochMs: Long, timeZone: TimeZone): Boolean {
+        val hour = localHour(nowEpochMs, timeZone)
+        return hour >= MIDDAY_START_HOUR && hour < CHECK_OUT_START_HOUR
+    }
 
     fun isEveningWindow(nowEpochMs: Long, timeZone: TimeZone): Boolean =
         localHour(nowEpochMs, timeZone) >= CHECK_OUT_START_HOUR
@@ -89,6 +97,26 @@ object DailyCycle {
                 isSameLocalDay(it.startedAtEpochMs, nowEpochMs, timeZone)
         }
         return checkedIn || ranToday
+    }
+
+    /**
+     * Midday drift check after morning confirm, before evening.
+     * Surfaces only when durable morning Occurrence/DayCycle exists and midday not yet done.
+     */
+    fun shouldOfferMidday(
+        snapshot: IntentionSnapshot,
+        intentionId: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): Boolean {
+        if (!isMiddayWindow(nowEpochMs, timeZone)) return false
+        if (!hasActiveScheduledFocus(snapshot, intentionId)) return false
+        val date = localDateString(nowEpochMs, timeZone)
+        val day = snapshot.dayCycle
+        if (day.checkedOutFor(date)) return false
+        if (day.middayDoneFor(date)) return false
+        if (!day.checkedInFor(date)) return false
+        return true
     }
 
     fun summarizeTodayRuns(

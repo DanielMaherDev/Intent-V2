@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 8
+const val SCHEMA_VERSION: Int = 9
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -21,10 +21,12 @@ enum class EvidenceAccuracy {
     DISMISSED
 }
 
-/** Soft-delete for tracker rows until undo/trash purge is available. */
+/** Soft-delete / correction for tracker rows until undo/trash purge is available. */
 enum class TrackerEntryStatus {
     ACTIVE,
-    DELETED
+    DELETED,
+    /** Superseded by a CorrectTrackerEntry — excluded from ACTIVE report counts. */
+    CORRECTED
 }
 
 enum class IntentionPhase {
@@ -59,6 +61,8 @@ enum class NextActionKind {
     ACTIVE_SESSION,
     /** Morning focus confirm / adjust (worksheet §10). */
     CHECK_IN,
+    /** Midday drift / replan via DailyContext + Occurrence (Gate C). */
+    MIDDAY,
     /** Evening SAID review + keep / defer (worksheet §10). */
     CHECK_OUT,
     NONE
@@ -140,6 +144,9 @@ data class Evidence(
  * Manual or observed tracker row for an intention module.
  * Lives in the same intention store — not a separate progress database.
  * Provenance must stay explicit — never silent mix or invented completion charts.
+ * [eventAtEpochMs] is when the value applies (may be backdated); [recordedAtEpochMs]
+ * is when INTENT accepted the write. Corrections mark the prior row CORRECTED and
+ * add a new ACTIVE row with [supersedesEntryId] — reports count ACTIVE only.
  */
 data class TrackerEntry(
     val id: String,
@@ -148,7 +155,43 @@ data class TrackerEntry(
     val valueText: String,
     val recordedAtEpochMs: Long,
     val provenance: Provenance,
-    val status: TrackerEntryStatus = TrackerEntryStatus.ACTIVE
+    val status: TrackerEntryStatus = TrackerEntryStatus.ACTIVE,
+    val eventAtEpochMs: Long = recordedAtEpochMs,
+    val supersedesEntryId: String? = null
+)
+
+/**
+ * Durable day-loop occurrence (contracts §6 OccurrenceRecordV1).
+ * Not [NextActionEngine.nextOccurrence] schedule math and not chat prose.
+ * [phase]: morning | midday | evening · [kind]: check_in | midday_check | check_out | progress_note
+ */
+data class Occurrence(
+    val id: String,
+    val intentionId: String,
+    val localDate: String,
+    val phase: String,
+    val kind: String,
+    val summary: String,
+    val recordedAtEpochMs: Long,
+    val provenance: Provenance
+)
+
+/**
+ * Time-bound day context for a local date — not a permanent profile fact.
+ * Morning / midday / evening phases write separate rows alongside [Occurrence].
+ */
+data class DailyContext(
+    val id: String,
+    val localDate: String,
+    val intentionId: String?,
+    val phase: String,
+    val availability: String? = null,
+    val energy: String? = null,
+    val priorities: String? = null,
+    val constraints: String? = null,
+    val note: String? = null,
+    val recordedAtEpochMs: Long,
+    val provenance: Provenance
 )
 
 data class Proposal(
@@ -179,20 +222,26 @@ data class ConversationTurn(
 
 /**
  * Local day cycle on the same intention snapshot — not a separate daily-task store.
- * Dates are device-local `yyyy-MM-dd`. Check-in/out are user-confirmed via commands.
+ * Dates are device-local `yyyy-MM-dd`. Check-in/out/midday are user-confirmed via commands.
+ * Richer day fields live in [DailyContext] rows; this stays the Home clock marker.
  */
 data class DayCycleState(
     val localDate: String = "",
     val checkInAtEpochMs: Long? = null,
     val checkOutAtEpochMs: Long? = null,
     val focusIntentionId: String? = null,
-    val focusSummary: String? = null
+    val focusSummary: String? = null,
+    val middayAtEpochMs: Long? = null,
+    val middayNote: String? = null
 ) {
     fun checkedInFor(date: String): Boolean =
         localDate == date && checkInAtEpochMs != null
 
     fun checkedOutFor(date: String): Boolean =
         localDate == date && checkOutAtEpochMs != null
+
+    fun middayDoneFor(date: String): Boolean =
+        localDate == date && middayAtEpochMs != null
 }
 
 /**
@@ -387,6 +436,10 @@ data class IntentionSnapshot(
     val sessionRuns: List<SessionRun> = emptyList(),
     val evidence: List<Evidence> = emptyList(),
     val trackerEntries: List<TrackerEntry> = emptyList(),
+    /** Durable dated session instances (Gate C) — independent of recurrence template. */
+    val occurrences: List<Occurrence> = emptyList(),
+    /** Morning / midday / evening context rows per local date (Gate C). */
+    val dailyContexts: List<DailyContext> = emptyList(),
     val turns: List<ConversationTurn> = emptyList(),
     val thoughtCaptures: List<ThoughtCapture> = emptyList(),
     val builderDraft: BuilderDraft = BuilderDraft(),
@@ -524,6 +577,7 @@ sealed class FlowCommand {
     /**
      * Manual tracker data entry — stores [ProvenanceKind.SAID] by default.
      * Callers may pass OBSERVED when logging package-foreground honestly.
+     * [eventAtEpochMs] backdates when the value applies; omit to use [nowEpochMs].
      */
     data class RecordTrackerEntry(
         val entryId: String,
@@ -532,7 +586,23 @@ sealed class FlowCommand {
         val valueText: String,
         val nowEpochMs: Long,
         val provenanceKind: ProvenanceKind = ProvenanceKind.SAID,
-        val sourceLabel: String = "user"
+        val sourceLabel: String = "user",
+        val eventAtEpochMs: Long? = null
+    ) : FlowCommand()
+
+    /**
+     * Correct or backdate a tracker value (contracts §6 CorrectTrackerEntryPayloadV1):
+     * marks [priorEntryId] CORRECTED and inserts ACTIVE [newEntryId].
+     * Reports / next actions count ACTIVE only — no duplicate.
+     */
+    data class CorrectTrackerEntry(
+        val priorEntryId: String,
+        val newEntryId: String,
+        val valueText: String,
+        val nowEpochMs: Long,
+        val eventTimeEpochMs: Long? = null,
+        val provenanceKind: ProvenanceKind = ProvenanceKind.SAID,
+        val sourceLabel: String = "user_correction"
     ) : FlowCommand()
 
     /** Soft-delete a tracker row (command path; restore via undo when available). */
@@ -596,12 +666,39 @@ sealed class FlowCommand {
         val nowEpochMs: Long,
         val adjustedFocusNote: String? = null,
         val adjustedFactId: String? = null,
-        val adjustedHypothesisId: String? = null
+        val adjustedHypothesisId: String? = null,
+        /** Durable morning Occurrence (contracts §6) — required for Gate C day loop. */
+        val occurrenceId: String? = null,
+        /** DailyContext row id for morning phase. */
+        val dailyContextId: String? = null,
+        val availability: String? = null,
+        val energy: String? = null,
+        val priorities: String? = null,
+        val constraints: String? = null
+    ) : FlowCommand()
+
+    /**
+     * Midday drift / replan: writes Occurrence (midday_check) + DailyContext.
+     * Optional session deferral refuses when a SessionRun is IN_PROGRESS (conflict).
+     * Not chat prose alone.
+     */
+    data class RecordMiddayCheck(
+        val occurrenceId: String,
+        val contextId: String,
+        val intentionId: String,
+        val localDate: String,
+        val summary: String,
+        val nowEpochMs: Long,
+        val energy: String? = null,
+        val constraints: String? = null,
+        val deferSessionId: String? = null,
+        val deferUntilEpochMs: Long? = null
     ) : FlowCommand()
 
     /**
      * Evening check-out: record user-reported [whatHappened] as SAID, optional SAID
      * hypothesis, mark day complete, and optionally defer the scheduled session.
+     * Also writes evening [Occurrence] + [DailyContext].
      */
     data class CompleteDailyCheckOut(
         val intentionId: String,
@@ -612,7 +709,11 @@ sealed class FlowCommand {
         val hypothesisId: String? = null,
         val hypothesisText: String? = null,
         val deferSessionId: String? = null,
-        val deferUntilEpochMs: Long? = null
+        val deferUntilEpochMs: Long? = null,
+        val occurrenceId: String? = null,
+        val dailyContextId: String? = null,
+        val energy: String? = null,
+        val constraints: String? = null
     ) : FlowCommand()
 
     data class MarkThoughtStatus(
