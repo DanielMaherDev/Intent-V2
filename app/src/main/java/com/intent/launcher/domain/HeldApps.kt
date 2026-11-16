@@ -153,7 +153,8 @@ object HoldableApps {
 
     /**
      * Suggestions the user may confirm as SAID holds for this intention.
-     * Shape default first, then catalog entries not already held.
+     * Shape default first, then shape-matched catalog entries not already held.
+     * Language catalog (Duolingo) is never invented for other / cessation / etc.
      */
     fun suggestions(
         intention: Intention?,
@@ -167,9 +168,16 @@ object HoldableApps {
         SessionDestinations.forIntention(intention)?.let { dest ->
             if (dest.packageName !in heldPackages) out[dest.packageName] = dest
         }
-        for (entry in CATALOG) {
-            if (entry.packageName !in heldPackages) out.putIfAbsent(entry.packageName, entry)
+        if (isLanguageShape(intention)) {
+            for (entry in CATALOG) {
+                if (entry.packageName !in heldPackages) out.putIfAbsent(entry.packageName, entry)
+            }
         }
         return out.values.toList()
     }
+
+    /** Language catalog (Duolingo) only — not a default for Builder `other` / cessation. */
+    fun isLanguageShape(intention: Intention): Boolean =
+        intention.shapeTag.equals("language", ignoreCase = true) ||
+            intention.id == SpanishScenario.INTENTION_ID
 }
