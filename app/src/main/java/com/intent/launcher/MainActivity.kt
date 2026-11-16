@@ -854,10 +854,15 @@ class MainActivity : ComponentActivity() {
                                 discussSourceLabel = vm.discussSourceLabel(),
                                 discussHonestyNote = vm.discussHonestyNote(),
                                 voiceNote = vm.voicePathNote ?: vm.voiceObservation.note,
-                                voiceEnabled = vm.canStartVoiceCapture(),
+                                voiceEnabled = vm.canStartVoiceCapture() || vm.isAssistantSpeaking,
                                 onMicClick = { onConversationMicClick() },
                                 onSendFreeText = { vm.onDiscussFreeText(it) },
                                 freeTextBusy = vm.freeTextBusy,
+                                assistantSpeaking = vm.isAssistantSpeaking,
+                                onStopSpeaking = { vm.stopAssistantSpeech() },
+                                onSpeakAloud = { vm.beginSpeakingLatestAgentReply() },
+                                canSpeakAloud = vm.speakableAgentReply() != null &&
+                                    !vm.isAssistantSpeaking,
                                 pendingProposal = pending,
                                 relatedSaidFact = relatedSaidFact,
                                 nextAction = vm.nextAction,
@@ -979,6 +984,13 @@ class MainActivity : ComponentActivity() {
         speechForThoughtCapture = false
         vm.refresh()
         when {
+            vm.isAssistantSpeaking && vm.canStartVoiceCapture() ->
+                launchSpeechRecognition(prompt = "Speak to interrupt")
+            vm.isAssistantSpeaking && vm.voiceNeedsPermission() ->
+                requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+            vm.isAssistantSpeaking ->
+                // No STT — Stop still cancels; do not invent a silent OEM barge-in.
+                vm.stopAssistantSpeech()
             vm.canStartVoiceCapture() -> launchSpeechRecognition()
             vm.voiceNeedsPermission() ->
                 requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
