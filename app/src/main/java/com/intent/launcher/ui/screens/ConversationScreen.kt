@@ -58,10 +58,12 @@ import com.intent.launcher.engine.AgentModuleProjection
 import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.ProgressProof
+import com.intent.launcher.ui.components.AgentExplanationCard
 import com.intent.launcher.ui.components.AgentModuleMotion
 import com.intent.launcher.ui.components.AgentNextForYouCard
 import com.intent.launcher.ui.components.AgentNotedBar
 import com.intent.launcher.ui.components.AgentOneQuestionCard
+import com.intent.launcher.ui.components.AgentProgressCard
 import com.intent.launcher.ui.components.AgentProposalCard
 import com.intent.launcher.ui.components.AgentRecordedEntryCard
 import com.intent.launcher.ui.components.AgentReportPreviewCard
@@ -129,7 +131,9 @@ fun ConversationScreen(
             it == ResponseBlockType.QUESTION ||
             it == ResponseBlockType.CHOICE_SET ||
             it == ResponseBlockType.RECORDED_ENTRY ||
-            it == ResponseBlockType.REPORT_PREVIEW
+            it == ResponseBlockType.REPORT_PREVIEW ||
+            it == ResponseBlockType.EXPLANATION ||
+            it == ResponseBlockType.PROGRESS
     }
 
     val nextCard = turns.asSequence()
@@ -190,12 +194,24 @@ fun ConversationScreen(
             null
         }
 
+    val explanationCard = turns.asSequence()
+        .flatMap { it.blocks }
+        .mapNotNull { AgentModuleProjection.explanationFromBlock(it) }
+        .firstOrNull()
+
+    val progressCard = turns.asSequence()
+        .flatMap { it.blocks }
+        .mapNotNull { AgentModuleProjection.progressFromBlock(it) }
+        .firstOrNull()
+
     val showLegacyFraming = turns.isEmpty() &&
         oneQuestion == null &&
         nextCard == null &&
         proposalCard == null &&
         recordedCard == null &&
-        reportCard == null
+        reportCard == null &&
+        explanationCard == null &&
+        progressCard == null
 
     var selectedQuestionIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -358,6 +374,26 @@ fun ConversationScreen(
                 }
             }
 
+            AgentModuleMotion(visible = explanationCard != null) {
+                if (explanationCard != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentExplanationCard(
+                        model = explanationCard,
+                        onAction = onChip
+                    )
+                }
+            }
+
+            AgentModuleMotion(visible = progressCard != null) {
+                if (progressCard != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentProgressCard(
+                        model = progressCard,
+                        onAction = onChip
+                    )
+                }
+            }
+
             if (voiceNote != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -430,8 +466,9 @@ private fun AgentBubble(
 ) {
     val gap = blocks.firstOrNull { it.type == ResponseBlockType.CAPABILITY_GAP && it.active }
     val gatewayModel = GatewayStatusCard.fromTurnBlocks(blocks)
-    // CHOICE_SET / QUESTION / PROPOSAL / NEXT_ACTION / RECORDED / REPORT render as
-    // first-class Agent module cards below the bubble — keep bubble prose-only for those.
+    // CHOICE_SET / QUESTION / PROPOSAL / NEXT_ACTION / RECORDED / REPORT /
+    // EXPLANATION / PROGRESS render as first-class Agent module cards below the
+    // bubble — keep bubble prose-only for those.
     val moduleTyped = blocks.any {
         it.active && it.type in setOf(
             ResponseBlockType.CHOICE_SET,
@@ -439,7 +476,9 @@ private fun AgentBubble(
             ResponseBlockType.PROPOSAL,
             ResponseBlockType.NEXT_ACTION,
             ResponseBlockType.RECORDED_ENTRY,
-            ResponseBlockType.REPORT_PREVIEW
+            ResponseBlockType.REPORT_PREVIEW,
+            ResponseBlockType.EXPLANATION,
+            ResponseBlockType.PROGRESS
         )
     }
 
