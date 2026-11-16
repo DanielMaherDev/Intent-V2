@@ -84,6 +84,29 @@ object AgentModuleProjection {
         val blockId: String?
     )
 
+    /** Honest EXPLANATION card — title/body/source/actions from the block only. */
+    data class ExplanationCard(
+        val title: String,
+        val body: String,
+        val sourceLabel: String,
+        val actions: List<String>,
+        val blockId: String?
+    )
+
+    /**
+     * Honest PROGRESS card — maps the PROGRESS [ResponseBlock] only.
+     * Does not invent OBSERVED metrics or chart series from empty stores.
+     */
+    data class ProgressCard(
+        val title: String,
+        val body: String,
+        val provenanceChip: String,
+        val sourceLabel: String,
+        val actions: List<String>,
+        val honestyNote: String,
+        val blockId: String?
+    )
+
     private val DAY_NAMES =
         listOf("", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -381,6 +404,55 @@ object AgentModuleProjection {
             provenanceChip = provenance,
             blockId = null
         )
+    }
+
+    /**
+     * Project an EXPLANATION [ResponseBlock] into a typed card.
+     * Skips inactive or empty (no title and no body) blocks — never invents copy.
+     */
+    fun explanationFromBlock(block: ResponseBlock): ExplanationCard? {
+        if (block.type != ResponseBlockType.EXPLANATION || !block.active) return null
+        if (block.title.isBlank() && block.body.isBlank()) return null
+        return ExplanationCard(
+            title = block.title.ifBlank { "Explanation" },
+            body = block.body,
+            sourceLabel = block.sourceLabel,
+            actions = block.actions,
+            blockId = block.blockId
+        )
+    }
+
+    /**
+     * Project a PROGRESS [ResponseBlock] into a typed card.
+     * Skips inactive or empty blocks. Provenance chip preserves OBSERVED / SAID / INFERRED
+     * labels from [ResponseBlock.sourceLabel] — does not invent metric values.
+     */
+    fun progressFromBlock(block: ResponseBlock): ProgressCard? {
+        if (block.type != ResponseBlockType.PROGRESS || !block.active) return null
+        if (block.title.isBlank() && block.body.isBlank()) return null
+        val provenance = progressProvenanceChip(block.sourceLabel)
+        return ProgressCard(
+            title = block.title.ifBlank { "Progress" },
+            body = block.body,
+            provenanceChip = provenance,
+            sourceLabel = block.sourceLabel,
+            actions = block.actions,
+            honestyNote = "Shows this progress note only — no invented OBSERVED metrics.",
+            blockId = block.blockId
+        )
+    }
+
+    /** Prefer explicit OBSERVED / SAID / INFERRED chip; never invent a metric value. */
+    fun progressProvenanceChip(sourceLabel: String): String {
+        val upper = sourceLabel.uppercase()
+        return when {
+            upper.startsWith("OBSERVED") || upper.contains("OBSERVED") -> "OBSERVED"
+            upper.startsWith("SAID") || upper.contains("SAID") ||
+                upper.contains("REPORTED BY YOU") || upper.contains("MANUAL") -> "SAID"
+            upper.startsWith("INFERRED") || upper.contains("INFERRED") -> "INFERRED"
+            sourceLabel.isBlank() -> "PROGRESS"
+            else -> sourceLabel.trim()
+        }
     }
 
     /** Prefer explicit OBSERVED / INFERRED chip from sourceLabel; never silent mix. */

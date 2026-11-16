@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.153** (this branch) · tip base **v0.0.152** (#97) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.154** (this branch) · EXPLANATION / PROGRESS Agent-module cards on tip **v0.0.153** (#99) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.153** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.153.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.154.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.154:** FE-A2 depth — typed EXPLANATION + PROGRESS Agent-module Conversation cards from existing ResponseBlocks (skip empty/inactive; no invented OBSERVED metrics); SCHEMA 10 stamp-only. Rebased onto tip **0.0.153** (#99 FE-E3).
 - **v0.0.153:** FE-E3 app-level reduced-motion token — `LocalReducedMotion` + Settings Motion (follow system Animator scale / prefer reduced); gates Agent-module Conversation card enters and Home↔Intention pager jumps; never overrides system Remove animations off; SCHEMA 10 stamp-only. Based on tip 0.0.152 (#97).
 - **v0.0.152:** FE-C3 date-controls depth — Tracker entry date prev/next (explicit SAID event day; no invented OBSERVED dates); SessionCard / app-duration show local Begin day+clock; SCHEMA 10 stamp-only. Based on tip 0.0.151 (#96).
 - **v0.0.151:** Honest Language Conversation chips — user-built language intentions no longer surface Spanish fixture practice catalog (“Everyday conversations” / tutor chips); fixture `intention-spanish` keeps scripted E2E chips; Quit/`other` stay empty; SCHEMA 10 stamp-only
@@ -265,6 +266,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.152, release): [INTENT-v0.0.152.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/fe-c3-date-controls-3ac7/artifacts/INTENT-v0.0.152.apk)
+Sideload APK (v0.0.154, release): [INTENT-v0.0.154.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/fe-a2-explanation-progress-fdda/artifacts/INTENT-v0.0.154.apk)
 
-(Prior tip: [INTENT-v0.0.151.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.151.apk) after #96.)
+(Prior tip: [INTENT-v0.0.153.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.153.apk) after #99.)

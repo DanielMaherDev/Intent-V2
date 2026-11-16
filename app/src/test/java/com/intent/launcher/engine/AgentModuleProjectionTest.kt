@@ -163,4 +163,95 @@ class AgentModuleProjectionTest {
         assertTrue(card.footer.contains("invented") || card.footer.contains("Empty"))
         assertNull(card.trendLine)
     }
+
+    @Test
+    fun explanationCard_mapsBlock_skipsEmptyAndInactive() {
+        val block = ResponseBlock(
+            blockId = "b-expl",
+            type = ResponseBlockType.EXPLANATION,
+            title = "App-led approach",
+            body = "Hold Duolingo + routine option — no lesson-completion claim",
+            sourceLabel = "app_led_learning",
+            actions = listOf("Open Duolingo", "Set a 15-minute practice")
+        )
+        val card = AgentModuleProjection.explanationFromBlock(block)
+        assertNotNull(card)
+        assertEquals("App-led approach", card!!.title)
+        assertEquals("Hold Duolingo + routine option — no lesson-completion claim", card.body)
+        assertEquals("app_led_learning", card.sourceLabel)
+        assertEquals(2, card.actions.size)
+        assertEquals("b-expl", card.blockId)
+
+        assertNull(
+            AgentModuleProjection.explanationFromBlock(block.copy(active = false))
+        )
+        assertNull(
+            AgentModuleProjection.explanationFromBlock(
+                block.copy(title = "", body = "")
+            )
+        )
+        assertNull(
+            AgentModuleProjection.explanationFromBlock(
+                block.copy(type = ResponseBlockType.PROGRESS)
+            )
+        )
+    }
+
+    @Test
+    fun progressCard_preservesProvenance_noInventedMetrics() {
+        val observed = ResponseBlock(
+            blockId = "b-prog",
+            type = ResponseBlockType.PROGRESS,
+            title = "Practice feedback",
+            body = "Linked transcript + feedback on Learn Spanish",
+            sourceLabel = "OBSERVED · usage_stats",
+            actions = emptyList()
+        )
+        val card = AgentModuleProjection.progressFromBlock(observed)
+        assertNotNull(card)
+        assertEquals("Practice feedback", card!!.title)
+        assertEquals("OBSERVED", card.provenanceChip)
+        assertTrue(card.honestyNote.contains("invented", ignoreCase = true))
+        assertTrue(card.actions.isEmpty())
+
+        val said = AgentModuleProjection.progressFromBlock(
+            observed.copy(sourceLabel = "SAID · user")
+        )
+        assertEquals("SAID", said!!.provenanceChip)
+
+        assertNull(
+            AgentModuleProjection.progressFromBlock(observed.copy(active = false))
+        )
+        assertNull(
+            AgentModuleProjection.progressFromBlock(
+                observed.copy(title = "  ", body = "")
+            )
+        )
+        assertNull(
+            AgentModuleProjection.progressFromBlock(
+                observed.copy(type = ResponseBlockType.EXPLANATION)
+            )
+        )
+    }
+
+    @Test
+    fun progressProvenanceChip_neverInventedMetricValue() {
+        assertEquals(
+            "OBSERVED",
+            AgentModuleProjection.progressProvenanceChip("OBSERVED · partner")
+        )
+        assertEquals(
+            "SAID",
+            AgentModuleProjection.progressProvenanceChip("manual SAID rating")
+        )
+        assertEquals(
+            "INFERRED",
+            AgentModuleProjection.progressProvenanceChip("INFERRED · local")
+        )
+        assertEquals(
+            "guided_practice_feedback",
+            AgentModuleProjection.progressProvenanceChip("guided_practice_feedback")
+        )
+        assertEquals("PROGRESS", AgentModuleProjection.progressProvenanceChip(""))
+    }
 }

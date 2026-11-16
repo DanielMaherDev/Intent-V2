@@ -24,10 +24,12 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.HourglassBottom
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.TrackChanges
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -421,6 +423,175 @@ fun AgentRecordedEntryCard(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(model.undoLabel, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun AgentExplanationCard(
+    model: AgentModuleProjection.ExplanationCard,
+    onAction: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, CardShape)
+            .background(IntentColors.Card, CardShape)
+            .padding(18.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = IntentColors.AccentDark,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "EXPLANATION",
+                style = MaterialTheme.typography.labelMedium,
+                color = IntentColors.AccentDark,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.4.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = model.title,
+            fontFamily = SerifTitle,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            lineHeight = 26.sp,
+            color = IntentColors.Ink
+        )
+        if (model.body.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = model.body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Lede,
+                lineHeight = 19.sp
+            )
+        }
+        if (model.sourceLabel.isNotBlank()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            ProvenanceChip(text = model.sourceLabel, tone = ChipTone.Neutral)
+        }
+        if (model.actions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                model.actions.forEachIndexed { index, label ->
+                    if (index == 0) {
+                        IntentPrimaryButton(text = label, onClick = { onAction(label) })
+                    } else {
+                        IntentSecondaryButton(
+                            text = label,
+                            onClick = { onAction(label) },
+                            accentOutline = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AgentProgressCard(
+    model: AgentModuleProjection.ProgressCard,
+    onAction: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, CardShape)
+            .background(IntentColors.Card, CardShape)
+            .padding(18.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ShowChart,
+                    contentDescription = null,
+                    tint = IntentColors.Success,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "PROGRESS",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = IntentColors.Success,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp
+                )
+            }
+            ProvenanceChip(
+                text = model.provenanceChip,
+                tone = if (model.provenanceChip.equals("OBSERVED", ignoreCase = true) ||
+                    model.provenanceChip.equals("SAID", ignoreCase = true)
+                ) {
+                    ChipTone.Success
+                } else {
+                    ChipTone.Neutral
+                }
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = model.title,
+            fontFamily = SerifTitle,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            lineHeight = 26.sp,
+            color = IntentColors.Ink
+        )
+        if (model.body.isNotBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = model.body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Lede,
+                lineHeight = 19.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = model.honestyNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted,
+            lineHeight = 17.sp
+        )
+        if (model.sourceLabel.isNotBlank() &&
+            !model.sourceLabel.equals(model.provenanceChip, ignoreCase = true)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = model.sourceLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = IntentColors.Muted
+            )
+        }
+        if (model.actions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                model.actions.forEachIndexed { index, label ->
+                    if (index == 0) {
+                        IntentPrimaryButton(text = label, onClick = { onAction(label) })
+                    } else {
+                        IntentSecondaryButton(
+                            text = label,
+                            onClick = { onAction(label) },
+                            accentOutline = true
+                        )
+                    }
+                }
             }
         }
     }
