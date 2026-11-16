@@ -757,11 +757,19 @@ class MainActivity : ComponentActivity() {
                                 modules = vm.trackerModules(),
                                 entries = vm.trackerEntriesForActive(),
                                 honestyNote = vm.trackerHonestyNote(),
-                                onRecord = { moduleId, value ->
-                                    vm.recordTrackerEntry(moduleId, value)
+                                onRecord = { moduleId, value, eventAt ->
+                                    vm.recordTrackerEntry(
+                                        moduleId = moduleId,
+                                        valueText = value,
+                                        eventAtEpochMs = eventAt
+                                    )
                                 },
-                                onCorrect = { priorId, value ->
-                                    vm.correctTrackerEntry(priorId, value)
+                                onCorrect = { priorId, value, eventAt ->
+                                    vm.correctTrackerEntry(
+                                        priorEntryId = priorId,
+                                        valueText = value,
+                                        eventTimeEpochMs = eventAt
+                                    )
                                 },
                                 onDelete = { entryId -> vm.deleteTrackerEntry(entryId) },
                                 onOpenReports = { nav.navigate("reports") },
