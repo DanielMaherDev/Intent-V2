@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.155** (this branch) · tip base **v0.0.154** (#98) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.156** (this branch) · stacked on case20 **v0.0.155** (#100) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.155** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.155.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.156.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.156:** Gate E case 34 live barge-in Conversation surface — Speak aloud / Stop speaking / mic-or-type interrupt wired to `InterruptedVoice`; honest no-OEM-silent-barge-in copy; optional platform TTS; SCHEMA 10 stamp-only. Stacked on case20 **0.0.155** (#100).
 - **v0.0.155:** Gate E case 20 — honest CrossIntentionLink Conversation relation card + typed “part of …” via `dispatchGateEUtterance` (no invented links/OBSERVED); SCHEMA 10 stamp-only. Based on tip 0.0.154 (#98).
 - **v0.0.154:** FE-A2 depth — typed EXPLANATION + PROGRESS Agent-module Conversation cards from existing ResponseBlocks (skip empty/inactive; no invented OBSERVED metrics); SCHEMA 10 stamp-only. Rebased onto tip **0.0.153** (#99 FE-E3).
 - **v0.0.153:** FE-E3 app-level reduced-motion token — `LocalReducedMotion` + Settings Motion (follow system Animator scale / prefer reduced); gates Agent-module Conversation card enters and Home↔Intention pager jumps; never overrides system Remove animations off; SCHEMA 10 stamp-only. Based on tip 0.0.152 (#97).
@@ -267,6 +268,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.154, release): [INTENT-v0.0.154.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/fe-a2-explanation-progress-fdda/artifacts/INTENT-v0.0.154.apk)
+Sideload APK (v0.0.156, release): [INTENT-v0.0.156.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/case34-barge-in-surface-53c0/artifacts/INTENT-v0.0.156.apk)
 
-(Prior tip: [INTENT-v0.0.153.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.153.apk) after #99.)
+(Stack parent: [INTENT-v0.0.155.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/case20-cross-intention-link-b3b7/artifacts/INTENT-v0.0.155.apk) on #100.)

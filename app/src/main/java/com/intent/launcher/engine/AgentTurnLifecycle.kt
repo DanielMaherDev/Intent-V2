@@ -19,7 +19,7 @@ object AgentTurnLifecycle {
                 turn.blocks.any { block ->
                     block.type == ResponseBlockType.ERROR &&
                         block.title.equals("Cancelled", ignoreCase = true) &&
-                        (turnId in block.linkedObjectIds || block.sourceLabel == "turn_cancellation")
+                        turnId in block.linkedObjectIds
                 }
         }
     }
