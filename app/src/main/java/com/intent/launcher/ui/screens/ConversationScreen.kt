@@ -23,7 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.Icon
@@ -37,21 +37,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.ConversationTurn
+import com.intent.launcher.domain.Fact
+import com.intent.launcher.domain.NextAction
+import com.intent.launcher.domain.NextActionKind
+import com.intent.launcher.domain.Proposal
+import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
-import com.intent.launcher.engine.AmbiguousChoiceSetCard
+import com.intent.launcher.domain.TrackerEntry
+import com.intent.launcher.engine.AgentModuleProjection
 import com.intent.launcher.engine.GatewayStatusCard
-import com.intent.launcher.ui.components.IntentQuietButton
-import com.intent.launcher.ui.components.ScreenTopBar
+import com.intent.launcher.engine.PathSummary
+import com.intent.launcher.engine.ProgressProof
+import com.intent.launcher.ui.components.AgentNextForYouCard
+import com.intent.launcher.ui.components.AgentNotedBar
+import com.intent.launcher.ui.components.AgentOneQuestionCard
+import com.intent.launcher.ui.components.AgentProposalCard
+import com.intent.launcher.ui.components.AgentRecordedEntryCard
+import com.intent.launcher.ui.components.AgentReportPreviewCard
+import com.intent.launcher.ui.components.IntentBrandMark
+import com.intent.launcher.ui.components.IntentPill
+import com.intent.launcher.ui.components.PillTone
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
@@ -80,6 +95,20 @@ fun ConversationScreen(
     onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
     /** GatewayStatus card chip (e.g. STALE Retry) — [blockId] + action index. */
     onGatewayStatusAction: (blockId: String, actionIndex: Int) -> Unit = { _, _ -> },
+    pendingProposal: Proposal? = null,
+    relatedSaidFact: Fact? = null,
+    nextAction: NextAction? = null,
+    latestTrackerEntry: TrackerEntry? = null,
+    pathSummary: PathSummary.View? = null,
+    progressProof: ProgressProof.View? = null,
+    showReportPreview: Boolean = false,
+    onBeginNext: () -> Unit = {},
+    onLaterNext: () -> Unit = {},
+    onDiscussNext: () -> Unit = {},
+    onDeclineProposal: () -> Unit = {},
+    onOpenReports: () -> Unit = {},
+    onEditRecorded: (entryId: String?) -> Unit = {},
+    onUndoRecorded: (entryId: String?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val paperWash = Brush.verticalGradient(
@@ -91,6 +120,83 @@ fun ConversationScreen(
     )
     val hasUserTurn = turns.any { it.role == "user" }
     val showFramingStatement = !hasUserTurn && intentionStatement.isNotBlank()
+
+    val blockTypes = turns.flatMap { it.blocks }.filter { it.active }.map { it.type }.toSet()
+    val hasTypedAgentCard = blockTypes.any {
+        it == ResponseBlockType.NEXT_ACTION ||
+            it == ResponseBlockType.PROPOSAL ||
+            it == ResponseBlockType.QUESTION ||
+            it == ResponseBlockType.CHOICE_SET ||
+            it == ResponseBlockType.RECORDED_ENTRY ||
+            it == ResponseBlockType.REPORT_PREVIEW
+    }
+
+    val nextCard = turns.asSequence()
+        .flatMap { it.blocks }
+        .mapNotNull { AgentModuleProjection.nextForYouFromBlock(it, intentionTitle) }
+        .firstOrNull()
+        ?: nextAction?.let { AgentModuleProjection.nextForYouFromNextAction(it, intentionTitle) }
+
+    val proposalCard = turns.asSequence()
+        .flatMap { it.blocks }
+        .mapNotNull {
+            AgentModuleProjection.proposalFromBlock(it, intentionTitle, pendingProposal)
+        }
+        .firstOrNull()
+        ?: pendingProposal?.takeIf { it.status == ProposalStatus.PENDING }?.let {
+            AgentModuleProjection.proposalFromPending(it, intentionTitle)
+        }
+
+    val noted = if (proposalCard != null || hasPendingProposal) {
+        AgentModuleProjection.notedBarFromSaidFact(relatedSaidFact)
+    } else {
+        null
+    }
+
+    val choiceBlock = turns.asSequence()
+        .flatMap { it.blocks }
+        .firstOrNull { it.type == ResponseBlockType.CHOICE_SET && it.active }
+    val questionBlock = turns.asSequence()
+        .flatMap { it.blocks }
+        .firstOrNull { it.type == ResponseBlockType.QUESTION && it.active }
+    val oneQuestion = choiceBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
+        ?: questionBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
+        ?: if (!hasTypedAgentCard && chips.isNotEmpty() && nextCard == null && proposalCard == null) {
+            AgentModuleProjection.oneQuestionFromChips(
+                chips = chips,
+                headline = conversationHeadline,
+                body = "Your answer helps me suggest the right practice."
+            )
+        } else {
+            null
+        }
+
+    val recordedCard = turns.asSequence()
+        .flatMap { it.blocks }
+        .mapNotNull { AgentModuleProjection.recordedFromBlock(it) }
+        .firstOrNull()
+        ?: latestTrackerEntry?.let { AgentModuleProjection.recordedFromTrackerEntry(it) }
+
+    val reportCard = turns.asSequence()
+        .flatMap { it.blocks }
+        .mapNotNull {
+            AgentModuleProjection.reportPreviewFromBlock(it, pathSummary, progressProof)
+        }
+        .firstOrNull()
+        ?: if (showReportPreview) {
+            AgentModuleProjection.reportPreviewFromStore(pathSummary, progressProof)
+        } else {
+            null
+        }
+
+    val showLegacyFraming = turns.isEmpty() &&
+        oneQuestion == null &&
+        nextCard == null &&
+        proposalCard == null &&
+        recordedCard == null &&
+        reportCard == null
+
+    var selectedQuestionIndex by remember { mutableStateOf<Int?>(null) }
 
     Column(
         modifier = modifier
@@ -104,36 +210,39 @@ fun ConversationScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 19.dp, vertical = 15.dp)
         ) {
-            ScreenTopBar(
-                contextLabel = intentionTitle.ifBlank { "Conversation" },
+            ConversationTopBar(
+                intentionTitle = intentionTitle,
                 onBack = onBack
             )
-            Spacer(modifier = Modifier.height(23.dp))
-            SmallLabel(text = conversationEyebrow)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = conversationHeadline,
-                style = MaterialTheme.typography.headlineLarge,
-                color = IntentColors.Ink,
-                lineHeight = 34.sp
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = discussSourceLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = IntentColors.AccentDark,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.4.sp
-            )
-            if (discussHonestyNote != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = discussHonestyNote,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Muted
-                )
-            }
             Spacer(modifier = Modifier.height(18.dp))
+
+            if (showLegacyFraming) {
+                SmallLabel(text = conversationEyebrow)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = conversationHeadline,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = IntentColors.Ink,
+                    lineHeight = 34.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = discussSourceLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = IntentColors.AccentDark,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.4.sp
+                )
+                if (discussHonestyNote != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = discussHonestyNote,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Muted
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+            }
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (showFramingStatement) {
@@ -146,27 +255,84 @@ fun ConversationScreen(
                         AgentBubble(
                             text = turn.text,
                             blocks = turn.blocks,
-                            onAmbiguousChoice = onAmbiguousChoice,
                             onGatewayStatusAction = onGatewayStatusAction
                         )
                     }
                 }
             }
 
-            if (chips.isNotEmpty()) {
+            if (noted != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AgentNotedBar(model = noted)
+            }
+
+            if (oneQuestion != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AgentOneQuestionCard(
+                    model = oneQuestion,
+                    selectedIndex = selectedQuestionIndex,
+                    onSelect = { index ->
+                        selectedQuestionIndex = index
+                        val label = oneQuestion.options.getOrNull(index) ?: return@AgentOneQuestionCard
+                        val blockId = oneQuestion.blockId
+                        if (blockId != null && choiceBlock != null) {
+                            onAmbiguousChoice(blockId, index)
+                        } else {
+                            onChip(label)
+                        }
+                    },
+                    onFreeTextMic = if (voiceEnabled) onMicClick else null
+                )
+            } else if (chips.isNotEmpty() && nextCard == null && proposalCard == null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     chips.forEach { chip ->
-                        ChoiceRow(text = chip, onClick = { onChip(chip) })
+                        LegacyChoiceRow(text = chip, onClick = { onChip(chip) })
                     }
                 }
             }
 
-            if (hasPendingProposal) {
+            if (nextCard != null &&
+                nextAction?.kind != NextActionKind.REVIEW_PROPOSAL
+            ) {
                 Spacer(modifier = Modifier.height(12.dp))
-                IntentQuietButton(
+                AgentNextForYouCard(
+                    model = nextCard,
+                    onBegin = onBeginNext,
+                    onLater = onLaterNext,
+                    onDiscuss = onDiscussNext
+                )
+            }
+
+            if (proposalCard != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AgentProposalCard(
+                    model = proposalCard,
+                    onReview = onOpenProposal,
+                    onDismiss = onDeclineProposal
+                )
+            } else if (hasPendingProposal) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LegacyChoiceRow(
                     text = "Open proposal review",
                     onClick = onOpenProposal
+                )
+            }
+
+            if (recordedCard != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AgentRecordedEntryCard(
+                    model = recordedCard,
+                    onEdit = { onEditRecorded(recordedCard.entryId) },
+                    onUndo = { onUndoRecorded(recordedCard.entryId) }
+                )
+            }
+
+            if (reportCard != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                AgentReportPreviewCard(
+                    model = reportCard,
+                    onOpen = onOpenReports
                 )
             }
 
@@ -190,6 +356,33 @@ fun ConversationScreen(
 }
 
 @Composable
+private fun ConversationTopBar(
+    intentionTitle: String,
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+            contentDescription = "Back",
+            tint = IntentColors.Ink,
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(onClick = onBack)
+        )
+        IntentBrandMark(compact = true)
+        if (intentionTitle.isNotBlank()) {
+            IntentPill(text = intentionTitle, tone = PillTone.Neutral)
+        } else {
+            Spacer(modifier = Modifier.width(24.dp))
+        }
+    }
+}
+
+@Composable
 private fun UserBubble(text: String) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
         Text(
@@ -197,9 +390,10 @@ private fun UserBubble(text: String) {
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .clip(RoundedCornerShape(17.dp, 17.dp, 5.dp, 17.dp))
-                .background(IntentColors.UserBubble)
+                .background(IntentColors.AccentSoft)
                 .padding(horizontal = 13.dp, vertical = 11.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            fontFamily = FontFamily.Serif,
+            fontSize = 14.sp,
             color = IntentColors.Ink,
             lineHeight = 19.sp
         )
@@ -210,168 +404,118 @@ private fun UserBubble(text: String) {
 private fun AgentBubble(
     text: String,
     blocks: List<ResponseBlock> = emptyList(),
-    onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
     onGatewayStatusAction: (blockId: String, actionIndex: Int) -> Unit = { _, _ -> }
 ) {
     val gap = blocks.firstOrNull { it.type == ResponseBlockType.CAPABILITY_GAP && it.active }
-    val question = blocks.firstOrNull { it.type == ResponseBlockType.QUESTION && it.active }
-    val choiceSet = blocks.firstOrNull { it.type == ResponseBlockType.CHOICE_SET && it.active }
-    val choiceModel = choiceSet?.let { AmbiguousChoiceSetCard.fromBlock(it) }
     val gatewayModel = GatewayStatusCard.fromTurnBlocks(blocks)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 3.dp,
-                shape = RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp),
-                ambientColor = Color(0x14000000),
-                spotColor = Color(0x14000000)
-            )
-            .border(1.dp, IntentColors.Line, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
-            .background(IntentColors.Card, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
-            .padding(14.dp)
-    ) {
-        Text(
-            text = "✦ INTENT",
-            style = MaterialTheme.typography.labelMedium,
-            color = IntentColors.AccentDark,
-            letterSpacing = 0.6.sp,
-            fontWeight = FontWeight.Bold
+    // CHOICE_SET / QUESTION / PROPOSAL / NEXT_ACTION / RECORDED / REPORT render as
+    // first-class Agent module cards below the bubble — keep bubble prose-only for those.
+    val moduleTyped = blocks.any {
+        it.active && it.type in setOf(
+            ResponseBlockType.CHOICE_SET,
+            ResponseBlockType.QUESTION,
+            ResponseBlockType.PROPOSAL,
+            ResponseBlockType.NEXT_ACTION,
+            ResponseBlockType.RECORDED_ENTRY,
+            ResponseBlockType.REPORT_PREVIEW
         )
-        when {
-            choiceModel != null -> {
-                // GatewayStatus.AMBIGUOUS — first-class CHOICE_SET card with chips.
-                Spacer(modifier = Modifier.height(6.dp))
-                SmallLabel(text = choiceModel.eyebrow)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = choiceModel.body.ifBlank { text },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = IntentColors.Ink,
-                    lineHeight = 19.sp
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    choiceModel.choices.forEach { choice ->
-                        ChoiceRow(
-                            text = choice.label,
-                            onClick = { onAmbiguousChoice(choiceModel.blockId, choice.index) }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .background(IntentColors.Accent, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "✦",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .widthIn(max = 320.dp)
+                .border(1.dp, IntentColors.Line, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
+                .background(IntentColors.Card, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
+                .padding(14.dp)
+        ) {
+            when {
+                gatewayModel != null -> {
+                    SmallLabel(text = gatewayModel.eyebrow)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = gatewayModel.body.ifBlank { text },
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 14.sp,
+                        color = IntentColors.Ink,
+                        lineHeight = 19.sp
+                    )
+                    if (gatewayModel.actions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            gatewayModel.actions.forEach { action ->
+                                LegacyChoiceRow(
+                                    text = action.label,
+                                    onClick = {
+                                        onGatewayStatusAction(gatewayModel.blockId, action.index)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    if (gatewayModel.sourceLabel.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = gatewayModel.sourceLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = IntentColors.Muted
                         )
                     }
                 }
-                if (choiceModel.sourceLabel.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                gap != null -> {
+                    SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = choiceModel.sourceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IntentColors.Muted
+                        text = gap.body.ifBlank { text },
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 14.sp,
+                        color = IntentColors.Ink,
+                        lineHeight = 19.sp
                     )
-                }
-            }
-            gatewayModel != null -> {
-                // CANCELLED / STALE / RETRY / FAILED / PERMISSION_DENIED /
-                // UNSUPPORTED / NEEDS_APPROVAL — first-class status cards.
-                Spacer(modifier = Modifier.height(6.dp))
-                SmallLabel(text = gatewayModel.eyebrow)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = gatewayModel.body.ifBlank { text },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = IntentColors.Ink,
-                    lineHeight = 19.sp
-                )
-                if (gatewayModel.actions.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        gatewayModel.actions.forEach { action ->
-                            ChoiceRow(
-                                text = action.label,
-                                onClick = {
-                                    onGatewayStatusAction(gatewayModel.blockId, action.index)
-                                }
-                            )
-                        }
+                    if (gap.sourceLabel.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = gap.sourceLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = IntentColors.Muted
+                        )
                     }
                 }
-                if (gatewayModel.sourceLabel.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                moduleTyped || text.isNotBlank() -> {
                     Text(
-                        text = gatewayModel.sourceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IntentColors.Muted
+                        text = text,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 14.sp,
+                        color = IntentColors.Ink,
+                        lineHeight = 19.sp
                     )
                 }
-            }
-            gap != null -> {
-                Spacer(modifier = Modifier.height(6.dp))
-                SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = gap.body.ifBlank { text },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = IntentColors.Ink,
-                    lineHeight = 19.sp
-                )
-                if (gap.sourceLabel.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = gap.sourceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IntentColors.Muted
-                    )
-                }
-            }
-            question != null -> {
-                // Gate D2 — intervention QUESTION always shows OBSERVED vs INFERRED.
-                Spacer(modifier = Modifier.height(6.dp))
-                SmallLabel(
-                    text = interventionProvenanceChip(question.sourceLabel, question.title)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = question.body.ifBlank { text },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = IntentColors.Ink,
-                    lineHeight = 19.sp
-                )
-                if (question.sourceLabel.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = question.sourceLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IntentColors.Muted
-                    )
-                }
-            }
-            else -> {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = IntentColors.Ink,
-                    lineHeight = 19.sp
-                )
             }
         }
     }
-}
 
-/** Prefer explicit OBSERVED / INFERRED chip from sourceLabel; never silent mix. */
-private fun interventionProvenanceChip(sourceLabel: String, title: String): String {
-    val upper = sourceLabel.uppercase()
-    val chip = when {
-        upper.startsWith("OBSERVED") -> "OBSERVED"
-        upper.startsWith("INFERRED") -> "INFERRED"
-        upper.contains("OBSERVED") -> "OBSERVED"
-        upper.contains("INFERRED") -> "INFERRED"
-        else -> "INFERRED"
-    }
-    val titlePart = title.trim().ifBlank { "Check-in" }
-    return "$chip · $titlePart"
 }
 
 @Composable
-private fun ChoiceRow(text: String, onClick: () -> Unit) {
+private fun LegacyChoiceRow(text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -388,12 +532,6 @@ private fun ChoiceRow(text: String, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Ink,
             modifier = Modifier.weight(1f)
-        )
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-            contentDescription = null,
-            tint = IntentColors.Accent,
-            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -429,12 +567,6 @@ private fun ComposerBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .shadow(
-                        elevation = 2.dp,
-                        shape = RoundedCornerShape(22.dp),
-                        ambientColor = Color(0x0F000000),
-                        spotColor = Color(0x0F000000)
-                    )
                     .border(1.dp, IntentColors.ComposerBorder, RoundedCornerShape(22.dp))
                     .background(Color.White, RoundedCornerShape(22.dp))
                     .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
@@ -456,7 +588,7 @@ private fun ComposerBar(
                                 text = if (freeTextBusy) {
                                     "Waiting for model…"
                                 } else {
-                                    "Tell me more, or choose above"
+                                    "Talk to INTENT…"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = IntentColors.ComposerHint
@@ -466,35 +598,26 @@ private fun ComposerBar(
                     }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (draft.isNotBlank() && !freeTextBusy) {
-                                IntentColors.Accent
-                            } else {
-                                IntentColors.Muted
-                            }
+                if (draft.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (!freeTextBusy) IntentColors.Accent else IntentColors.Muted
+                            )
+                            .clickable(enabled = !freeTextBusy, onClick = { send() }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.Send,
+                            contentDescription = "Send",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
-                        .clickable(enabled = draft.isNotBlank() && !freeTextBusy, onClick = { send() }),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.Send,
-                        contentDescription = "Send",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(22.dp)
-                        .background(IntentColors.Line)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .size(36.dp)
