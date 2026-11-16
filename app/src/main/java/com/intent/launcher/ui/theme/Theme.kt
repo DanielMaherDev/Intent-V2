@@ -1,5 +1,6 @@
 package com.intent.launcher.ui.theme
 
+import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
@@ -9,13 +10,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.intent.launcher.engine.ReducedMotion
+import com.intent.launcher.engine.ReducedMotionPreference
 import com.intent.launcher.engine.ThemePreference
+
+/**
+ * App-level reduced-motion token. True when platform Animator duration scale is
+ * 0 (Remove animations) and/or Settings prefers reduced motion.
+ * Screens branch on this for instant pager/card transitions. Platform Animator
+ * scale still collapses framework motion when Remove animations is on.
+ */
+val LocalReducedMotion = staticCompositionLocalOf { false }
 
 /**
  * Intent palette tokens (warm paper + restrained indigo).
@@ -404,13 +417,30 @@ private val IntentTypography = Typography(
 @Composable
 fun IntentTheme(
     themePreference: ThemePreference = ThemePreference.SYSTEM,
+    reducedMotionPreference: ReducedMotionPreference = ReducedMotionPreference.FOLLOW_SYSTEM,
     systemDark: Boolean = isSystemInDarkTheme(),
     darkTheme: Boolean = themePreference.resolvesToDark(systemDark),
+    /** Override for tests; null reads [Settings.Global.ANIMATOR_DURATION_SCALE]. */
+    animatorDurationScaleOverride: Float? = null,
     content: @Composable () -> Unit
 ) {
     val tokens = resolveIntentColorTokens(themePreference, systemDark)
     val scheme = if (darkTheme) intentDarkScheme(tokens) else intentLightScheme(tokens)
-    CompositionLocalProvider(LocalIntentColors provides tokens) {
+    val context = LocalContext.current
+    val animatorScale = animatorDurationScaleOverride ?: remember(context) {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            )
+        }.getOrDefault(1f)
+    }
+    val reduced = ReducedMotion.resolvesToReduced(reducedMotionPreference, animatorScale)
+    CompositionLocalProvider(
+        LocalIntentColors provides tokens,
+        LocalReducedMotion provides reduced
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             typography = IntentTypography,

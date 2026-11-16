@@ -30,9 +30,9 @@ enum class ThemePreference {
 }
 
 /**
- * User chrome preferences for Home (OS-136 screen-time bar visibility)
- * plus appearance theme (dark + high-contrast tokens). Independent of
- * floating-agent overlay state and IntentionFlowStore.
+ * User chrome preferences for Home (OS-136 screen-time bar visibility),
+ * appearance theme (dark + high-contrast tokens), and reduced-motion.
+ * Independent of floating-agent overlay state and IntentionFlowStore.
  */
 interface HomeChromePrefs {
     /** When false, the top screen-time bar is omitted. Default true. */
@@ -44,12 +44,21 @@ interface HomeChromePrefs {
     fun themePreference(): ThemePreference
 
     fun setThemePreference(preference: ThemePreference)
+
+    /**
+     * Reduced motion: follow system Animator scale, or prefer reduced.
+     * Default [ReducedMotionPreference.FOLLOW_SYSTEM]. Never disables system reduced motion.
+     */
+    fun reducedMotionPreference(): ReducedMotionPreference
+
+    fun setReducedMotionPreference(preference: ReducedMotionPreference)
 }
 
 /** In-memory stub for unit tests. */
 class FakeHomeChromePrefs(
     var visible: Boolean = true,
-    var theme: ThemePreference = ThemePreference.SYSTEM
+    var theme: ThemePreference = ThemePreference.SYSTEM,
+    var reducedMotion: ReducedMotionPreference = ReducedMotionPreference.FOLLOW_SYSTEM
 ) : HomeChromePrefs {
     override fun isScreenTimeBarVisible(): Boolean = visible
 
@@ -61,5 +70,11 @@ class FakeHomeChromePrefs(
 
     override fun setThemePreference(preference: ThemePreference) {
         theme = preference
+    }
+
+    override fun reducedMotionPreference(): ReducedMotionPreference = reducedMotion
+
+    override fun setReducedMotionPreference(preference: ReducedMotionPreference) {
+        reducedMotion = preference
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.intent.launcher.domain.HomeIntentionSwipe
+import com.intent.launcher.engine.ReducedMotion
+import com.intent.launcher.ui.theme.LocalReducedMotion
 import kotlinx.coroutines.launch
 
 /**
@@ -22,6 +24,9 @@ import kotlinx.coroutines.launch
  * Additive shell: screens keep their own chrome; this pager only hosts them.
  * Nested vertical scroll on each page stays inside the page; system back from
  * the drawer page returns Home before leaving the launcher space.
+ *
+ * When [LocalReducedMotion] is true, programmatic page changes jump via
+ * [scrollToPage] instead of [animateScrollToPage] — destination stays reachable.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -40,6 +45,8 @@ fun HomeIntentionPager(
         pageCount = { HomeIntentionSwipe.PAGE_COUNT }
     )
     val scope = rememberCoroutineScope()
+    val reducedMotion = LocalReducedMotion.current
+    val instantScroll = ReducedMotion.scrollPageInstantly(reducedMotion)
 
     LaunchedEffect(startPage) {
         if (pagerState.currentPage != startPage && !pagerState.isScrollInProgress) {
@@ -49,12 +56,20 @@ fun HomeIntentionPager(
 
     val openIntentions: () -> Unit = {
         scope.launch {
-            pagerState.animateScrollToPage(HomeIntentionSwipe.PAGE_DRAWER)
+            if (instantScroll) {
+                pagerState.scrollToPage(HomeIntentionSwipe.PAGE_DRAWER)
+            } else {
+                pagerState.animateScrollToPage(HomeIntentionSwipe.PAGE_DRAWER)
+            }
         }
     }
     val openHome: () -> Unit = {
         scope.launch {
-            pagerState.animateScrollToPage(HomeIntentionSwipe.PAGE_HOME)
+            if (instantScroll) {
+                pagerState.scrollToPage(HomeIntentionSwipe.PAGE_HOME)
+            } else {
+                pagerState.animateScrollToPage(HomeIntentionSwipe.PAGE_HOME)
+            }
         }
     }
 

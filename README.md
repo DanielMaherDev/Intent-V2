@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.152** (this branch) · tip base **v0.0.151** (#96) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.153** (this branch) · tip base **v0.0.152** (#97) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.152** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.152.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.153.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.153:** FE-E3 app-level reduced-motion token — `LocalReducedMotion` + Settings Motion (follow system Animator scale / prefer reduced); gates Agent-module Conversation card enters and Home↔Intention pager jumps; never overrides system Remove animations off; SCHEMA 10 stamp-only. Based on tip 0.0.152 (#97).
 - **v0.0.152:** FE-C3 date-controls depth — Tracker entry date prev/next (explicit SAID event day; no invented OBSERVED dates); SessionCard / app-duration show local Begin day+clock; SCHEMA 10 stamp-only. Based on tip 0.0.151 (#96).
 - **v0.0.151:** Honest Language Conversation chips — user-built language intentions no longer surface Spanish fixture practice catalog (“Everyday conversations” / tutor chips); fixture `intention-spanish` keeps scripted E2E chips; Quit/`other` stay empty; SCHEMA 10 stamp-only
 - **v0.0.150:** Agent-module Conversation UI — NEXT FOR YOU / ONE QUESTION / PROPOSED · NOT YET ACTIVE / RECORDED / REPORT PREVIEW cards + NOTED bar, brand+intention pill chrome, “Talk to INTENT…” composer; maps existing FlowCommand / NextAction / Proposal / tracker / report data (no invented OBSERVED facts); SCHEMA 10 stamp-only
