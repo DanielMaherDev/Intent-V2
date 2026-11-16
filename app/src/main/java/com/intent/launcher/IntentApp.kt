@@ -1,7 +1,6 @@
 package com.intent.launcher
 
 import android.app.Application
-import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.engine.HomeRoleAccess
 import com.intent.launcher.engine.HomeChromePrefs
 import com.intent.launcher.engine.InstalledAppLauncher
@@ -86,10 +85,9 @@ class IntentApp : Application() {
             File(filesDir, "session_notification_review.json")
         )
         liveLlmAccess = AndroidLiveLlmAccess(this)
-        // Parent + honest local child for Intention Space breadcrumb (OS-141).
-        SpanishScenario.ensureParentChildSeeded(store)
         homeChromePrefs = AndroidHomeChromePrefs(this)
-        SpanishScenario.ensureSeeded(store)
+        // Cold start stays blank — no Spanish (or CASE) auto-seed. Explore
+        // fixtures remain available via explicit demo entry points / tests.
     }
 
     companion object {

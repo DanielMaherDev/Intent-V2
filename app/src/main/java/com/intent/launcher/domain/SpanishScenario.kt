@@ -107,13 +107,21 @@ object SpanishScenario {
         chip: String,
         now: Long = System.currentTimeMillis(),
         registry: CapabilityRegistry = CapabilityRegistry.default,
-        modality: String? = null
+        modality: String? = null,
+        /** Active / caller intention — never invent fixture id for user-created rows. */
+        intentionId: String? = null
     ) {
-        ensureSeeded(store, now)
+        val targetId = intentionId
+            ?: store.snapshot().activeIntentionId
+            ?: INTENTION_ID
+        // Fixture path only — user-built language intentions must not auto-seed Spanish.
+        if (targetId == INTENTION_ID) {
+            ensureSeeded(store, now)
+        }
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-user-${now}-${chip.hashCode()}",
-                intentionId = INTENTION_ID,
+                intentionId = targetId,
                 role = "user",
                 text = chip,
                 nowEpochMs = now,
@@ -123,13 +131,17 @@ object SpanishScenario {
         when {
             chip.contains("Everyday conversations", ignoreCase = true) -> {
                 if (!registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) {
-                    refuseUnavailable(store, now, CapabilityRegistry.ID_ADD_HYPOTHESIS, registry, modality)
+                    refuseUnavailable(store, now, CapabilityRegistry.ID_ADD_HYPOTHESIS, registry, modality, targetId)
                     return
                 }
                 store.apply(
                     FlowCommand.AddHypothesis(
-                        hypothesisId = "hyp-everyday",
-                        intentionId = INTENTION_ID,
+                        hypothesisId = if (targetId == INTENTION_ID) {
+                            "hyp-everyday"
+                        } else {
+                            "hyp-everyday-$targetId"
+                        },
+                        intentionId = targetId,
                         text = "Focus on everyday conversational Spanish",
                         nowEpochMs = now
                     )
@@ -137,7 +149,7 @@ object SpanishScenario {
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-agent-everyday-$now",
-                        intentionId = INTENTION_ID,
+                        intentionId = targetId,
                         role = "agent",
                         text = "Good. Any fixed practice you already keep?",
                         nowEpochMs = now + 1,
@@ -146,7 +158,7 @@ object SpanishScenario {
                 )
                 store.apply(
                     FlowCommand.MarkPhase(
-                        intentionId = INTENTION_ID,
+                        intentionId = targetId,
                         phase = IntentionPhase.CLARIFYING,
                         nowEpochMs = now
                     )
@@ -154,13 +166,14 @@ object SpanishScenario {
             }
             chip.contains("tutor", ignoreCase = true) || chip.contains("Thursdays", ignoreCase = true) -> {
                 if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) {
-                    refuseUnavailable(store, now, CapabilityRegistry.ID_RECORD_FACT, registry, modality)
+                    refuseUnavailable(store, now, CapabilityRegistry.ID_RECORD_FACT, registry, modality, targetId)
                     return
                 }
+                val factId = if (targetId == INTENTION_ID) FACT_TUTOR_ID else "fact-tutor-$targetId"
                 store.apply(
                     FlowCommand.AddUserFact(
-                        factId = FACT_TUTOR_ID,
-                        intentionId = INTENTION_ID,
+                        factId = factId,
+                        intentionId = targetId,
                         text = "I meet a Spanish tutor on Thursdays at 18:00",
                         nowEpochMs = now
                     )
@@ -169,7 +182,7 @@ object SpanishScenario {
                     store.apply(
                         FlowCommand.AddConversationTurn(
                             turnId = "turn-agent-no-schedule-$now",
-                            intentionId = INTENTION_ID,
+                            intentionId = targetId,
                             role = "agent",
                             text = honestUnavailableMessage(
                                 CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION,
@@ -181,23 +194,24 @@ object SpanishScenario {
                     )
                     return
                 }
+                val proposalId = if (targetId == INTENTION_ID) PROPOSAL_ID else "proposal-weekly-$targetId"
                 store.apply(
                     FlowCommand.ProposeRecurringSession(
-                        proposalId = PROPOSAL_ID,
-                        intentionId = INTENTION_ID,
+                        proposalId = proposalId,
+                        intentionId = targetId,
                         title = "Weekly Spanish session",
                         summary = "Proposed recurring session on Thursdays at 18:00, based on your tutor fact — not the fact itself.",
                         dayOfWeek = 4,
                         hour = 18,
                         minute = 0,
-                        basedOnFactIds = listOf(FACT_TUTOR_ID),
+                        basedOnFactIds = listOf(factId),
                         nowEpochMs = now
                     )
                 )
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-agent-proposal-$now",
-                        intentionId = INTENTION_ID,
+                        intentionId = targetId,
                         role = "agent",
                         text = "I can schedule a weekly session from that tutor fact. Review the proposal?",
                         nowEpochMs = now + 1,
@@ -206,7 +220,14 @@ object SpanishScenario {
                 )
             }
             chip.contains("Duolingo", ignoreCase = true) || chip.contains("lesson completion", ignoreCase = true) -> {
-                refuseUnavailable(store, now, CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION, registry, modality)
+                refuseUnavailable(
+                    store,
+                    now,
+                    CapabilityRegistry.ID_OBSERVE_LESSON_COMPLETION,
+                    registry,
+                    modality,
+                    targetId
+                )
             }
         }
     }
@@ -216,12 +237,13 @@ object SpanishScenario {
         now: Long,
         capabilityId: String,
         registry: CapabilityRegistry,
-        modality: String? = null
+        modality: String? = null,
+        intentionId: String = INTENTION_ID
     ) {
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-agent-unavailable-$now",
-                intentionId = INTENTION_ID,
+                intentionId = intentionId,
                 role = "agent",
                 text = honestUnavailableMessage(capabilityId, registry),
                 nowEpochMs = now + 1,

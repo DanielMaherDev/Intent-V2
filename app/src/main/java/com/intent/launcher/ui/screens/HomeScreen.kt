@@ -343,6 +343,7 @@ fun HomeScreen(
                     deferPreviewLine = deferPreviewLine,
                     onContinueExploring = onContinueExploring,
                     onOpenIntention = onOpenIntention,
+                    onStartBuilder = onStartBuilder,
                     onReviewProposal = onReviewProposal,
                     onBegin = onBegin,
                     onDefer = onDefer,
@@ -1244,6 +1245,7 @@ private fun AttentionStripCard(
     deferPreviewLine: String?,
     onContinueExploring: () -> Unit,
     onOpenIntention: () -> Unit,
+    onStartBuilder: (() -> Unit)? = null,
     onReviewProposal: () -> Unit,
     onBegin: () -> Unit,
     onDefer: () -> Unit,
@@ -1513,6 +1515,7 @@ private fun AttentionStripCard(
             deferPreviewLine = deferPreviewLine,
             onContinueExploring = onContinueExploring,
             onOpenIntention = onOpenIntention,
+            onStartBuilder = onStartBuilder,
             onReviewProposal = onReviewProposal,
             onBegin = onBegin,
             onDefer = onDefer,
@@ -1537,6 +1540,7 @@ private fun AttentionStripActions(
     deferPreviewLine: String?,
     onContinueExploring: () -> Unit,
     onOpenIntention: () -> Unit,
+    onStartBuilder: (() -> Unit)? = null,
     onReviewProposal: () -> Unit,
     onBegin: () -> Unit,
     onDefer: () -> Unit,
@@ -1723,10 +1727,18 @@ private fun AttentionStripActions(
             )
         }
         else -> {
-            IntentPrimaryButton(
-                text = "Open your intention",
-                onClick = onOpenIntention
-            )
+            // Empty / NONE — send new users into the Intention Builder, not an empty space.
+            if (onStartBuilder != null) {
+                IntentPrimaryButton(
+                    text = "Start a new intention",
+                    onClick = onStartBuilder
+                )
+            } else {
+                IntentPrimaryButton(
+                    text = "Open your intention",
+                    onClick = onOpenIntention
+                )
+            }
         }
     }
 }

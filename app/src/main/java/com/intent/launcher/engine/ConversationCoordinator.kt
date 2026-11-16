@@ -366,11 +366,15 @@ object ConversationCoordinator {
         }
     }
 
-    /** Shape-aware suggested chips — Spanish/language default for Gate B. */
+    /**
+     * Shape-aware suggested chips. Language only surfaces Spanish script chips;
+     * `other` / unknown / null stay empty — no CASE/scaffold catalog dump on create.
+     */
     fun chipsForIntention(
         intention: Intention?,
         registry: CapabilityRegistry
     ): List<String> = when (intention?.shapeTag) {
+        "language" -> SpanishScenario.conversationChips(registry)
         "marathon" -> MarathonScenario.conversationChips(registry)
         "business" -> BusinessScenario.conversationChips(registry)
         "move" -> MoveScenario.conversationChips(registry)
@@ -379,8 +383,7 @@ object ConversationCoordinator {
         "app_use" -> AppUseReductionScenario.conversationChips(registry)
         "research" -> EuWorkSpainScenario.conversationChips(registry)
         ChessScenario.SHAPE_TAG -> ChessScenario.conversationChips(registry)
-        "language", null -> SpanishScenario.conversationChips(registry)
-        else -> SpanishScenario.conversationChips(registry)
+        else -> emptyList()
     }
 
     private fun dispatchChip(
@@ -391,6 +394,7 @@ object ConversationCoordinator {
         registry: CapabilityRegistry,
         modality: String? = null
     ) {
+        val activeId = intention?.id
         when (intention?.shapeTag) {
             "marathon" -> MarathonScenario.onChip(store, chip, nowEpochMs, registry)
             "business" -> BusinessScenario.onChip(store, chip, nowEpochMs, registry)
@@ -400,7 +404,17 @@ object ConversationCoordinator {
             "app_use" -> AppUseReductionScenario.onChip(store, chip, nowEpochMs, registry)
             "research" -> EuWorkSpainScenario.onChip(store, chip, nowEpochMs, registry)
             ChessScenario.SHAPE_TAG -> ChessScenario.onChip(store, chip, nowEpochMs, registry)
-            else -> SpanishScenario.onChip(store, chip, nowEpochMs, registry, modality)
+            "language" -> SpanishScenario.onChip(
+                store,
+                chip,
+                nowEpochMs,
+                registry,
+                modality,
+                intentionId = activeId
+            )
+            else -> {
+                // No scaffold Spanish fallback for other / unknown shapes.
+            }
         }
     }
 
