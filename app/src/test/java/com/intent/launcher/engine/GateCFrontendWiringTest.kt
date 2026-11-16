@@ -1,6 +1,7 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.DateControls
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProvenanceKind
@@ -149,5 +150,38 @@ class GateCFrontendWiringTest {
         }
         assertEquals(1, active.size)
         assertEquals("trk-ui-1-corr", active.single().id)
+    }
+
+    @Test
+    fun trackerDateControls_prevNext_wiresBackdatedSaidEvent_notObserved() {
+        approveSpanishWithMorningCheckIn()
+        val modules = TrackerModules.forShape("language")
+        val module = modules.first()
+        val today = DateControls.selectionFor(midAfternoon, midAfternoon, tz)
+        val yesterday = DateControls.stepPrevious(today, tz)
+        val eventAt = DateControls.eventAtEpochMs(yesterday, midAfternoon, tz)
+        assertTrue(yesterday.canGoNext)
+        assertFalse(yesterday.isToday)
+        assertTrue(eventAt < midAfternoon)
+
+        store.apply(
+            FlowCommand.RecordTrackerEntry(
+                entryId = "trk-ui-date",
+                intentionId = SpanishScenario.INTENTION_ID,
+                moduleId = module.id,
+                valueText = module.suggestedValues.first(),
+                nowEpochMs = midAfternoon,
+                provenanceKind = ProvenanceKind.SAID,
+                sourceLabel = "user",
+                eventAtEpochMs = eventAt
+            )
+        )
+        val entry = store.snapshot().trackerEntries.single { it.id == "trk-ui-date" }
+        assertEquals(ProvenanceKind.SAID, entry.provenance.kind)
+        assertEquals(eventAt, entry.eventAtEpochMs)
+        assertEquals(
+            DateControls.entryDayLabel(eventAt, midAfternoon, tz),
+            "Applies · Yesterday"
+        )
     }
 }

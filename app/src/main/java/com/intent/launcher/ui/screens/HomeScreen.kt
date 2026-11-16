@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.AppDurationCriterion
 import com.intent.launcher.domain.AttentionStrip
+import com.intent.launcher.domain.DateControls
 import com.intent.launcher.domain.ErrandStatus
 import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.HomeAttention
@@ -878,7 +879,8 @@ private fun DurationCriterionBlock(
     softPaused: Boolean,
     localTimerMet: Boolean,
     honestyNote: String,
-    contentDescription: String
+    contentDescription: String,
+    startedLabel: String? = null
 ) {
     Column(
         modifier = Modifier
@@ -899,6 +901,14 @@ private fun DurationCriterionBlock(
                 else -> IntentColors.Muted
             }
         )
+        if (startedLabel != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = startedLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = ratioLabel,
@@ -1000,6 +1010,16 @@ private fun ActiveSessionCard(
             if (sessionSoftPaused) "Soft-paused" else "Local clock"
         null -> if (sessionSoftPaused) "Soft-paused" else "Local clock"
     }
+    val startedLabel = startedAt?.let {
+        DateControls.sessionStartedLabel(it, nowEpochMs)
+    }
+    val startedDesc = startedAt?.let {
+        DateControls.sessionStartedContentDescription(
+            startedAtEpochMs = it,
+            nowEpochMs = nowEpochMs,
+            softPaused = sessionSoftPaused || sessionPausedAtEpochMs != null
+        )
+    }
 
     SmallLabel(
         text = if (sessionSoftPaused) "Away from app" else "In progress",
@@ -1051,6 +1071,18 @@ private fun ActiveSessionCard(
         )
     ) {
         Spacer(modifier = Modifier.height(12.dp))
+        if (startedLabel != null) {
+            Text(
+                text = startedLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.semantics {
+                    contentDescription = startedDesc ?: startedLabel
+                }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+        }
         Text(
             text = when {
                 sessionSoftPaused ->
@@ -1059,9 +1091,9 @@ private fun ActiveSessionCard(
                     "Package foreground only — not lesson completion."
                 durationProgress != null ->
                     "Local timer toward ${durationProgress.targetMinutes}-min criterion — " +
-                        "not lesson completion."
+                        "not lesson completion. Begin day from local Start, not OBSERVED."
                 else ->
-                    "Local clock from Begin — not verified completion."
+                    "Local clock from Begin — not verified completion or OBSERVED start."
             },
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
@@ -1076,7 +1108,8 @@ private fun ActiveSessionCard(
             softPaused = durationProgress.softPaused,
             localTimerMet = durationProgress.localTimerMet,
             honestyNote = durationProgress.honestyNote,
-            contentDescription = durationProgress.contentDescription
+            contentDescription = durationProgress.contentDescription,
+            startedLabel = startedLabel
         )
     }
 
@@ -1326,13 +1359,17 @@ private fun AttentionStripCard(
             Spacer(modifier = Modifier.height(12.dp))
             when (secondary) {
                 is AttentionStrip.SecondaryLine.DurationProgress -> {
+                    val stripStarted = nextAction.startedAtEpochMs?.let {
+                        DateControls.sessionStartedLabel(it, System.currentTimeMillis())
+                    }
                     DurationCriterionBlock(
                         ratioLabel = secondary.ratioLabel,
                         fraction = secondary.fraction,
                         softPaused = secondary.softPaused,
                         localTimerMet = secondary.fraction >= 1f,
                         honestyNote = secondary.honestyNote,
-                        contentDescription = secondary.contentDescription
+                        contentDescription = secondary.contentDescription,
+                        startedLabel = stripStarted
                     )
                 }
                 is AttentionStrip.SecondaryLine.SessionElapsed -> {

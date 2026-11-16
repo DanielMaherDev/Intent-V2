@@ -1859,7 +1859,8 @@ class LauncherViewModel(
         moduleId: String,
         valueText: String,
         provenanceKind: ProvenanceKind = ProvenanceKind.SAID,
-        sourceLabel: String = "user"
+        sourceLabel: String = "user",
+        eventAtEpochMs: Long? = null
     ): Boolean {
         if (!capabilityRegistry.canUseTrackerModules()) return false
         val intentionId = activeIntention()?.id ?: return false
@@ -1872,7 +1873,8 @@ class LauncherViewModel(
                 valueText = valueText,
                 nowEpochMs = now,
                 provenanceKind = provenanceKind,
-                sourceLabel = sourceLabel
+                sourceLabel = sourceLabel,
+                eventAtEpochMs = eventAtEpochMs
             )
         )
         refresh()
