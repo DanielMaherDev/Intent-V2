@@ -27,7 +27,9 @@ import androidx.navigation.compose.rememberNavController
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.NextActionKind
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
@@ -779,8 +781,36 @@ class MainActivity : ComponentActivity() {
                         composable("conversation") {
                             val active = vm.activeIntention()
                             val convProjection = ShapeProjection.project(intention = active)
+                            val activeId = active?.id
+                            val relatedSaidFact = pending?.basedOnFactIds?.firstOrNull()?.let { factId ->
+                                vm.snapshot.facts.firstOrNull { it.id == factId }
+                            } ?: vm.snapshot.facts
+                                .filter { it.intentionId == activeId }
+                                .maxByOrNull { it.provenance.learnedAtEpochMs }
+                            val intentionTurns =
+                                vm.snapshot.turns.filter { it.intentionId == activeId }
+                            val hasRecordedBlock = intentionTurns.any { turn ->
+                                turn.blocks.any {
+                                    it.active && it.type == ResponseBlockType.RECORDED_ENTRY
+                                }
+                            }
+                            val latestTracker = vm.snapshot.trackerEntries
+                                .filter {
+                                    it.intentionId == activeId &&
+                                        it.status == TrackerEntryStatus.ACTIVE
+                                }
+                                .maxByOrNull { it.recordedAtEpochMs }
+                                ?.takeIf { hasRecordedBlock || it.provenance.kind.name == "SAID" }
+                            val hasReportBlock = intentionTurns.any { turn ->
+                                turn.blocks.any {
+                                    it.active && it.type == ResponseBlockType.REPORT_PREVIEW
+                                }
+                            }
+                            val proof = vm.progressProof()
+                            val hasProgressRows = proof != null &&
+                                (proof.saidCount + proof.observedCount + proof.inferredCount) > 0
                             ConversationScreen(
-                                turns = vm.snapshot.turns.filter { it.intentionId == active?.id },
+                                turns = intentionTurns,
                                 chips = listOfNotNull(vm.askContextChip) + vm.conversationChips(),
                                 intentionTitle = active?.title.orEmpty(),
                                 onChip = { chip ->
@@ -789,14 +819,7 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         vm.clearAskContextChip()
                                         vm.onConversationChip(chip)
-                                        val after = vm.snapshot
-                                        if (after.proposals.any {
-                                                it.status == ProposalStatus.PENDING &&
-                                                    it.intentionId == active?.id
-                                            }
-                                        ) {
-                                            nav.navigate("proposal")
-                                        }
+                                        // Stay on Conversation — proposal card renders in-thread.
                                     }
                                 },
                                 onAmbiguousChoice = { blockId, choiceIndex ->
@@ -817,6 +840,33 @@ class MainActivity : ComponentActivity() {
                                 onMicClick = { onConversationMicClick() },
                                 onSendFreeText = { vm.onDiscussFreeText(it) },
                                 freeTextBusy = vm.freeTextBusy,
+                                pendingProposal = pending,
+                                relatedSaidFact = relatedSaidFact,
+                                nextAction = vm.nextAction,
+                                latestTrackerEntry = latestTracker,
+                                pathSummary = vm.pathSummary(),
+                                progressProof = proof,
+                                showReportPreview = hasReportBlock || hasProgressRows,
+                                onBeginNext = {
+                                    vm.beginSession()
+                                    nav.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
+                                },
+                                onLaterNext = { vm.requestDefer() },
+                                onDiscussNext = { /* already on Conversation */ },
+                                onDeclineProposal = { vm.declineProposal() },
+                                onOpenReports = { nav.navigate("reports") },
+                                onEditRecorded = {
+                                    nav.navigate("tracker")
+                                },
+                                onUndoRecorded = { entryId ->
+                                    if (entryId != null) {
+                                        vm.deleteTrackerEntry(entryId)
+                                    } else {
+                                        vm.undoLast()
+                                    }
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
