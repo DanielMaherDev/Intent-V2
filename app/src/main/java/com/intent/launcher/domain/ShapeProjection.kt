@@ -155,7 +155,7 @@ object ShapeProjection {
             "chess" ->
                 "No Chess.com scrape or fabricated games. Manual baseline and self-report come first."
             else ->
-                "No tasks yet. This space is ready while you choose an approach."
+                "No practice plan has been invented. This intention stays open while you decide on an approach."
         }
 
     private fun defaultFacts(shapeTag: String?): List<String> =
