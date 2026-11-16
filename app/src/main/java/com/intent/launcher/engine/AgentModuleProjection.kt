@@ -217,6 +217,9 @@ object AgentModuleProjection {
         proposal: Proposal?
     ): ProposalCard? {
         if (block.type != ResponseBlockType.PROPOSAL || !block.active) return null
+        // Cross-intention relation proposals render via CrossIntentionRelationCard —
+        // never as a schedule proposal with invented duration lines.
+        if (block.sourceLabel.startsWith(CrossIntentionLink.SOURCE_LABEL)) return null
         val linked = proposal?.takeIf { it.status == ProposalStatus.PENDING }
         val schedule = linked?.let { p ->
             val day = DAY_NAMES.getOrElse(p.proposedDayOfWeek) { "Day ${p.proposedDayOfWeek}" }

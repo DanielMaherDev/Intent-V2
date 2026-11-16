@@ -843,6 +843,9 @@ class MainActivity : ComponentActivity() {
                                 onGatewayStatusAction = { blockId, actionIndex ->
                                     vm.onGatewayStatusAction(blockId, actionIndex)
                                 },
+                                onRelationAction = { blockId, actionIndex ->
+                                    vm.onRelationAction(blockId, actionIndex)
+                                },
                                 onBack = { nav.popBackStack() },
                                 onOpenProposal = { nav.navigate("proposal") },
                                 hasPendingProposal = pending != null,
@@ -862,6 +865,8 @@ class MainActivity : ComponentActivity() {
                                 pathSummary = vm.pathSummary(),
                                 progressProof = proof,
                                 showReportPreview = hasReportBlock || hasProgressRows,
+                                intentions = vm.snapshot.intentions,
+                                hierarchy = vm.hierarchyForActive(),
                                 onBeginNext = {
                                     vm.beginSession()
                                     nav.navigate("home") {

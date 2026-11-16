@@ -46,6 +46,7 @@ import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.AmbiguousChoiceSetCard
+import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
@@ -1329,6 +1330,25 @@ class LauncherViewModel(
             nowEpochMs = now
         ) ?: return
         voicePathNote = result.message
+        refresh()
+    }
+
+    /**
+     * Conversation cross-intention relation Confirm / Cancel via [CrossIntentionRelationCard.onAction].
+     */
+    fun onRelationAction(blockId: String, actionIndex: Int) {
+        val block = snapshot.turns
+            .flatMap { it.blocks }
+            .firstOrNull { it.blockId == blockId && it.active }
+            ?: return
+        val now = System.currentTimeMillis()
+        val result = CrossIntentionRelationCard.onAction(
+            store = store,
+            block = block,
+            actionIndex = actionIndex,
+            nowEpochMs = now
+        ) ?: return
+        voicePathNote = result.honestyNote
         refresh()
     }
 

@@ -11,6 +11,8 @@ import com.intent.launcher.domain.JobOfferScenario
 import com.intent.launcher.domain.MarathonScenario
 import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.QuitSmokingScenario
+import com.intent.launcher.domain.ResponseBlock
+import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.SpanishScenario
 import com.intent.launcher.store.IntentionFlowStore
 
@@ -488,6 +490,89 @@ object ConversationCoordinator {
                 appliedChip = trimmed,
                 storedTranscript = trimmed,
                 honestyNote = result.honestyNote,
+                sourceLabel = sourceLabel
+            )
+        }
+        if (CrossIntentionLink.looksLikeRelationClaim(trimmed)) {
+            val activeId = store.snapshot().activeIntentionId
+            val resolved = CrossIntentionLink.resolveFromUtterance(
+                store = store,
+                utterance = trimmed,
+                activeIntentionId = activeId
+            )
+            if (!resolved.matched ||
+                resolved.childIntentionId == null ||
+                resolved.parentIntentionId == null
+            ) {
+                val clarifyId = activeId
+                    ?: store.snapshot().intentions.firstOrNull()?.id
+                    ?: return SubmitResult(
+                        channel = channel,
+                        appliedChip = null,
+                        storedTranscript = trimmed,
+                        honestyNote = resolved.honestyNote,
+                        sourceLabel = sourceLabel
+                    )
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-relation-user-clarify-$nowEpochMs",
+                        intentionId = clarifyId,
+                        role = "user",
+                        text = trimmed,
+                        nowEpochMs = nowEpochMs
+                    )
+                )
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-relation-clarify-free-$nowEpochMs",
+                        intentionId = clarifyId,
+                        role = "agent",
+                        text = resolved.honestyNote,
+                        nowEpochMs = nowEpochMs + 1,
+                        blocks = listOf(
+                            ResponseBlock(
+                                blockId = "block-relation-clarify-free-$nowEpochMs",
+                                type = ResponseBlockType.QUESTION,
+                                title = "Clarify relation",
+                                body = resolved.honestyNote,
+                                sourceLabel = CrossIntentionLink.SOURCE_LABEL,
+                                linkedObjectIds = listOfNotNull(
+                                    resolved.childIntentionId,
+                                    resolved.parentIntentionId
+                                ),
+                                actions = emptyList(),
+                                active = true
+                            )
+                        )
+                    )
+                )
+                return SubmitResult(
+                    channel = channel,
+                    appliedChip = trimmed,
+                    storedTranscript = trimmed,
+                    honestyNote = resolved.honestyNote,
+                    sourceLabel = sourceLabel
+                )
+            }
+            val proposed = CrossIntentionLink.propose(
+                store = store,
+                childIntentionId = resolved.childIntentionId,
+                parentIntentionId = resolved.parentIntentionId,
+                relationLabel = resolved.relationLabel,
+                nowEpochMs = nowEpochMs,
+                utterance = trimmed
+            )
+            store.apply(
+                FlowCommand.SetActiveIntention(
+                    intentionId = resolved.childIntentionId,
+                    nowEpochMs = nowEpochMs + 2
+                )
+            )
+            return SubmitResult(
+                channel = channel,
+                appliedChip = trimmed,
+                storedTranscript = trimmed,
+                honestyNote = proposed.honestyNote,
                 sourceLabel = sourceLabel
             )
         }

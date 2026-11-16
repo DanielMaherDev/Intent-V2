@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.engine.AgentModuleProjection
+import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.ui.theme.IntentColors
 
 private val CardShape = RoundedCornerShape(22.dp)
@@ -313,6 +314,135 @@ fun AgentProposalCard(
                 accentOutline = true
             )
         }
+    }
+}
+
+@Composable
+fun AgentRelationCard(
+    model: CrossIntentionRelationCard.Model,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Warm.copy(alpha = 0.45f), CardShape)
+            .background(IntentColors.Card, CardShape)
+            .clip(CardShape)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(IntentColors.WarmSoft)
+                .padding(horizontal = 16.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "✦",
+                color = IntentColors.Warm,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (model.pending) {
+                    "PROPOSED · NOT YET LINKED"
+                } else {
+                    "RELATION · APPLIED"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = IntentColors.Warm,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.1.sp
+            )
+        }
+        Column(modifier = Modifier.padding(18.dp)) {
+            Text(
+                text = model.title,
+                fontFamily = SerifTitle,
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp,
+                lineHeight = 28.sp,
+                color = IntentColors.Ink
+            )
+            if (model.body.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = model.body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Lede,
+                    lineHeight = 19.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            MetaRow(icon = Icons.Outlined.TrackChanges, text = model.relationLine)
+            DividerLine()
+            MetaRow(
+                icon = Icons.Outlined.TrackChanges,
+                text = "Child · ${model.childTitle}",
+                showChevron = true
+            )
+            DividerLine()
+            MetaRow(
+                icon = Icons.Outlined.TrackChanges,
+                text = "Parent · ${model.parentTitle}",
+                showChevron = true
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = model.honestyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted,
+                lineHeight = 17.sp
+            )
+            if (model.pending) {
+                Spacer(modifier = Modifier.height(16.dp))
+                IntentPrimaryButton(text = model.confirmLabel, onClick = onConfirm)
+                Spacer(modifier = Modifier.height(8.dp))
+                IntentSecondaryButton(
+                    text = model.cancelLabel,
+                    onClick = onCancel,
+                    accentOutline = true
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AgentRelatedIntentionsStrip(
+    model: CrossIntentionRelationCard.RelatedStrip,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, CardShape)
+            .background(IntentColors.Card, CardShape)
+            .padding(16.dp)
+    ) {
+        Text(
+            text = model.eyebrow,
+            style = MaterialTheme.typography.labelMedium,
+            color = IntentColors.AccentDark,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.1.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        model.lines.forEachIndexed { index, line ->
+            if (index > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            MetaRow(icon = Icons.Outlined.TrackChanges, text = line, showChevron = true)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = model.honestyNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted,
+            lineHeight = 17.sp
+        )
     }
 }
 
