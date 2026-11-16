@@ -126,7 +126,7 @@ class HeldAppsDrawerTest {
         )
         assertEquals(1, HeldApps.forIntention(store.snapshot(), MarathonScenario.INTENTION_ID).size)
 
-        // Release leaves empty; suggestions return.
+        // Release leaves empty; marathon must not invent language-catalog Duolingo.
         val id = HeldApps.forIntention(store.snapshot(), MarathonScenario.INTENTION_ID).first().id
         store.apply(FlowCommand.ReleaseHeldApp(heldAppId = id, nowEpochMs = now + 4))
         assertTrue(HeldApps.forIntention(store.snapshot(), MarathonScenario.INTENTION_ID).isEmpty())
@@ -135,7 +135,46 @@ class HeldAppsDrawerTest {
             store.snapshot().intentions.first { it.id == MarathonScenario.INTENTION_ID },
             store.snapshot()
         )
-        assertTrue(suggestions.any { it.packageName == SessionDestinations.SPANISH_PACKAGE })
+        assertFalse(suggestions.any { it.packageName == SessionDestinations.SPANISH_PACKAGE })
+    }
+
+    @Test
+    fun holdSuggestions_quitOrOther_doesNotSuggestDuolingo() {
+        val snap = IntentionSnapshot()
+        val quitOther = Intention(
+            id = "intention-quit-built",
+            title = "Quit smoking",
+            statement = "Quit smoking",
+            phase = IntentionPhase.EXPLORING,
+            createdAtEpochMs = now,
+            updatedAtEpochMs = now,
+            shapeTag = "other"
+        )
+        val quitSuggestions = HoldableApps.suggestions(quitOther, snap)
+        assertTrue(quitSuggestions.isEmpty())
+        assertFalse(
+            quitSuggestions.any {
+                it.packageName == SessionDestinations.SPANISH_PACKAGE ||
+                    it.label.contains("Duolingo", ignoreCase = true)
+            }
+        )
+
+        val cessation = quitOther.copy(id = "intention-cessation", shapeTag = "cessation")
+        val cessationSuggestions = HoldableApps.suggestions(cessation, snap)
+        assertTrue(cessationSuggestions.isEmpty())
+        assertFalse(
+            cessationSuggestions.any { it.packageName == SessionDestinations.SPANISH_PACKAGE }
+        )
+    }
+
+    @Test
+    fun holdSuggestions_language_stillSuggestsDuolingo() {
+        SpanishScenario.seed(store, now)
+        val intention = store.snapshot().intentions.first { it.id == SpanishScenario.INTENTION_ID }
+        val suggestions = HoldableApps.suggestions(intention, store.snapshot())
+        assertTrue(
+            suggestions.any { it.packageName == SessionDestinations.SPANISH_PACKAGE }
+        )
     }
 
     @Test
