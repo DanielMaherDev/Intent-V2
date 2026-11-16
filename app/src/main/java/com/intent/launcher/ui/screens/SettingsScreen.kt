@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.intent.launcher.engine.QuietModeProbe
+import com.intent.launcher.engine.ReducedMotionPreference
 import com.intent.launcher.engine.ThemePreference
 import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.components.IntentPrimaryButton
@@ -37,9 +38,11 @@ import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings — appearance theme + quiet-mode honesty + snapshot export/import + History +
- * live OpenAI Discuss (key never shown in full). Theme prefs are SharedPreferences only —
- * not store/SCHEMA. Quiet mode never invents a silence Switch while NOT_SUPPORTED.
+ * Settings — appearance theme + reduced motion + quiet-mode honesty + snapshot
+ * export/import + History + live OpenAI Discuss (key never shown in full).
+ * Theme / motion prefs are SharedPreferences only — not store/SCHEMA.
+ * Quiet mode never invents a silence Switch while NOT_SUPPORTED.
+ * Reduced motion never overrides system Remove animations off.
  */
 @Composable
 fun SettingsScreen(
@@ -52,6 +55,8 @@ fun SettingsScreen(
     onOpenConnections: () -> Unit = {},
     themePreference: ThemePreference = ThemePreference.SYSTEM,
     onThemePreferenceChange: (ThemePreference) -> Unit = {},
+    reducedMotionPreference: ReducedMotionPreference = ReducedMotionPreference.FOLLOW_SYSTEM,
+    onReducedMotionPreferenceChange: (ReducedMotionPreference) -> Unit = {},
     quietModeStatusLabel: String = "Not supported · quiet_mode",
     quietModeHonestyNote: String = "",
     showQuietSilenceToggle: Boolean = false,
@@ -126,6 +131,48 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(6.dp))
         SmallLabel(
             text = "Stored on device only · does not change schema or snapshot data",
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        Text(
+            text = "Motion",
+            style = MaterialTheme.typography.titleMedium,
+            color = IntentColors.Ink
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Follow the system Animator duration scale (Accessibility → Remove " +
+                "animations), or prefer reduced motion in INTENT. Prefer reduced " +
+                "collapses Agent-module card enters and Home↔Intention pager jumps. " +
+                "It cannot turn motion back on when the system already removed animations.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ReducedMotionPreference.entries.forEach { option ->
+            val selected = reducedMotionPreference == option
+            val label = when (option) {
+                ReducedMotionPreference.FOLLOW_SYSTEM ->
+                    "Follow system (Animator duration scale)"
+                ReducedMotionPreference.PREFER_REDUCED ->
+                    "Prefer reduced motion"
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (selected) {
+                IntentPrimaryButton(
+                    text = label,
+                    onClick = { onReducedMotionPreferenceChange(option) }
+                )
+            } else {
+                IntentSecondaryButton(
+                    text = label,
+                    onClick = { onReducedMotionPreferenceChange(option) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        SmallLabel(
+            text = "Drives LocalReducedMotion · SharedPreferences only · SCHEMA unchanged",
             color = IntentColors.Muted
         )
         Spacer(modifier = Modifier.height(28.dp))

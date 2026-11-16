@@ -58,6 +58,7 @@ import com.intent.launcher.engine.AgentModuleProjection
 import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.ProgressProof
+import com.intent.launcher.ui.components.AgentModuleMotion
 import com.intent.launcher.ui.components.AgentNextForYouCard
 import com.intent.launcher.ui.components.AgentNotedBar
 import com.intent.launcher.ui.components.AgentOneQuestionCard
@@ -261,29 +262,39 @@ fun ConversationScreen(
                 }
             }
 
-            if (noted != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AgentNotedBar(model = noted)
+            AgentModuleMotion(visible = noted != null) {
+                if (noted != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentNotedBar(model = noted)
+                }
             }
 
-            if (oneQuestion != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AgentOneQuestionCard(
-                    model = oneQuestion,
-                    selectedIndex = selectedQuestionIndex,
-                    onSelect = { index ->
-                        selectedQuestionIndex = index
-                        val label = oneQuestion.options.getOrNull(index) ?: return@AgentOneQuestionCard
-                        val blockId = oneQuestion.blockId
-                        if (blockId != null && choiceBlock != null) {
-                            onAmbiguousChoice(blockId, index)
-                        } else {
-                            onChip(label)
-                        }
-                    },
-                    onFreeTextMic = if (voiceEnabled) onMicClick else null
-                )
-            } else if (chips.isNotEmpty() && nextCard == null && proposalCard == null) {
+            AgentModuleMotion(visible = oneQuestion != null) {
+                if (oneQuestion != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentOneQuestionCard(
+                        model = oneQuestion,
+                        selectedIndex = selectedQuestionIndex,
+                        onSelect = { index ->
+                            selectedQuestionIndex = index
+                            val label = oneQuestion.options.getOrNull(index)
+                                ?: return@AgentOneQuestionCard
+                            val blockId = oneQuestion.blockId
+                            if (blockId != null && choiceBlock != null) {
+                                onAmbiguousChoice(blockId, index)
+                            } else {
+                                onChip(label)
+                            }
+                        },
+                        onFreeTextMic = if (voiceEnabled) onMicClick else null
+                    )
+                }
+            }
+            if (oneQuestion == null &&
+                chips.isNotEmpty() &&
+                nextCard == null &&
+                proposalCard == null
+            ) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     chips.forEach { chip ->
@@ -292,26 +303,33 @@ fun ConversationScreen(
                 }
             }
 
-            if (nextCard != null &&
-                nextAction?.kind != NextActionKind.REVIEW_PROPOSAL
+            AgentModuleMotion(
+                visible = nextCard != null &&
+                    nextAction?.kind != NextActionKind.REVIEW_PROPOSAL
             ) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AgentNextForYouCard(
-                    model = nextCard,
-                    onBegin = onBeginNext,
-                    onLater = onLaterNext,
-                    onDiscuss = onDiscussNext
-                )
+                val card = nextCard
+                if (card != null && nextAction?.kind != NextActionKind.REVIEW_PROPOSAL) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentNextForYouCard(
+                        model = card,
+                        onBegin = onBeginNext,
+                        onLater = onLaterNext,
+                        onDiscuss = onDiscussNext
+                    )
+                }
             }
 
-            if (proposalCard != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AgentProposalCard(
-                    model = proposalCard,
-                    onReview = onOpenProposal,
-                    onDismiss = onDeclineProposal
-                )
-            } else if (hasPendingProposal) {
+            AgentModuleMotion(visible = proposalCard != null) {
+                if (proposalCard != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentProposalCard(
+                        model = proposalCard,
+                        onReview = onOpenProposal,
+                        onDismiss = onDeclineProposal
+                    )
+                }
+            }
+            if (proposalCard == null && hasPendingProposal) {
                 Spacer(modifier = Modifier.height(12.dp))
                 LegacyChoiceRow(
                     text = "Open proposal review",
@@ -319,21 +337,25 @@ fun ConversationScreen(
                 )
             }
 
-            if (recordedCard != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AgentRecordedEntryCard(
-                    model = recordedCard,
-                    onEdit = { onEditRecorded(recordedCard.entryId) },
-                    onUndo = { onUndoRecorded(recordedCard.entryId) }
-                )
+            AgentModuleMotion(visible = recordedCard != null) {
+                if (recordedCard != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentRecordedEntryCard(
+                        model = recordedCard,
+                        onEdit = { onEditRecorded(recordedCard.entryId) },
+                        onUndo = { onUndoRecorded(recordedCard.entryId) }
+                    )
+                }
             }
 
-            if (reportCard != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AgentReportPreviewCard(
-                    model = reportCard,
-                    onOpen = onOpenReports
-                )
+            AgentModuleMotion(visible = reportCard != null) {
+                if (reportCard != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentReportPreviewCard(
+                        model = reportCard,
+                        onOpen = onOpenReports
+                    )
+                }
             }
 
             if (voiceNote != null) {

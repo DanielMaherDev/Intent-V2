@@ -168,7 +168,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         consumeCompanionIntent(intent)
         setContent {
-            IntentTheme(themePreference = vm.themePref) {
+            IntentTheme(
+                themePreference = vm.themePref,
+                reducedMotionPreference = vm.reducedMotionPref
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -575,6 +578,10 @@ class MainActivity : ComponentActivity() {
                                 onOpenConnections = { nav.navigate("connections") },
                                 themePreference = vm.themePref,
                                 onThemePreferenceChange = { vm.setThemePreference(it) },
+                                reducedMotionPreference = vm.reducedMotionPref,
+                                onReducedMotionPreferenceChange = {
+                                    vm.setReducedMotionPreference(it)
+                                },
                                 quietModeStatusLabel = vm.quietModeSettingsCopy().statusLabel,
                                 quietModeHonestyNote = vm.quietModeSettingsCopy().body,
                                 showQuietSilenceToggle = vm.quietModeSettingsCopy().showSilenceToggle,

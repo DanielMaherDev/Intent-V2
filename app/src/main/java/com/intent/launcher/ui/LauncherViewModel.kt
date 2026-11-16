@@ -75,6 +75,7 @@ import com.intent.launcher.engine.TodayView
 import com.intent.launcher.engine.HomeRoleAccess
 import com.intent.launcher.engine.HomeRoleProbe
 import com.intent.launcher.engine.HomeChromePrefs
+import com.intent.launcher.engine.ReducedMotionPreference
 import com.intent.launcher.engine.ThemePreference
 import com.intent.launcher.engine.InstalledAppLauncher
 import com.intent.launcher.engine.LaunchDestinationApp
@@ -191,6 +192,10 @@ class LauncherViewModel(
 
     /** Appearance theme — SharedPreferences only; does not touch IntentionFlowStore / SCHEMA. */
     var themePref by mutableStateOf(homeChromePrefs.themePreference())
+        private set
+
+    /** Reduced motion — SharedPreferences only; never disables system Remove animations. */
+    var reducedMotionPref by mutableStateOf(homeChromePrefs.reducedMotionPreference())
         private set
 
     /** Notification listener honesty for the active SessionCard (never silence / completion). */
@@ -570,6 +575,11 @@ class LauncherViewModel(
     fun setThemePreference(preference: ThemePreference) {
         homeChromePrefs.setThemePreference(preference)
         themePref = preference
+    }
+
+    fun setReducedMotionPreference(preference: ReducedMotionPreference) {
+        homeChromePrefs.setReducedMotionPreference(preference)
+        reducedMotionPref = preference
     }
 
     /**

@@ -2,9 +2,10 @@ package com.intent.launcher.platform
 
 import android.content.Context
 import com.intent.launcher.engine.HomeChromePrefs
+import com.intent.launcher.engine.ReducedMotionPreference
 import com.intent.launcher.engine.ThemePreference
 
-/** SharedPreferences-backed Home chrome toggles (OS-136) + appearance theme. */
+/** SharedPreferences-backed Home chrome toggles (OS-136) + appearance + reduced motion. */
 class AndroidHomeChromePrefs(
     context: Context
 ) : HomeChromePrefs {
@@ -26,9 +27,17 @@ class AndroidHomeChromePrefs(
         prefs.edit().putString(KEY_THEME, preference.name).apply()
     }
 
+    override fun reducedMotionPreference(): ReducedMotionPreference =
+        ReducedMotionPreference.fromStorage(prefs.getString(KEY_REDUCED_MOTION, null))
+
+    override fun setReducedMotionPreference(preference: ReducedMotionPreference) {
+        prefs.edit().putString(KEY_REDUCED_MOTION, preference.name).apply()
+    }
+
     companion object {
         private const val PREFS = "intent_home_chrome"
         private const val KEY_SCREEN_TIME_BAR = "screen_time_bar_visible"
         private const val KEY_THEME = "theme_preference"
+        private const val KEY_REDUCED_MOTION = "reduced_motion_preference"
     }
 }
