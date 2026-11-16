@@ -279,8 +279,6 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            HomeBrandRow(onSettings = onSettings)
-            Spacer(modifier = Modifier.height(37.dp))
             HomeBrandRow(onSettings = onSettings, overflowItems = overflowItems)
             Spacer(modifier = Modifier.height(22.dp))
             DateLabel(dateLabel)
