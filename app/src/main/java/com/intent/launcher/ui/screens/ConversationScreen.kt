@@ -54,8 +54,11 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.TrackerEntry
+import com.intent.launcher.domain.Intention
 import com.intent.launcher.engine.AgentModuleProjection
+import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.engine.GatewayStatusCard
+import com.intent.launcher.engine.IntentionHierarchy
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.ProgressProof
 import com.intent.launcher.ui.components.AgentExplanationCard
@@ -66,6 +69,8 @@ import com.intent.launcher.ui.components.AgentOneQuestionCard
 import com.intent.launcher.ui.components.AgentProgressCard
 import com.intent.launcher.ui.components.AgentProposalCard
 import com.intent.launcher.ui.components.AgentRecordedEntryCard
+import com.intent.launcher.ui.components.AgentRelatedIntentionsStrip
+import com.intent.launcher.ui.components.AgentRelationCard
 import com.intent.launcher.ui.components.AgentReportPreviewCard
 import com.intent.launcher.ui.components.IntentBrandMark
 import com.intent.launcher.ui.components.IntentPill
@@ -98,6 +103,8 @@ fun ConversationScreen(
     onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
     /** GatewayStatus card chip (e.g. STALE Retry) — [blockId] + action index. */
     onGatewayStatusAction: (blockId: String, actionIndex: Int) -> Unit = { _, _ -> },
+    /** Cross-intention relation Confirm / Cancel — [blockId] + action index. */
+    onRelationAction: (blockId: String, actionIndex: Int) -> Unit = { _, _ -> },
     pendingProposal: Proposal? = null,
     relatedSaidFact: Fact? = null,
     nextAction: NextAction? = null,
@@ -105,6 +112,8 @@ fun ConversationScreen(
     pathSummary: PathSummary.View? = null,
     progressProof: ProgressProof.View? = null,
     showReportPreview: Boolean = false,
+    intentions: List<Intention> = emptyList(),
+    hierarchy: IntentionHierarchy.View? = null,
     onBeginNext: () -> Unit = {},
     onLaterNext: () -> Unit = {},
     onDiscussNext: () -> Unit = {},
@@ -142,17 +151,32 @@ fun ConversationScreen(
         .firstOrNull()
         ?: nextAction?.let { AgentModuleProjection.nextForYouFromNextAction(it, intentionTitle) }
 
-    val proposalCard = turns.asSequence()
+    val relationCard = turns.asSequence()
         .flatMap { it.blocks }
-        .mapNotNull {
-            AgentModuleProjection.proposalFromBlock(it, intentionTitle, pendingProposal)
-        }
-        .firstOrNull()
-        ?: pendingProposal?.takeIf { it.status == ProposalStatus.PENDING }?.let {
-            AgentModuleProjection.proposalFromPending(it, intentionTitle)
-        }
+        .mapNotNull { CrossIntentionRelationCard.fromBlock(it, intentions) }
+        .firstOrNull { it.pending }
+        ?: turns.asSequence()
+            .flatMap { it.blocks }
+            .mapNotNull { CrossIntentionRelationCard.fromBlock(it, intentions) }
+            .firstOrNull()
 
-    val noted = if (proposalCard != null || hasPendingProposal) {
+    val relatedStrip = hierarchy?.let { CrossIntentionRelationCard.relatedStrip(it) }
+
+    val proposalCard = if (relationCard?.pending == true) {
+        null
+    } else {
+        turns.asSequence()
+            .flatMap { it.blocks }
+            .mapNotNull {
+                AgentModuleProjection.proposalFromBlock(it, intentionTitle, pendingProposal)
+            }
+            .firstOrNull()
+            ?: pendingProposal?.takeIf { it.status == ProposalStatus.PENDING }?.let {
+                AgentModuleProjection.proposalFromPending(it, intentionTitle)
+            }
+    }
+
+    val noted = if (relationCard != null || proposalCard != null || hasPendingProposal) {
         AgentModuleProjection.notedBarFromSaidFact(relatedSaidFact)
     } else {
         null
@@ -208,6 +232,8 @@ fun ConversationScreen(
         oneQuestion == null &&
         nextCard == null &&
         proposalCard == null &&
+        relationCard == null &&
+        relatedStrip == null &&
         recordedCard == null &&
         reportCard == null &&
         explanationCard == null &&
@@ -285,6 +311,13 @@ fun ConversationScreen(
                 }
             }
 
+            AgentModuleMotion(visible = relatedStrip != null && relationCard == null) {
+                if (relatedStrip != null && relationCard == null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentRelatedIntentionsStrip(model = relatedStrip)
+                }
+            }
+
             AgentModuleMotion(visible = oneQuestion != null) {
                 if (oneQuestion != null) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -309,7 +342,8 @@ fun ConversationScreen(
             if (oneQuestion == null &&
                 chips.isNotEmpty() &&
                 nextCard == null &&
-                proposalCard == null
+                proposalCard == null &&
+                relationCard == null
             ) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -335,8 +369,18 @@ fun ConversationScreen(
                 }
             }
 
-            AgentModuleMotion(visible = proposalCard != null) {
-                if (proposalCard != null) {
+            AgentModuleMotion(visible = relationCard != null) {
+                if (relationCard != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AgentRelationCard(
+                        model = relationCard,
+                        onConfirm = { onRelationAction(relationCard.blockId, 0) },
+                        onCancel = { onRelationAction(relationCard.blockId, 1) }
+                    )
+                }
+            }
+            AgentModuleMotion(visible = relationCard == null && proposalCard != null) {
+                if (relationCard == null && proposalCard != null) {
                     Spacer(modifier = Modifier.height(12.dp))
                     AgentProposalCard(
                         model = proposalCard,
@@ -345,7 +389,7 @@ fun ConversationScreen(
                     )
                 }
             }
-            if (proposalCard == null && hasPendingProposal) {
+            if (relationCard == null && proposalCard == null && hasPendingProposal) {
                 Spacer(modifier = Modifier.height(12.dp))
                 LegacyChoiceRow(
                     text = "Open proposal review",
