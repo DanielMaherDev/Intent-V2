@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.150** (this branch) · Agent-module Conversation cards on tip **v0.0.149** (#94) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.151** (this branch) · honest Language Conversation chips rebased onto tip **v0.0.150** (#95) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.150** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.150.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.151.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.151:** Honest Language Conversation chips — user-built language intentions no longer surface Spanish fixture practice catalog (“Everyday conversations” / tutor chips); fixture `intention-spanish` keeps scripted E2E chips; Quit/`other` stay empty; SCHEMA 10 stamp-only
 - **v0.0.150:** Agent-module Conversation UI — NEXT FOR YOU / ONE QUESTION / PROPOSED · NOT YET ACTIVE / RECORDED / REPORT PREVIEW cards + NOTED bar, brand+intention pill chrome, “Talk to INTENT…” composer; maps existing FlowCommand / NextAction / Proposal / tracker / report data (no invented OBSERVED facts); SCHEMA 10 stamp-only
 - **v0.0.149:** Hold suggestions shape honesty — language catalog (Duolingo) only for language shapes; Builder Quit/`other`/cessation no longer invent Hold Duolingo; SCHEMA 10 stamp-only
 - **v0.0.148:** Restore Exploring Intention Space empty-note honesty — default/language `ShapeProjection.emptyNote` again says no invented practice plan (fixes `IntentionDetailCoherenceTest.exploring_surfacesSixSections_withoutInventedPlan`); SCHEMA 10 stamp-only

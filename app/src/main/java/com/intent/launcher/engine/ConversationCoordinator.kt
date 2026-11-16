@@ -367,14 +367,15 @@ object ConversationCoordinator {
     }
 
     /**
-     * Shape-aware suggested chips. Language only surfaces Spanish script chips;
-     * `other` / unknown / null stay empty — no CASE/scaffold catalog dump on create.
+     * Shape-aware suggested chips.
+     * Language: fixture Spanish only — user-built language stays empty (no invented
+     * practice catalog). Quit/`other` / unknown / null stay empty.
      */
     fun chipsForIntention(
         intention: Intention?,
         registry: CapabilityRegistry
     ): List<String> = when (intention?.shapeTag) {
-        "language" -> SpanishScenario.conversationChips(registry)
+        "language" -> SpanishScenario.conversationChipsFor(intention, registry)
         "marathon" -> MarathonScenario.conversationChips(registry)
         "business" -> BusinessScenario.conversationChips(registry)
         "move" -> MoveScenario.conversationChips(registry)

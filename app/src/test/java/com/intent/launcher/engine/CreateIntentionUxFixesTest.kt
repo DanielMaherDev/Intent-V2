@@ -123,4 +123,52 @@ class CreateIntentionUxFixesTest {
             ConversationCoordinator.chipsForIntention(null, registry).isEmpty()
         )
     }
+
+    @Test
+    fun userBuiltLanguage_hasEmptyChipCatalog_noFixturePracticeChips() {
+        assertTrue(IntentionBuilder.start(store, "Speak Spanish more at work", now, registry).ok)
+        assertTrue(IntentionBuilder.setShape(store, "language", now + 1, registry))
+        val p1 = IntentionBuilder.nextPrompt(store.snapshot().builderDraft)!!
+        assertTrue(IntentionBuilder.answerPrompt(store, p1.id, "Everyday conversations", now + 2, registry))
+        val p2 = IntentionBuilder.nextPrompt(store.snapshot().builderDraft)!!
+        assertTrue(IntentionBuilder.answerPrompt(store, p2.id, "I have a tutor", now + 3, registry))
+        assertTrue(
+            IntentionBuilder.commit(
+                store,
+                now + 4,
+                intentionId = "intention-user-spanish",
+                registry = registry
+            )
+        )
+        val intention = store.snapshot().intentions.first { it.id == "intention-user-spanish" }
+        val chips = ConversationCoordinator.chipsForIntention(intention, registry)
+        assertTrue(chips.isEmpty())
+        assertFalse(chips.any { it.contains("Everyday", ignoreCase = true) })
+        assertFalse(chips.any { it.contains("tutor", ignoreCase = true) })
+    }
+
+    @Test
+    fun fixtureSpanish_stillSurfacesScriptedChips() {
+        SpanishScenario.seed(store, now)
+        val fixture = store.snapshot().intentions.first { it.id == SpanishScenario.INTENTION_ID }
+        val chips = ConversationCoordinator.chipsForIntention(fixture, registry)
+        assertEquals(SpanishScenario.conversationChips(registry), chips)
+        assertTrue(chips.any { it.contains("Everyday conversations", ignoreCase = true) })
+    }
+
+    @Test
+    fun quitAndOther_stayEmpty_alongsideUserLanguage() {
+        val quitOther = Intention(
+            id = "intention-quit-1",
+            title = "Quit smoking",
+            statement = "I want to quit",
+            phase = com.intent.launcher.domain.IntentionPhase.EXPLORING,
+            createdAtEpochMs = now,
+            updatedAtEpochMs = now,
+            shapeTag = "other"
+        )
+        // Builder Quit uses other — must stay empty (live leftover companion to language).
+        assertTrue(ConversationCoordinator.chipsForIntention(quitOther, registry).isEmpty())
+        assertTrue(ConversationCoordinator.chipsForIntention(null, registry).isEmpty())
+    }
 }

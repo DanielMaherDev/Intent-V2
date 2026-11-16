@@ -39,6 +39,19 @@ object SpanishScenario {
     fun conversationChips(registry: CapabilityRegistry = CapabilityRegistry.default): List<String> =
         registry.filterChips(suggestedChips)
 
+    /**
+     * Conversation UI chips for a language intention.
+     * Only the scripted fixture [INTENTION_ID] surfaces the E2E catalog.
+     * User-built language rows stay empty — no invented practice-plan chips.
+     */
+    fun conversationChipsFor(
+        intention: Intention?,
+        registry: CapabilityRegistry = CapabilityRegistry.default
+    ): List<String> {
+        if (intention?.id != INTENTION_ID) return emptyList()
+        return conversationChips(registry)
+    }
+
     fun seed(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
         store.apply(
             FlowCommand.SeedExploring(
