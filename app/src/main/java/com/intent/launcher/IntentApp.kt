@@ -11,6 +11,7 @@ import com.intent.launcher.engine.QuietModeAccess
 import com.intent.launcher.engine.ScreenCaptureAccess
 import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
+import com.intent.launcher.engine.TextToSpeechAccess
 import com.intent.launcher.engine.UsageStatsAccess
 import com.intent.launcher.engine.VoicePermissionAccess
 import com.intent.launcher.platform.AndroidHomeRoleAccess
@@ -21,6 +22,7 @@ import com.intent.launcher.platform.AndroidOverlayPermissionAccess
 import com.intent.launcher.platform.AndroidQuietModeAccess
 import com.intent.launcher.platform.AndroidScreenCaptureAccess
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
+import com.intent.launcher.platform.AndroidTextToSpeechAccess
 import com.intent.launcher.platform.AndroidUsageStatsAccess
 import com.intent.launcher.platform.AndroidVoicePermissionAccess
 import com.intent.launcher.platform.PackageManagerAppLauncher
@@ -47,6 +49,9 @@ class IntentApp : Application() {
         private set
 
     lateinit var speechToTextAccess: SpeechToTextAccess
+        private set
+
+    lateinit var textToSpeechAccess: TextToSpeechAccess
         private set
 
     lateinit var notificationListenerAccess: NotificationListenerAccess
@@ -78,6 +83,7 @@ class IntentApp : Application() {
         homeRoleAccess = AndroidHomeRoleAccess(this)
         voicePermissionAccess = AndroidVoicePermissionAccess(this)
         speechToTextAccess = AndroidSpeechToTextAccess(this)
+        textToSpeechAccess = AndroidTextToSpeechAccess(this)
         notificationListenerAccess = AndroidNotificationListenerAccess(this)
         quietModeAccess = AndroidQuietModeAccess(this)
         screenCaptureAccess = AndroidScreenCaptureAccess(this)

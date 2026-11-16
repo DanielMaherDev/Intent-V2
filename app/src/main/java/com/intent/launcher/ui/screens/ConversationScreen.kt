@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,6 +58,7 @@ import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.engine.AgentModuleProjection
+import com.intent.launcher.engine.AssistantSpeech
 import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.IntentionHierarchy
@@ -99,6 +102,11 @@ fun ConversationScreen(
     onMicClick: () -> Unit = {},
     onSendFreeText: (String) -> Unit = {},
     freeTextBusy: Boolean = false,
+    /** In-flight spoken agent reply — Stop / mic / type interrupt via InterruptedVoice. */
+    assistantSpeaking: Boolean = false,
+    onStopSpeaking: () -> Unit = {},
+    onSpeakAloud: () -> Unit = {},
+    canSpeakAloud: Boolean = false,
     /** AMBIGUOUS CHOICE_SET chip — [blockId] + choice index from the card. */
     onAmbiguousChoice: (blockId: String, choiceIndex: Int) -> Unit = { _, _ -> },
     /** GatewayStatus card chip (e.g. STALE Retry) — [blockId] + action index. */
@@ -438,6 +446,16 @@ fun ConversationScreen(
                 }
             }
 
+            if (!assistantSpeaking && canSpeakAloud) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SpeakAloudRow(onClick = onSpeakAloud)
+            }
+
+            if (assistantSpeaking) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SpeakingInterruptBanner(onStop = onStopSpeaking)
+            }
+
             if (voiceNote != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -452,7 +470,9 @@ fun ConversationScreen(
             voiceEnabled = voiceEnabled,
             onMicClick = onMicClick,
             onSendFreeText = onSendFreeText,
-            freeTextBusy = freeTextBusy
+            freeTextBusy = freeTextBusy,
+            assistantSpeaking = assistantSpeaking,
+            onStopSpeaking = onStopSpeaking
         )
     }
 }
@@ -642,16 +662,104 @@ private fun LegacyChoiceRow(text: String, onClick: () -> Unit) {
 }
 
 @Composable
+private fun SpeakAloudRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(13.dp))
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(13.dp))
+            .background(IntentColors.Card)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.VolumeUp,
+            contentDescription = null,
+            tint = IntentColors.AccentDark,
+            modifier = Modifier.size(20.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Speak aloud",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Ink,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Play the latest reply, then Stop or speak to interrupt",
+                style = MaterialTheme.typography.labelSmall,
+                color = IntentColors.Muted
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeakingInterruptBanner(onStop: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(13.dp))
+            .border(1.dp, IntentColors.Accent, RoundedCornerShape(13.dp))
+            .background(IntentColors.AccentSoft)
+            .padding(horizontal = 13.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SmallLabel(text = "SPEAKING · INTERRUPT")
+        Text(
+            text = AssistantSpeech.SPEAKING_BANNER,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Ink,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = AssistantSpeech.HONESTY_NOTE,
+            style = MaterialTheme.typography.labelSmall,
+            color = IntentColors.Muted
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(11.dp))
+                .background(IntentColors.Ink)
+                .clickable(onClick = onStop)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Stop,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Stop speaking",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
 private fun ComposerBar(
     voiceEnabled: Boolean,
     onMicClick: () -> Unit,
     onSendFreeText: (String) -> Unit,
-    freeTextBusy: Boolean
+    freeTextBusy: Boolean,
+    assistantSpeaking: Boolean,
+    onStopSpeaking: () -> Unit
 ) {
     var draft by remember { mutableStateOf("") }
     fun send() {
         val text = draft.trim()
-        if (text.isEmpty() || freeTextBusy) return
+        if (text.isEmpty()) return
+        if (freeTextBusy && !assistantSpeaking) return
         onSendFreeText(text)
         draft = ""
     }
@@ -684,16 +792,16 @@ private fun ComposerBar(
                     textStyle = MaterialTheme.typography.bodySmall.copy(color = IntentColors.Ink),
                     cursorBrush = SolidColor(IntentColors.Accent),
                     singleLine = true,
-                    enabled = !freeTextBusy,
+                    enabled = !freeTextBusy || assistantSpeaking,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { send() }),
                     decorationBox = { inner ->
                         if (draft.isEmpty()) {
                             Text(
-                                text = if (freeTextBusy) {
-                                    "Waiting for model…"
-                                } else {
-                                    "Talk to INTENT…"
+                                text = when {
+                                    assistantSpeaking -> "Type to interrupt…"
+                                    freeTextBusy -> "Waiting for model…"
+                                    else -> "Talk to INTENT…"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = IntentColors.ComposerHint
@@ -709,9 +817,16 @@ private fun ComposerBar(
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(
-                                if (!freeTextBusy) IntentColors.Accent else IntentColors.Muted
+                                if (!freeTextBusy || assistantSpeaking) {
+                                    IntentColors.Accent
+                                } else {
+                                    IntentColors.Muted
+                                }
                             )
-                            .clickable(enabled = !freeTextBusy, onClick = { send() }),
+                            .clickable(
+                                enabled = !freeTextBusy || assistantSpeaking,
+                                onClick = { send() }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -723,19 +838,45 @@ private fun ComposerBar(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                 }
+                if (assistantSpeaking) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(IntentColors.Ink)
+                            .clickable(onClick = onStopSpeaking),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Stop,
+                            contentDescription = "Stop speaking",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
                 Box(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(
-                            if (voiceEnabled) IntentColors.Accent else IntentColors.Muted
+                            when {
+                                assistantSpeaking -> IntentColors.AccentDark
+                                voiceEnabled -> IntentColors.Accent
+                                else -> IntentColors.Muted
+                            }
                         )
                         .clickable(onClick = onMicClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Mic,
-                        contentDescription = "Speak",
+                        contentDescription = if (assistantSpeaking) {
+                            "Speak to interrupt"
+                        } else {
+                            "Speak"
+                        },
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )

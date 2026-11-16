@@ -46,8 +46,10 @@ import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.AmbiguousChoiceSetCard
+import com.intent.launcher.engine.AssistantSpeech
 import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.engine.GatewayStatusCard
+import com.intent.launcher.engine.InterruptedVoice
 import com.intent.launcher.engine.AppConnectionInventory
 import com.intent.launcher.engine.AppConnectionUsage
 import com.intent.launcher.engine.AppDurationTask
@@ -107,6 +109,7 @@ import com.intent.launcher.engine.ScreenTimeBarProbe
 import com.intent.launcher.engine.SessionNotificationReviewProbe
 import com.intent.launcher.engine.SessionNotificationReviewStore
 import com.intent.launcher.engine.SpeechToTextAccess
+import com.intent.launcher.engine.TextToSpeechAccess
 import com.intent.launcher.engine.TriggerCooldownPolicy
 import com.intent.launcher.engine.UsageInterventionTrigger
 import com.intent.launcher.engine.UsageStatsAccess
@@ -129,6 +132,8 @@ class LauncherViewModel(
         IntentApp.instance.voicePermissionAccess,
     private val speechToTextAccess: SpeechToTextAccess =
         IntentApp.instance.speechToTextAccess,
+    private val textToSpeechAccess: TextToSpeechAccess =
+        IntentApp.instance.textToSpeechAccess,
     private val notificationListenerAccess: NotificationListenerAccess =
         IntentApp.instance.notificationListenerAccess,
     private val quietModeAccess: QuietModeAccess =
@@ -250,6 +255,17 @@ class LauncherViewModel(
     /** Last voice-path note (permission, unmatched transcript, chip match). */
     var voicePathNote by mutableStateOf<String?>(null)
         private set
+
+    /**
+     * In-flight agent reply the Conversation surface is "speaking".
+     * Null when idle. Interrupt via [stopAssistantSpeech] / barge-in paths.
+     */
+    var speakingTurnId by mutableStateOf<String?>(null)
+        private set
+
+    /** True while Conversation owns an interruptible speaking turn. */
+    val isAssistantSpeaking: Boolean
+        get() = AssistantSpeech.isSpeaking(speakingTurnId)
 
     /** Confirmation after a successful (or failed empty) thought capture. */
     var thoughtCaptureNote by mutableStateOf<String?>(null)
@@ -1138,8 +1154,13 @@ class LauncherViewModel(
     /**
      * Discuss free-text composer. Network only when live_llm is CONNECTED
      * (key + opt-in + client); otherwise labeled local heuristics — never invents.
+     * While speaking, typed send is barge-in (cancels the in-flight reply turn).
      */
     fun onDiscussFreeText(text: String) {
+        if (isAssistantSpeaking) {
+            bargeInWithTranscript(text)
+            return
+        }
         if (freeTextBusy) return
         freeTextBusy = true
         viewModelScope.launch {
@@ -1183,8 +1204,13 @@ class LauncherViewModel(
     /**
      * After platform STT returns text — chip match or the same Discuss free-text /
      * [OpenAiDiscussClient] path as typed send when live_llm is CONNECTED.
+     * While [isAssistantSpeaking], routes through [InterruptedVoice.bargeIn].
      */
     fun onVoiceTranscript(transcript: String) {
+        if (isAssistantSpeaking) {
+            bargeInWithTranscript(transcript)
+            return
+        }
         if (freeTextBusy) return
         freeTextBusy = true
         viewModelScope.launch {
@@ -1215,6 +1241,61 @@ class LauncherViewModel(
 
     fun onMicDenied() {
         voicePathNote = voiceObservation.note
+        refresh()
+    }
+
+    /** Latest agent reply the user may Speak aloud / interrupt (null when none). */
+    fun speakableAgentReply(): AssistantSpeech.Speakable? {
+        val intentionId = activeIntention()?.id ?: return null
+        return AssistantSpeech.latestSpeakableAgentTurn(snapshot, intentionId)
+    }
+
+    /**
+     * Enter Conversation speaking state for the latest agent reply.
+     * Tries platform TTS when available; interrupt UI works even if TTS cannot start.
+     */
+    fun beginSpeakingLatestAgentReply() {
+        val speakable = speakableAgentReply() ?: run {
+            voicePathNote =
+                "Nothing to speak aloud yet — wait for an agent reply, then interrupt from here."
+            return
+        }
+        textToSpeechAccess.stop()
+        val started = textToSpeechAccess.speak(speakable.text, speakable.turnId)
+        speakingTurnId = speakable.turnId
+        voicePathNote = if (started) {
+            "${AssistantSpeech.SPEAKING_BANNER} · ${AssistantSpeech.HONESTY_NOTE}"
+        } else {
+            "${AssistantSpeech.SPEAKING_BANNER} · TTS engine unavailable on this device — " +
+                "Stop still cancels the in-flight turn. ${AssistantSpeech.HONESTY_NOTE}"
+        }
+    }
+
+    /**
+     * Stop button — barge-in with an explicit interrupt transcript so case 34
+     * (cancel + one ordered user turn + late-duplicate refuse) runs live.
+     */
+    fun stopAssistantSpeech() {
+        if (!isAssistantSpeaking) return
+        bargeInWithTranscript(AssistantSpeech.STOP_TRANSCRIPT)
+    }
+
+    /** Type/speak over the in-flight spoken reply — [InterruptedVoice.bargeIn]. */
+    fun bargeInWithTranscript(transcript: String) {
+        val speakingId = speakingTurnId ?: return
+        val intentionId = activeIntention()?.id ?: return
+        val trimmed = transcript.trim().ifBlank { AssistantSpeech.STOP_TRANSCRIPT }
+        textToSpeechAccess.stop()
+        val result = InterruptedVoice.bargeIn(
+            store = store,
+            intentionId = intentionId,
+            speakingTurnId = speakingId,
+            userTranscript = trimmed,
+            nowEpochMs = System.currentTimeMillis()
+        )
+        speakingTurnId = null
+        voicePathNote =
+            "${result.honestyNote} · ${AssistantSpeech.HONESTY_NOTE}"
         refresh()
     }
 
