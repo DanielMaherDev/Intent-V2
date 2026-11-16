@@ -1104,17 +1104,7 @@ class LauncherViewModel(
         PlayStoreDeepLink.forPackage(packageName, label)
 
     fun conversationChips(): List<String> =
-        when (activeIntention()?.shapeTag) {
-            "marathon" -> MarathonScenario.conversationChips(capabilityRegistry)
-            "business" -> BusinessScenario.conversationChips(capabilityRegistry)
-            "move" -> MoveScenario.conversationChips(capabilityRegistry)
-            "decision" -> JobOfferScenario.conversationChips(capabilityRegistry)
-            QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(capabilityRegistry)
-            "app_use" -> AppUseReductionScenario.conversationChips(capabilityRegistry)
-            "research" -> EuWorkSpainScenario.conversationChips(capabilityRegistry)
-            ChessScenario.SHAPE_TAG -> ChessScenario.conversationChips(capabilityRegistry)
-            else -> SpanishScenario.conversationChips(capabilityRegistry)
-        }
+        ConversationCoordinator.chipsForIntention(activeIntention(), capabilityRegistry)
 
     fun onConversationChip(chip: String) {
         ConversationCoordinator.submitChip(

@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.145** (this branch) · on tip **v0.0.144** high-contrast (#88) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.146** (this branch) · create-intention UX rebased onto tip **v0.0.145** App Shortcuts (#90) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.145** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.145.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.146.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.146:** Create-intention UX — stop Spanish cold-start auto-seed; empty Home CTA → Intention Builder; Conversation chips target active intention id (no hardcoded `intention-spanish`); hide CASE explore rows + empty chip catalog for `other`/unknown; SCHEMA 10 stamp-only
 - **v0.0.145:** Static Android App Shortcuts XML — Ask / Today / Capture / History wired to companion intents (`OPEN_CONVERSATION` / `OPEN_TODAY` / `CAPTURE_THOUGHT` / `OPEN_HISTORY`); no silence shortcuts; SCHEMA 10 unchanged
 - **v0.0.144:** High-contrast accessibility theme — Settings Appearance adds High contrast (follow device light/dark) with elevated HC light/dark tokens via `ThemePreference` / `HomeChromePrefs`; SCHEMA 10 unchanged
 - **v0.0.143:** Remaining GatewayStatus Conversation cards — PERMISSION_DENIED / UNSUPPORTED / NEEDS_APPROVAL via `CommandGateway.requestCapabilityAction` + `GatewayStatusCard`; SCHEMA 10 unchanged
@@ -257,6 +258,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.145, release): [INTENT-v0.0.145.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/app-shortcuts-xml-759f/artifacts/INTENT-v0.0.145.apk)
+Sideload APK (v0.0.146, release): [INTENT-v0.0.146.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/create-intention-ux-146-1b8c/artifacts/INTENT-v0.0.146.apk)
 
-(Main tip prior: [INTENT-v0.0.144.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.144.apk).)
+(Prior tip: [INTENT-v0.0.145.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.145.apk) after #90.)
