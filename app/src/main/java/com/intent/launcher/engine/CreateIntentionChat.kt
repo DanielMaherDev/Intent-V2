@@ -78,26 +78,47 @@ object CreateIntentionChat {
             IntentionBuilder.cancel(store, nowEpochMs)
         }
 
+        // AVD defect 4: promote any prior create-shell progress (Spanish transcript,
+        // committed facts) onto a durable id before seeding a clean shell.
         val existing = store.snapshot().intentions.firstOrNull { it.id == SESSION_INTENTION_ID }
-        if (existing == null) {
+        if (existing != null) {
+            val hasProgress = existing.title != "New intention" ||
+                store.snapshot().facts.any { it.intentionId == SESSION_INTENTION_ID } ||
+                store.snapshot().turns.any {
+                    it.intentionId == SESSION_INTENTION_ID &&
+                        !it.text.contains("What would you like to work on", ignoreCase = true)
+                }
+            if (hasProgress) {
+                store.apply(
+                    FlowCommand.RemapIntentionId(
+                        fromIntentionId = SESSION_INTENTION_ID,
+                        toIntentionId = "intention-$nowEpochMs",
+                        nowEpochMs = nowEpochMs
+                    )
+                )
+            }
+        }
+
+        if (store.snapshot().intentions.none { it.id == SESSION_INTENTION_ID }) {
             store.apply(
                 FlowCommand.SeedExploring(
                     intentionId = SESSION_INTENTION_ID,
                     title = "New intention",
                     statement = "Starting a new intention",
                     shapeTag = "other",
-                    nowEpochMs = nowEpochMs
+                    nowEpochMs = nowEpochMs + 1
                 )
             )
         } else {
             store.apply(
                 FlowCommand.SetActiveIntention(
                     intentionId = SESSION_INTENTION_ID,
-                    nowEpochMs = nowEpochMs
+                    nowEpochMs = nowEpochMs + 1
                 )
             )
         }
 
+        // Always greet on a fresh shell (prior greeting moved with RemapIntentionId).
         val hasGreeting = store.snapshot().turns.any {
             it.intentionId == SESSION_INTENTION_ID &&
                 it.role == "agent" &&
@@ -110,7 +131,7 @@ object CreateIntentionChat {
                     intentionId = SESSION_INTENTION_ID,
                     role = "agent",
                     text = GREETING,
-                    nowEpochMs = nowEpochMs,
+                    nowEpochMs = nowEpochMs + 2,
                     modality = ConversationCoordinator.Channel.FREE_TEXT.name
                 )
             )
@@ -456,6 +477,15 @@ object CreateIntentionChat {
                 )
                 return SubmitResult(true, "Other — awaiting free text.", sourceLabel)
             }
+            ChoiceOptions.Selection.NotSure,
+            ChoiceOptions.Selection.Skip -> {
+                postAgent(
+                    store,
+                    nowEpochMs + 1,
+                    "Okay — we can skip that for now. Your earlier answers stay saved."
+                )
+                return SubmitResult(true, "Deferred — conversation continues.", sourceLabel)
+            }
             is ChoiceOptions.Selection.Chosen -> {
                 IntentionBuilder.answerPrompt(
                     store, promptId, sel.value, nowEpochMs + 1, registry
@@ -489,13 +519,9 @@ object CreateIntentionChat {
                 SubmitResult(true, "Ready to confirm.", sourceLabel)
             }
             BuilderPhase.MISSING_FACTS -> {
-                val next = IntentionBuilder.nextPrompt(draft)
-                postAgent(
-                    store,
-                    nowEpochMs,
-                    next?.question ?: "One more useful detail when you have it."
-                )
-                projectNextPromptCard(store, nowEpochMs + 1)
+                // Gate D / AVD: project the in-chat card once — do not also postAgent
+                // the same question text (that duplicated “tutor, class, or app?”).
+                projectNextPromptCard(store, nowEpochMs)
                 SubmitResult(true, "Next question projected.", sourceLabel)
             }
             else -> confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
@@ -572,10 +598,11 @@ object CreateIntentionChat {
                 BuilderAnswerCard.choiceBlock(
                     blockId = "block-create-choice-$nowEpochMs",
                     title = prompt.question,
-                    body = "Pick one, or choose Other to type your own answer.",
+                    body = "Pick one below, or choose Other and type your own answer.",
                     spec = BuilderAnswerCard.ChoiceSpec(
                         promptId = prompt.id,
-                        options = options
+                        options = options,
+                        includeDeferral = false
                     )
                 )
             }
@@ -618,9 +645,15 @@ object CreateIntentionChat {
         )
     }
 
-    private fun deactivatePriorBuilderCards(@Suppress("UNUSED_PARAMETER") store: IntentionFlowStore, @Suppress("UNUSED_PARAMETER") nowEpochMs: Long) {
-        // ResponseBlock.active is immutable in-store; new cards supersede visually via
-        // ConversationScreen taking the latest active builder-decoded block.
+    private fun deactivatePriorBuilderCards(store: IntentionFlowStore, nowEpochMs: Long) {
+        // AVD defect 2: mark prior NumberWheel / choice cards inactive so they
+        // cannot stay interactive beside the next question.
+        store.apply(
+            FlowCommand.DeactivateBuilderAnswerCards(
+                intentionId = SESSION_INTENTION_ID,
+                nowEpochMs = nowEpochMs
+            )
+        )
     }
 
     private fun latestActiveBuilderCard(store: IntentionFlowStore): ResponseBlock? =

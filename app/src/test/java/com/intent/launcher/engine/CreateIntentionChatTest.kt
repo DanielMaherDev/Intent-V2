@@ -73,6 +73,73 @@ class CreateIntentionChatTest {
     }
 
     @Test
+    fun afterQuantity_priorWheelDeactivated_onlyChoiceCardActive() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store, "Speak Spanish at work", now + 10, registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 24, "minutes per day", now + 20, registry
+        )
+        val builderBlocks = store.snapshot().turns
+            .filter { it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID }
+            .flatMap { it.blocks }
+            .filter { BuilderAnswerCard.isBuilderCard(it) }
+        val qty = builderBlocks.filter {
+            BuilderAnswerCard.decode(it.copy(active = true)) is BuilderAnswerCard.Decoded.Quantity ||
+                it.sourceLabel.contains("|quantity|")
+        }
+        // Historical quantity cards must be inactive (AVD stale wheel).
+        assertTrue(qty.isNotEmpty())
+        assertTrue(qty.all { !it.active })
+        val active = builderBlocks.filter { it.active }
+        assertEquals(1, active.size)
+        assertTrue(BuilderAnswerCard.decode(active.single()) is BuilderAnswerCard.Decoded.Choice)
+        // No duplicate tutor question prose turn — only the card turn.
+        val tutorMentions = store.snapshot().turns.count {
+            it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID &&
+                it.text.contains("tutor, class, or app", ignoreCase = true)
+        }
+        assertEquals(1, tutorMentions)
+    }
+
+    @Test
+    fun beginAgain_promotesPriorCreate_noTranscriptResidue() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store, "Speak Spanish at work", now + 10, registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 20, "minutes per day", now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, "Learning app", now + 30, registry
+        )
+        // Confirm commit so shell has durable facts under intention-creating.
+        CreateIntentionChat.submitChoice(
+            store, "Confirm intention", now + 40, registry
+        )
+        assertTrue(
+            store.snapshot().intentions.any { it.id == CreateIntentionChat.SESSION_INTENTION_ID }
+        )
+
+        val second = CreateIntentionChat.begin(store, now + 100, registry)
+        assertTrue(second.ok)
+        val snap = store.snapshot()
+        // Prior Spanish shell remapped off intention-creating.
+        assertTrue(snap.intentions.any { it.id.startsWith("intention-") && it.id != CreateIntentionChat.SESSION_INTENTION_ID })
+        val createTurns = snap.turns.filter { it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID }
+        assertTrue(createTurns.all {
+            it.text.contains("What would you like to work on", ignoreCase = true) ||
+                it.blocks.isEmpty()
+        })
+        assertFalse(createTurns.any { it.text.contains("Spanish", ignoreCase = true) })
+        assertFalse(
+            snap.facts.any { it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID }
+        )
+    }
+
+    @Test
     fun quantityWheel_acceptsNonPresetInteger_thenChoiceWithOther() {
         CreateIntentionChat.begin(store, now, registry)
         CreateIntentionChat.submitUtterance(

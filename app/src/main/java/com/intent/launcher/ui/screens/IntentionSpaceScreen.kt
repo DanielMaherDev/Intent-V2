@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.domain.Approach
 import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
@@ -37,6 +38,7 @@ import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.OpenQuestion
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
@@ -83,6 +85,8 @@ fun IntentionSpaceScreen(
     undoTrashNote: String? = null,
     onOpenTracker: (() -> Unit)? = null,
     onOpenReports: (() -> Unit)? = null,
+    approaches: List<Approach> = emptyList(),
+    openQuestions: List<OpenQuestion> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val projection = ShapeProjection.project(
@@ -90,7 +94,9 @@ fun IntentionSpaceScreen(
         facts = facts,
         hypotheses = hypotheses,
         sessions = sessions,
-        destination = SessionDestinations.forIntention(intention)
+        destination = SessionDestinations.forIntention(intention),
+        approaches = approaches,
+        openQuestions = openQuestions
     )
     val heroTone = when (projection.hero.tone) {
         "warm" -> HeroTone.Warm

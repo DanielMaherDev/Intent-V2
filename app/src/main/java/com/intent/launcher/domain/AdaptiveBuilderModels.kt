@@ -193,6 +193,15 @@ sealed class BuilderDecision {
         val basedOnFactIds: List<String> = emptyList(),
         val rationale: String = "",
         val effects: List<String> = emptyList(),
+        /** ISO weekdays 1=Mon..7=Sun — Gate E multi-day drafts. */
+        val daysOfWeek: List<Int> = emptyList(),
+        val durationMinutes: Int = 20,
+        val timeZoneId: String = "",
+        val methodsSummary: String = "",
+        val capabilityHonesty: String = "",
+        val homeImpactNote: String = "",
+        val includeMorningCheckIn: Boolean = false,
+        val includeEveningReview: Boolean = false,
         override val sourceTurnId: String? = null
     ) : BuilderDecision()
 

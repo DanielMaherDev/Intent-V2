@@ -222,7 +222,16 @@ data class Proposal(
     val proposedMinute: Int,
     val status: ProposalStatus,
     val basedOnFactIds: List<String>,
-    val provenance: Provenance
+    val provenance: Provenance,
+    /** Gate E plan-compiler fields — additive Gson defaults (SCHEMA 10). */
+    val proposedDaysOfWeek: List<Int> = emptyList(),
+    val durationMinutes: Int = 60,
+    val timeZoneId: String = "",
+    val methodsSummary: String = "",
+    val capabilityHonesty: String = "",
+    val homeImpactNote: String = "",
+    val includeMorningCheckIn: Boolean = false,
+    val includeEveningReview: Boolean = false
 )
 
 /**
@@ -603,7 +612,15 @@ sealed class FlowCommand {
         val hour: Int,
         val minute: Int,
         val basedOnFactIds: List<String>,
-        val nowEpochMs: Long
+        val nowEpochMs: Long,
+        val daysOfWeek: List<Int> = emptyList(),
+        val durationMinutes: Int = 60,
+        val timeZoneId: String = "",
+        val methodsSummary: String = "",
+        val capabilityHonesty: String = "",
+        val homeImpactNote: String = "",
+        val includeMorningCheckIn: Boolean = false,
+        val includeEveningReview: Boolean = false
     ) : FlowCommand()
 
     data class ApproveProposal(
@@ -1155,6 +1172,26 @@ sealed class FlowCommand {
     data class SetAdaptiveBuilderState(
         val state: AdaptiveBuilderState,
         val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Promote create-session shell records onto a durable intention id
+     * (Gate D AVD: avoid Spanish transcript residue on the next create).
+     */
+    data class RemapIntentionId(
+        val fromIntentionId: String,
+        val toIntentionId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Mark prior adaptive-builder answer cards inactive so only the latest
+     * card accepts input (stale NumberWheel / chips fix).
+     */
+    data class DeactivateBuilderAnswerCards(
+        val intentionId: String,
+        val nowEpochMs: Long,
+        val exceptBlockId: String? = null
     ) : FlowCommand()
 }
 

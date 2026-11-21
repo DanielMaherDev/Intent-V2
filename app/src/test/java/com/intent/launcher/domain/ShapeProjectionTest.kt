@@ -1,5 +1,5 @@
 package com.intent.launcher.domain
-import com.intent.launcher.domain.JobOfferScenario
+
 import com.intent.launcher.store.IntentionFlowStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,6 +27,37 @@ class ShapeProjectionTest {
     @Before
     fun setUp() {
         store = IntentionFlowStore(tmp.newFile("flow.json"))
+    }
+
+    @Test
+    fun exploring_withExistingMethodFact_doesNotReaskHowWillYouPractise() {
+        SpanishScenario.seed(store, now)
+        val id = SpanishScenario.INTENTION_ID
+        store.apply(
+            FlowCommand.SaveTypedFact(
+                factId = "fact-method",
+                intentionId = id,
+                text = "Duolingo",
+                nowEpochMs = now + 1,
+                key = "existing_method"
+            )
+        )
+        store.apply(
+            FlowCommand.SaveTypedFact(
+                factId = "fact-mins",
+                intentionId = id,
+                text = "24 minutes per day",
+                nowEpochMs = now + 2,
+                key = "practice_minutes"
+            )
+        )
+        val projected = ShapeProjection.project(
+            intention = store.snapshot().intentions.first { it.id == id },
+            facts = store.snapshot().facts.filter { it.intentionId == id }
+        )
+        assertEquals("Practice path noted", projected.hero.heroTitle)
+        assertFalse(projected.hero.heroTitle.contains("How will you practise"))
+        assertTrue(projected.hero.heroBody.contains("Duolingo"))
     }
 
     @Test
