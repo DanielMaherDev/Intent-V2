@@ -538,6 +538,9 @@ class MainActivity : ComponentActivity() {
                                 onToggleErrand = { vm.toggleErrand(it) },
                                 onSettings = { nav.navigate("settings") },
                                 overflowItems = listOf(
+                                    OverflowMenuItem("Settings") {
+                                        nav.navigate("settings")
+                                    },
                                     OverflowMenuItem(HistoryTrashMenus.MENU_HISTORY) {
                                         nav.navigate("history")
                                     },
@@ -876,6 +879,7 @@ class MainActivity : ComponentActivity() {
                                 onMicClick = { onConversationMicClick() },
                                 onSendFreeText = { vm.onDiscussFreeText(it) },
                                 freeTextBusy = vm.freeTextBusy,
+                                onCancelThinking = { vm.cancelDiscussThinking() },
                                 assistantSpeaking = vm.isAssistantSpeaking,
                                 onStopSpeaking = { vm.stopAssistantSpeech() },
                                 onSpeakAloud = { vm.beginSpeakingLatestAgentReply() },

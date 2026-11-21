@@ -107,6 +107,8 @@ fun ConversationScreen(
     onMicClick: () -> Unit = {},
     onSendFreeText: (String) -> Unit = {},
     freeTextBusy: Boolean = false,
+    /** §8.9 — cancel in-flight Discuss / create model wait. */
+    onCancelThinking: () -> Unit = {},
     /** In-flight spoken agent reply — Stop / mic / type interrupt via InterruptedVoice. */
     assistantSpeaking: Boolean = false,
     onStopSpeaking: () -> Unit = {},
@@ -587,13 +589,48 @@ fun ConversationScreen(
             Spacer(modifier = Modifier.height(28.dp))
         }
 
+        // Pinned above composer so §8.9 Cancel is always reachable (not scrolled away).
+        if (freeTextBusy && !assistantSpeaking) {
+            ThinkingCancelBanner(onCancel = onCancelThinking)
+        }
+
         ComposerBar(
             voiceEnabled = voiceEnabled,
             onMicClick = onMicClick,
             onSendFreeText = onSendFreeText,
             freeTextBusy = freeTextBusy,
             assistantSpeaking = assistantSpeaking,
-            onStopSpeaking = onStopSpeaking
+            onStopSpeaking = onStopSpeaking,
+            onCancelThinking = onCancelThinking
+        )
+    }
+}
+
+@Composable
+private fun ThinkingCancelBanner(onCancel: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+            .background(IntentColors.Card, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "Waiting for the model…",
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Ink,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "Cancel",
+            style = MaterialTheme.typography.labelLarge,
+            color = IntentColors.Accent,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clickable(onClick = onCancel)
+                .padding(horizontal = 8.dp, vertical = 8.dp)
         )
     }
 }
@@ -874,7 +911,8 @@ private fun ComposerBar(
     onSendFreeText: (String) -> Unit,
     freeTextBusy: Boolean,
     assistantSpeaking: Boolean,
-    onStopSpeaking: () -> Unit
+    onStopSpeaking: () -> Unit,
+    onCancelThinking: () -> Unit = {}
 ) {
     var draft by remember { mutableStateOf("") }
     fun send() {

@@ -280,7 +280,12 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            HomeBrandRow(onSettings = onSettings, overflowItems = overflowItems)
+            val emptyHome = nextAction.kind == NextActionKind.NONE
+            HomeBrandRow(
+                onSettings = onSettings,
+                overflowItems = overflowItems,
+                emptyHome = emptyHome
+            )
             Spacer(modifier = Modifier.height(22.dp))
             DateLabel(dateLabel)
             Spacer(modifier = Modifier.height(11.dp))
@@ -292,11 +297,19 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Lede(greeting.lede)
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(if (emptyHome) 28.dp else 26.dp))
 
-            // Active session uses SessionSummaryCard (approval-mock language).
-            // Other next-action kinds keep the existing attention-strip hero.
-            if (nextAction.kind == NextActionKind.ACTIVE_SESSION) {
+            // S-HOME-EMPTY: no hero card — primary CTA + secondary icon rows only.
+            if (emptyHome) {
+                if (onStartBuilder != null) {
+                    IntentPrimaryButton(
+                        text = "Start a new intention",
+                        onClick = onStartBuilder,
+                        emphasized = true,
+                        leadingIcon = Icons.Outlined.AutoAwesome
+                    )
+                }
+            } else if (nextAction.kind == NextActionKind.ACTIVE_SESSION) {
                 ActiveSessionCard(
                     nextAction = nextAction,
                     intentionTitle = intentionTitle,
@@ -455,7 +468,6 @@ fun HomeScreen(
             }
 
             // Empty home: keep permission / overlay essays out of the primary view.
-            val emptyHome = nextAction.kind == NextActionKind.NONE
             if (!emptyHome) {
                 QuietGrantStrip(
                     showGrantUsageAccess = showGrantUsageAccess &&

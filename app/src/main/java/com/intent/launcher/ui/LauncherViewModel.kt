@@ -91,6 +91,7 @@ import com.intent.launcher.engine.LiveLlmProbe
 import com.intent.launcher.engine.OpenAiDiscussClient
 import com.intent.launcher.engine.NextActionEngine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.intent.launcher.engine.NotificationListenerAccess
@@ -1246,6 +1247,9 @@ class LauncherViewModel(
         private set
 
     private val openAiDiscussClient = OpenAiDiscussClient()
+    private var discussJob: Job? = null
+    /** Turn id reserved for the in-flight Discuss call — cancelled via [cancelDiscussThinking]. */
+    private var discussThinkingTurnId: String? = null
 
     /**
      * Discuss free-text composer. Network only when live_llm is CONNECTED
@@ -1259,11 +1263,17 @@ class LauncherViewModel(
         }
         if (freeTextBusy) return
         freeTextBusy = true
-        viewModelScope.launch {
+        val thinkingTurnId = "turn-discuss-thinking-${System.currentTimeMillis()}"
+        discussThinkingTurnId = thinkingTurnId
+        discussJob = viewModelScope.launch {
             try {
                 val createActive = CreateIntentionChat.isCreateSession(activeIntention()) ||
                     store.snapshot().builderDraft.active
                 val honesty = withContext(Dispatchers.IO) {
+                    // Bail if the user cancelled while we were queued for IO.
+                    if (discussThinkingTurnId != thinkingTurnId) {
+                        return@withContext "Cancelled — waiting for the model stopped."
+                    }
                     val now = System.currentTimeMillis()
                     val intention = activeIntention()
                     when {
@@ -1296,12 +1306,42 @@ class LauncherViewModel(
                         ).honestyNote
                     }
                 }
-                voicePathNote = honesty
+                // Drop late replies after cancel (§8.9) — do not mutate UI note from stale work.
+                if (discussThinkingTurnId == thinkingTurnId) {
+                    voicePathNote = honesty
+                }
             } finally {
-                freeTextBusy = false
-                refresh()
+                if (discussThinkingTurnId == thinkingTurnId) {
+                    discussThinkingTurnId = null
+                    freeTextBusy = false
+                    discussJob = null
+                    refresh()
+                }
             }
         }
+    }
+
+    /**
+     * §8.9 — Cancel while the agent is thinking. Marks the thinking turn cancelled so
+     * any late model/decision write tied to it cannot mutate state, then frees the composer.
+     */
+    fun cancelDiscussThinking() {
+        val turnId = discussThinkingTurnId ?: return
+        val intentionId = activeIntention()?.id
+            ?: CreateIntentionChat.SESSION_INTENTION_ID
+        CommandGateway.cancelTurn(
+            store = store,
+            turnId = turnId,
+            intentionId = intentionId,
+            nowEpochMs = System.currentTimeMillis(),
+            reason = "Stopped waiting for the model. Earlier answers stay as they were."
+        )
+        discussThinkingTurnId = null
+        discussJob?.cancel()
+        discussJob = null
+        freeTextBusy = false
+        voicePathNote = "Stopped waiting for the model."
+        refresh()
     }
 
     fun setLiveLlmOptedIn(optedIn: Boolean) {
