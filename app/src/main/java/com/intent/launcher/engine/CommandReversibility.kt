@@ -134,6 +134,20 @@ object CommandReversibility {
                 Reversibility(true, "Marked intervention shown ${command.jobId}")
             is FlowCommand.DismissIntervention ->
                 Reversibility(true, "Dismissed intervention ${command.jobId}")
+            is FlowCommand.SaveTypedFact ->
+                Reversibility(true, "Saved typed fact ${command.factId}")
+            is FlowCommand.CorrectTypedFact ->
+                Reversibility(true, "Corrected fact ${command.priorFactId} → ${command.newFactId}")
+            is FlowCommand.UpsertOpenQuestion ->
+                Reversibility(true, "Upserted open question ${command.question.id}")
+            is FlowCommand.AnswerOpenQuestion ->
+                Reversibility(true, "Answered open question ${command.questionId}")
+            is FlowCommand.UpsertApproach ->
+                Reversibility(true, "Upserted approach ${command.approach.id}")
+            is FlowCommand.SelectApproaches ->
+                Reversibility(true, "Selected approaches for ${command.intentionId}")
+            is FlowCommand.SetAdaptiveBuilderState ->
+                Reversibility(true, "Updated adaptive builder state for ${command.state.intentionId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,
