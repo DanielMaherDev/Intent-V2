@@ -820,7 +820,7 @@ private fun homeGreeting(
     )
     else -> HomeGreeting(
         headline = "Where would you like to begin?",
-        lede = nextAction.reason.ifBlank { "Nothing scheduled yet." },
+        lede = "Nothing scheduled yet.",
         pills = emptyList()
     )
 }
@@ -900,8 +900,8 @@ private fun attentionStripMeta(
         else -> AttentionStripMeta(
             smallLabel = "Ready when you are",
             heroTone = HeroTone.Accent,
-            title = nextAction.label.ifBlank { "Start something useful" },
-            support = support.ifBlank { "Nothing scheduled yet." }
+            title = "Start a new intention",
+            support = "Nothing scheduled yet."
         )
     }
 }

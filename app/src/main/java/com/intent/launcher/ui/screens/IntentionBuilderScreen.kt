@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -308,18 +309,16 @@ private fun SoftShapeConfirm(
     val tag = draft.shapeTag ?: draft.suggestedShapeTag
     val label = IntentionBuilder.shapeDisplayLabel(tag)
     if (compact) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "We’ve treated this as a ${label.lowercase()} intention",
+                text = "We’ve treated this as a ${label.lowercase()} intention — change?",
                 style = MaterialTheme.typography.bodyMedium,
                 color = IntentColors.Muted,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onRequestChange)
+                    .padding(vertical = 4.dp)
             )
-            IntentQuietButton(text = "Change?", onClick = onRequestChange)
         }
         return
     }

@@ -99,7 +99,7 @@ class AgentModuleProjectionTest {
             type = ResponseBlockType.CHOICE_SET,
             title = "Where will you use Spanish most?",
             body = "Your answer helps me suggest the right practice.",
-            sourceLabel = "Local heuristics",
+            sourceLabel = "On-device replies",
             actions = listOf("Work meetings", "Customer conversations", "Everyday conversations")
         )
         val card = AgentModuleProjection.oneQuestionFromBlock(block)

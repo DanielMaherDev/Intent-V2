@@ -56,7 +56,7 @@ class OpenAiDiscussClientTest {
         assertEquals(OpenAiDiscussClient.DEFAULT_ENDPOINT, sawUrl)
         assertEquals("sk-test", sawAuthPrefix)
         val labeled = OpenAiDiscussClient.formatAgentTurn(success.completion)
-        assertTrue(labeled.contains("Model suggestion"))
+        assertTrue(labeled.contains("Live assistant"))
         assertTrue(labeled.contains("not observed evidence"))
         assertTrue(labeled.contains("Try a short practice block tonight."))
     }
