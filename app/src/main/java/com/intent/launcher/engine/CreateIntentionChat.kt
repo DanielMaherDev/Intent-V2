@@ -1,11 +1,19 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.AdaptiveBuilderState
+import com.intent.launcher.domain.ApproachActor
+import com.intent.launcher.domain.ApproachDraft
+import com.intent.launcher.domain.BuilderDecision
 import com.intent.launcher.domain.BuilderPhase
+import com.intent.launcher.domain.FactDraft
+import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
+import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.store.IntentionFlowStore
+import java.util.TimeZone
 
 /**
  * Chat-first create path (F1/F2): Home **Start a new intention** opens Conversation
@@ -13,8 +21,10 @@ import com.intent.launcher.store.IntentionFlowStore
  * in-chat cards (NumberWheel / chips+Other) — not a disconnected Builder wizard.
  *
  * Structural answers always go through [IntentionBuilder] / [AnswerBuilderPrompt].
- * When live OpenAI is opted in, prose may be enriched; otherwise the path stays
- * honest local heuristics.
+ * After Confirm, [bridgeAdaptiveBuilderAfterCommit] remaps draft prompt ids onto
+ * AdaptiveBuilder engine keys + approaches so §8.4 Propose/Review is reachable
+ * without fixtures-only shortcuts. When live OpenAI is opted in, prose may be
+ * enriched; otherwise the path stays honest local heuristics.
  */
 object CreateIntentionChat {
 
@@ -36,7 +46,9 @@ object CreateIntentionChat {
         val honestyNote: String?,
         val sourceLabel: String,
         val liveCallAttempted: Boolean = false,
-        val committedIntentionId: String? = null
+        val committedIntentionId: String? = null,
+        /** Set when Confirm bridged into a pending ProposeRecurringSession. */
+        val pendingProposalId: String? = null
     )
 
     fun isCreateSession(intention: Intention?): Boolean =
@@ -534,6 +546,12 @@ object CreateIntentionChat {
         registry: CapabilityRegistry,
         sourceLabel: String
     ): SubmitResult {
+        // Capture before CommitBuilderIntention clears the draft.
+        val draft = store.snapshot().builderDraft
+        val factAnswers = draft.factAnswers.toMap()
+        val shapeTag = draft.shapeTag ?: draft.suggestedShapeTag
+        val freeText = draft.freeText
+
         val ok = IntentionBuilder.commit(
             store = store,
             nowEpochMs = nowEpochMs,
@@ -545,20 +563,291 @@ object CreateIntentionChat {
             return SubmitResult(false, "Commit failed.", sourceLabel)
         }
         deactivatePriorBuilderCards(store, nowEpochMs + 1)
+
+        val bridgedProposalId = bridgeAdaptiveBuilderAfterCommit(
+            store = store,
+            intentionId = SESSION_INTENTION_ID,
+            shapeTag = shapeTag,
+            factAnswers = factAnswers,
+            freeText = freeText,
+            nowEpochMs = nowEpochMs + 10
+        )
+
         val title = store.snapshot().intentions
             .firstOrNull { it.id == SESSION_INTENTION_ID }?.title ?: "Your intention"
-        postAgent(
-            store,
-            nowEpochMs + 2,
+        val agentText = if (bridgedProposalId != null) {
+            "Saved “$title”. A draft routine is ready to review — " +
+                "nothing is scheduled until you approve it."
+        } else {
             "Saved “$title” as exploring. We can keep refining it here — " +
                 "nothing is scheduled until you approve a plan."
-        )
+        }
+        // After bridge timestamps so Conversation order is Confirm → Propose card → Saved.
+        postAgent(store, nowEpochMs + 80, agentText)
         return SubmitResult(
             ok = true,
-            honestyNote = "Intention created.",
+            honestyNote = if (bridgedProposalId != null) {
+                "Intention created — review proposal pending."
+            } else {
+                "Intention created."
+            },
             sourceLabel = sourceLabel,
-            committedIntentionId = SESSION_INTENTION_ID
+            committedIntentionId = SESSION_INTENTION_ID,
+            pendingProposalId = bridgedProposalId
         )
+    }
+
+    /**
+     * Remap create-draft prompt ids (`practice_minutes`, `existing_method`, …)
+     * onto AdaptiveBuilder engine keys + SELECTED approaches, then advance
+     * [AdaptiveBuilderEngine.suggestNextDecision] until Propose when ready.
+     *
+     * [FlowCommand.CommitBuilderIntention] only stores Facts with `key = promptId`;
+     * without this bridge, live create never reaches §8.4 Review.
+     *
+     * @return pending proposal id when Propose was applied, else null
+     */
+    internal fun bridgeAdaptiveBuilderAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        shapeTag: String,
+        factAnswers: Map<String, String>,
+        freeText: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String? {
+        val minutes = factAnswers["practice_minutes"]?.trim()?.takeIf { it.isNotEmpty() }
+        val method = factAnswers["existing_method"]?.trim()?.takeIf { it.isNotEmpty() }
+        // Practice-shaped creates (language minutes wheel + method chips). Other
+        // shapes keep explore-only commit without forcing a fake routine.
+        if (minutes == null && method == null) return null
+        if (shapeTag != "language" && minutes == null) return null
+
+        ensureAdaptiveBuilderState(store, intentionId, shapeTag, nowEpochMs)
+
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        if (minutes != null && !hasKey(AdaptiveBuilderEngine.KEY_PRACTICE_DURATION)) {
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-duration-$intentionId",
+                        text = minutes,
+                        key = AdaptiveBuilderEngine.KEY_PRACTICE_DURATION,
+                        rawUtterance = minutes,
+                        normalizedValue = minutes
+                    ),
+                    sourceTurnId = "turn-create-bridge-duration-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        // Language create asks "minutes … per day" — that implies Everyday frequency
+        // so PlanCompiler / suggestNextDecision can Propose without a second Ask.
+        if (!hasKey(AdaptiveBuilderEngine.KEY_PRACTICE_FREQUENCY)) {
+            val freqText = frequencyFromCreateAnswers(minutes, method)
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-frequency-$intentionId",
+                        text = freqText,
+                        key = AdaptiveBuilderEngine.KEY_PRACTICE_FREQUENCY,
+                        rawUtterance = freqText,
+                        normalizedValue = freqText
+                    ),
+                    sourceTurnId = "turn-create-bridge-frequency-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        if (!hasKey(AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE) && shapeTag == "language") {
+            val lang = inferTargetLanguage(freeText) ?: "Spanish"
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-language-$intentionId",
+                        text = lang,
+                        key = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
+                        rawUtterance = freeText.ifBlank { lang },
+                        normalizedValue = lang
+                    ),
+                    sourceTurnId = "turn-create-bridge-language-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        val hasSelected = store.snapshot().approaches.any {
+            it.intentionId == intentionId &&
+                it.status == com.intent.launcher.domain.ApproachStatus.SELECTED
+        }
+        if (!hasSelected) {
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.OfferApproaches(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    approachDrafts = createApproachDrafts()
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+            val selectedIds = approachIdsForMethod(method)
+            AdaptiveBuilderEngine.selectApproaches(
+                store = store,
+                intentionId = intentionId,
+                approachIds = selectedIds,
+                nowEpochMs = t,
+                sourceTurnId = "turn-create-bridge-select-$t",
+                expectedRevision = rev(),
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name
+            )
+            t += 1
+        }
+
+        // Advance policy until Propose (or Ask/Pause — leave next card for chat).
+        repeat(6) {
+            val snap = store.snapshot()
+            val pending = snap.proposals.firstOrNull {
+                it.intentionId == intentionId && it.status == ProposalStatus.PENDING
+            }
+            if (pending != null) return pending.id
+
+            val ctx = AdaptiveBuilderEngine.projectContext(snap, intentionId, t, timeZone)
+                ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Propose ->
+                    return store.snapshot().proposals.firstOrNull {
+                        it.id == next.proposalId && it.status == ProposalStatus.PENDING
+                    }?.id
+                is BuilderDecision.Pause,
+                is BuilderDecision.Ask -> return null
+                else -> Unit
+            }
+        }
+        return store.snapshot().proposals.firstOrNull {
+            it.intentionId == intentionId && it.status == ProposalStatus.PENDING
+        }?.id
+    }
+
+    private fun ensureAdaptiveBuilderState(
+        store: IntentionFlowStore,
+        intentionId: String,
+        shapeTag: String,
+        nowEpochMs: Long
+    ) {
+        val existing = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }
+        if (existing != null) return
+        store.apply(
+            FlowCommand.SetAdaptiveBuilderState(
+                state = AdaptiveBuilderState(
+                    intentionId = intentionId,
+                    revision = 0L,
+                    typeFacets = AdaptiveBuilderEngine.facetsForShape(shapeTag),
+                    lifecycleHint = "discovery",
+                    updatedAtEpochMs = nowEpochMs
+                ),
+                nowEpochMs = nowEpochMs
+            )
+        )
+    }
+
+    private fun frequencyFromCreateAnswers(minutes: String?, method: String?): String {
+        val blob = listOfNotNull(minutes, method).joinToString(" ").lowercase()
+        return when {
+            blob.contains("3 day") || blob.contains("three day") -> "3 days per week"
+            blob.contains("week") && !blob.contains("per day") -> "3 days per week"
+            else -> "Everyday"
+        }
+    }
+
+    private fun inferTargetLanguage(freeText: String): String? {
+        val t = freeText.lowercase()
+        return when {
+            t.contains("spanish") -> "Spanish"
+            t.contains("french") -> "French"
+            t.contains("german") -> "German"
+            t.contains("italian") -> "Italian"
+            t.contains("japanese") -> "Japanese"
+            t.contains("chinese") || t.contains("mandarin") -> "Chinese"
+            else -> null
+        }
+    }
+
+    private fun createApproachDrafts(): List<ApproachDraft> = listOf(
+        ApproachDraft(
+            approachId = "approach-ai-practice",
+            title = "AI conversation practice",
+            summary = "Guided Spanish practice in INTENT.",
+            actor = ApproachActor.INTENT,
+            capabilityNote = "Guided session objective + typed result; shared agent history."
+        ),
+        ApproachDraft(
+            approachId = "approach-learning-app",
+            title = "Learning app",
+            summary = "Launch an installed language app.",
+            actor = ApproachActor.APP,
+            capabilityNote = "Launch and optional foreground timing — not lesson completion."
+        ),
+        ApproachDraft(
+            approachId = "approach-offline",
+            title = "Offline practice",
+            summary = "Practice with a person or offline materials.",
+            actor = ApproachActor.PERSON
+        ),
+        ApproachDraft(
+            approachId = "approach-other",
+            title = "Something else",
+            summary = "Open response for another method.",
+            actor = ApproachActor.EXTERNAL
+        )
+    )
+
+    /** Map create chip / Other free text onto AdaptiveBuilder approach ids. */
+    internal fun approachIdsForMethod(method: String?): List<String> {
+        val m = method?.lowercase().orEmpty()
+        return when {
+            m.contains("tutor") || m.contains("class") -> listOf("approach-offline")
+            m.contains("app") || m.contains("duolingo") -> listOf("approach-learning-app")
+            m.contains("self") -> listOf("approach-ai-practice")
+            m.contains("not yet") || m.isBlank() -> listOf("approach-other")
+            else -> listOf("approach-other")
+        }
     }
 
     private fun projectNextPromptCard(store: IntentionFlowStore, nowEpochMs: Long) {

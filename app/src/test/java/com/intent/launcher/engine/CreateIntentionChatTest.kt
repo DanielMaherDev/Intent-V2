@@ -1,13 +1,17 @@
 package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
+import com.intent.launcher.domain.ApproachStatus
 import com.intent.launcher.domain.BuilderPhase
+import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.store.IntentionFlowStore
 import com.intent.launcher.ui.components.PracticeMinuteChoices
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -237,6 +241,125 @@ class CreateIntentionChatTest {
         assertEquals(
             ChoiceOptions.Selection.Chosen("A"),
             ChoiceOptions.resolveSelection("a", once)
+        )
+    }
+
+    @Test
+    fun confirm_languageCreate_bridgesToPendingPropose_withoutFixtures() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store, "I want to learn Spanish", now + 10, registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, "Learning app", now + 30, registry
+        )
+        val commit = CreateIntentionChat.submitChoice(
+            store, "Confirm intention", now + 40, registry
+        )
+        assertTrue(commit.ok)
+        assertNotNull(commit.pendingProposalId)
+        assertTrue(commit.honestyNote!!.contains("review proposal", ignoreCase = true))
+
+        val snap = store.snapshot()
+        val id = CreateIntentionChat.SESSION_INTENTION_ID
+        // Remapped engine keys (not only draft prompt ids).
+        assertTrue(
+            snap.facts.any {
+                it.intentionId == id &&
+                    it.key == AdaptiveBuilderEngine.KEY_PRACTICE_DURATION &&
+                    it.text.contains("20")
+            }
+        )
+        assertTrue(
+            snap.facts.any {
+                it.intentionId == id &&
+                    it.key == AdaptiveBuilderEngine.KEY_PRACTICE_FREQUENCY &&
+                    it.text.equals("Everyday", ignoreCase = true)
+            }
+        )
+        assertTrue(
+            snap.approaches.any {
+                it.intentionId == id &&
+                    it.id == "approach-learning-app" &&
+                    it.status == ApproachStatus.SELECTED
+            }
+        )
+        val pending = snap.proposals.firstOrNull {
+            it.intentionId == id && it.status == ProposalStatus.PENDING
+        }
+        assertNotNull(pending)
+        assertEquals(commit.pendingProposalId, pending!!.id)
+        assertTrue(snap.sessions.isEmpty())
+        assertEquals(
+            IntentionPhase.PROPOSAL_PENDING,
+            snap.intentions.first { it.id == id }.phase
+        )
+        assertTrue(
+            snap.turns.any { turn ->
+                turn.intentionId == id &&
+                    turn.blocks.any { it.type == ResponseBlockType.PROPOSAL && it.active }
+            }
+        )
+    }
+
+    @Test
+    fun approachIdsForMethod_mapsCreateChips() {
+        assertEquals(
+            listOf("approach-learning-app"),
+            CreateIntentionChat.approachIdsForMethod("Learning app")
+        )
+        assertEquals(
+            listOf("approach-offline"),
+            CreateIntentionChat.approachIdsForMethod("Tutor or class")
+        )
+        assertEquals(
+            listOf("approach-ai-practice"),
+            CreateIntentionChat.approachIdsForMethod("Self-study")
+        )
+        assertEquals(
+            listOf("approach-other"),
+            CreateIntentionChat.approachIdsForMethod("Weekly conversation club")
+        )
+        assertEquals(
+            listOf("approach-other"),
+            CreateIntentionChat.approachIdsForMethod("Not yet")
+        )
+        assertEquals(
+            listOf("approach-other"),
+            CreateIntentionChat.approachIdsForMethod(null)
+        )
+    }
+
+    @Test
+    fun otherFreeText_confirm_stillReachesPropose() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store, "Speak Spanish at work", now + 10, registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, ChoiceOptions.OTHER, now + 30, registry
+        )
+        CreateIntentionChat.submitUtterance(
+            store, "Weekly conversation club", now + 40, registry
+        )
+        val commit = CreateIntentionChat.submitChoice(
+            store, "Confirm intention", now + 50, registry
+        )
+        assertTrue(commit.ok)
+        assertNotNull(commit.pendingProposalId)
+        assertTrue(
+            store.snapshot().approaches.any {
+                it.id == "approach-other" && it.status == ApproachStatus.SELECTED
+            }
+        )
+        assertNull(
+            store.snapshot().sessions.firstOrNull()
         )
     }
 }
