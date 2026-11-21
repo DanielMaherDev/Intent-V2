@@ -41,11 +41,13 @@ object ShapeProjection {
         facts: List<Fact> = emptyList(),
         hypotheses: List<Hypothesis> = emptyList(),
         sessions: List<ScheduledSession> = emptyList(),
-        destination: DestinationApp? = null
+        destination: DestinationApp? = null,
+        approaches: List<Approach> = emptyList(),
+        openQuestions: List<OpenQuestion> = emptyList()
     ): IntentionSpaceProjection {
         val shape = intention?.shapeTag
         val phase = intention?.phase ?: IntentionPhase.EXPLORING
-        val hero = heroFor(phase, shape)
+        val hero = heroFor(phase, shape, facts, approaches, openQuestions)
         val hasKnowledge = facts.isNotEmpty() || hypotheses.isNotEmpty() || sessions.isNotEmpty()
         val approach = approachFor(phase, shape, sessions, facts, hypotheses)
         val dest = destination ?: SessionDestinations.forIntention(intention)
@@ -400,46 +402,110 @@ object ShapeProjection {
         )
     }
 
-    private fun heroFor(phase: IntentionPhase, shapeTag: String?): IntentionHeroProjection =
-        when (phase) {
-            IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> IntentionHeroProjection(
+    /**
+     * Discovery hero respects saved facts / approaches / answered OpenQuestions
+     * so Intention Space does not re-ask “How will you practise?” after the
+     * user already named a method (Gate D / AVD mid-run).
+     */
+    private fun discoveryHero(
+        shapeTag: String?,
+        facts: List<Fact>,
+        approaches: List<Approach>,
+        openQuestions: List<OpenQuestion>
+    ): IntentionHeroProjection {
+        val activeFacts = facts.filter { it.status == FactStatus.ACTIVE }
+        val methodFact = activeFacts.firstOrNull {
+            it.key == "existing_method" || looksLikePracticeMethod(it.text)
+        }
+        val minutesFact = activeFacts.firstOrNull {
+            it.key == "practice_minutes" ||
+                it.key == "practice_duration" ||
+                it.text.contains("minute", ignoreCase = true)
+        }
+        val selectedApproaches = approaches.filter { it.status == ApproachStatus.SELECTED }
+        val approachAnswered = openQuestions.any {
+            it.state == OpenQuestionState.ANSWERED &&
+                (it.purpose.contains("approach", ignoreCase = true) ||
+                    it.answerSchema == AnswerSchema.MULTI_CHOICE)
+        }
+        val hasMethod = methodFact != null || selectedApproaches.isNotEmpty() || approachAnswered
+        if (hasMethod && (shapeTag == null || shapeTag == "language" || shapeTag == "other")) {
+            val methodLabel = when {
+                selectedApproaches.isNotEmpty() ->
+                    selectedApproaches.joinToString(" + ") { it.title }
+                methodFact != null -> methodFact.text
+                else -> "your chosen methods"
+            }
+            val minutesBit = minutesFact?.let { " · ${it.text}" }.orEmpty()
+            return IntentionHeroProjection(
                 phaseLabel = "Exploring",
-                heroLabel = "The question now",
-                heroTitle = when (shapeTag) {
-                    "marathon" -> "How will you train?"
-                    "business" -> "How will you learn?"
-                    "move" -> "What depends on a landlord?"
-                    "decision" -> "What will you weigh?"
-                    "cessation" -> "What is your baseline?"
-                    "app_use" -> "How will you hold the cap?"
-                    "research" -> "What must we confirm first?"
-                    "chess" -> "What is your rating baseline?"
-                    else -> "How will you practise?"
-                },
-                heroBody = when (shapeTag) {
-                    "marathon" ->
-                        "We can shape this around base mileage, long runs, or a mix you can keep."
-                    "business" ->
-                        "We can stay in discovery, talk to customers, or add a light research habit — nothing forced."
-                    "move" ->
-                        "Search and budget can start now. Lease, notice, and movers stay gated until a place is confirmed — nothing invents a landlord."
-                    "decision" ->
-                        "Capture SAID criteria into a comparison matrix. INTENT will not accept or decline for you."
-                    "cessation" ->
-                        "Start with cigarettes/day and when cravings hit. No quit date is forced; measures stay self-reported."
-                    "app_use" ->
-                        "We can set a 45-minute daily target and review Instagram/YouTube package time — " +
-                            "not Shorts or Reels identity."
-                    "research" ->
-                        "Citizenship, arrangement, duration, and documents — SAID facts only. No invented legal requirements."
-                    "chess" ->
-                        "Start with a manual rapid baseline (e.g. 900 → 1200). Chess.com sync is not available; practice stays self-reported."
-                    else ->
-                        "We can shape this around an app, a tutor, conversations with your agent, or a mix."
-                },
-                heroCta = "Work this out",
+                heroLabel = "What we know",
+                heroTitle = "Practice path noted",
+                heroBody = "You chose $methodLabel$minutesBit. " +
+                    "We will not ask how you practise again — next we can draft a routine when you are ready.",
+                heroCta = "Continue discussion",
                 tone = "accent"
             )
+        }
+        return IntentionHeroProjection(
+            phaseLabel = "Exploring",
+            heroLabel = "The question now",
+            heroTitle = when (shapeTag) {
+                "marathon" -> "How will you train?"
+                "business" -> "How will you learn?"
+                "move" -> "What depends on a landlord?"
+                "decision" -> "What will you weigh?"
+                "cessation" -> "What is your baseline?"
+                "app_use" -> "How will you hold the cap?"
+                "research" -> "What must we confirm first?"
+                "chess" -> "What is your rating baseline?"
+                else -> "How will you practise?"
+            },
+            heroBody = when (shapeTag) {
+                "marathon" ->
+                    "We can shape this around base mileage, long runs, or a mix you can keep."
+                "business" ->
+                    "We can stay in discovery, talk to customers, or add a light research habit — nothing forced."
+                "move" ->
+                    "Search and budget can start now. Lease, notice, and movers stay gated until a place is confirmed — nothing invents a landlord."
+                "decision" ->
+                    "Capture SAID criteria into a comparison matrix. INTENT will not accept or decline for you."
+                "cessation" ->
+                    "Start with cigarettes/day and when cravings hit. No quit date is forced; measures stay self-reported."
+                "app_use" ->
+                    "We can set a 45-minute daily target and review Instagram/YouTube package time — " +
+                        "not Shorts or Reels identity."
+                "research" ->
+                    "Citizenship, arrangement, duration, and documents — SAID facts only. No invented legal requirements."
+                "chess" ->
+                    "Start with a manual rapid baseline (e.g. 900 → 1200). Chess.com sync is not available; practice stays self-reported."
+                else ->
+                    "We can shape this around an app, a tutor, conversations with your agent, or a mix."
+            },
+            heroCta = "Work this out",
+            tone = "accent"
+        )
+    }
+
+    private fun looksLikePracticeMethod(text: String): Boolean {
+        val t = text.lowercase()
+        return listOf(
+            "duolingo", "tutor", "class", "learning app", "self-study",
+            "babbel", "anki", "conversation", "app"
+        ).any { it in t }
+    }
+
+    private fun heroFor(
+        phase: IntentionPhase,
+        shapeTag: String?,
+        facts: List<Fact> = emptyList(),
+        approaches: List<Approach> = emptyList(),
+        openQuestions: List<OpenQuestion> = emptyList()
+    ): IntentionHeroProjection =
+        when (phase) {
+            IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> {
+                discoveryHero(shapeTag, facts, approaches, openQuestions)
+            }
             IntentionPhase.PROPOSAL_PENDING -> IntentionHeroProjection(
                 phaseLabel = "Approach in progress",
                 heroLabel = "Decision needed",

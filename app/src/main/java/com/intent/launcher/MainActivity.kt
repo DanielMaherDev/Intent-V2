@@ -187,7 +187,9 @@ class MainActivity : ComponentActivity() {
                         intention = intention,
                         facts = snap.facts.filter { it.intentionId == intention?.id },
                         hypotheses = snap.hypotheses.filter { it.intentionId == intention?.id },
-                        sessions = snap.sessions.filter { it.intentionId == intention?.id }
+                        sessions = snap.sessions.filter { it.intentionId == intention?.id },
+                        approaches = snap.approaches.filter { it.intentionId == intention?.id },
+                        openQuestions = snap.openQuestions.filter { it.intentionId == intention?.id }
                     )
                     val intentionHint = intentionProjection.homeSpaceSubtitle
 
@@ -765,6 +767,12 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     null
                                 },
+                                approaches = vm.snapshot.approaches.filter {
+                                    it.intentionId == active?.id
+                                },
+                                openQuestions = vm.snapshot.openQuestions.filter {
+                                    it.intentionId == active?.id
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -930,6 +938,10 @@ class MainActivity : ComponentActivity() {
                                     nav.navigate("home") {
                                         popUpTo("home") { inclusive = true }
                                     }
+                                },
+                                onKeepDiscussing = {
+                                    vm.keepDiscussingProposal()
+                                    nav.popBackStack()
                                 },
                                 onBack = { nav.popBackStack() },
                                 modifier = Modifier.fillMaxSize()

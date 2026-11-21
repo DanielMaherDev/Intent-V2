@@ -57,7 +57,15 @@ object AgentModuleProjection {
         val dismissLabel: String,
         val proposalId: String?,
         val blockId: String?,
-        val sourceLabel: String
+        val sourceLabel: String,
+        /** Gate E review extras — empty when legacy proposal lacks compiler fields. */
+        val methodsLine: String = "",
+        val capabilityLine: String = "",
+        val homeImpactLine: String = "",
+        val morningCheckIn: Boolean = false,
+        val eveningReview: Boolean = false,
+        val keepDiscussingLabel: String = "Keep discussing",
+        val editLabel: String = "Edit plan"
     )
 
     data class RecordedEntryCard(
@@ -230,6 +238,10 @@ object AgentModuleProjection {
     private fun prefersOtherPath(block: ResponseBlock): Boolean {
         when (BuilderAnswerCard.decode(block)) {
             is BuilderAnswerCard.Decoded.Choice -> return true
+            is BuilderAnswerCard.Decoded.MultiChoice -> return true
+            is BuilderAnswerCard.Decoded.Weekdays -> return true
+            is BuilderAnswerCard.Decoded.DateTime -> return true
+            is BuilderAnswerCard.Decoded.FreeText -> return true
             is BuilderAnswerCard.Decoded.Confirm -> return false
             is BuilderAnswerCard.Decoded.Quantity -> return false
             null -> Unit
@@ -254,23 +266,31 @@ object AgentModuleProjection {
         // never as a schedule proposal with invented duration lines.
         if (block.sourceLabel.startsWith(CrossIntentionLink.SOURCE_LABEL)) return null
         val linked = proposal?.takeIf { it.status == ProposalStatus.PENDING }
-        val schedule = linked?.let { p ->
-            val day = DAY_NAMES.getOrElse(p.proposedDayOfWeek) { "Day ${p.proposedDayOfWeek}" }
-            "$day · %02d:%02d".format(p.proposedHour, p.proposedMinute)
-        } ?: block.actions.getOrNull(0).orEmpty()
-        return ProposalCard(
-            title = block.title.ifBlank { linked?.title ?: "Proposed change" },
-            body = block.body.ifBlank { linked?.summary.orEmpty() },
-            scheduleLine = schedule.ifBlank { "Schedule pending your review" },
-            durationLine = "Duration shown after you review details",
-            linkedIntentionLine = "Linked to ${intentionTitle.ifBlank { "this intention" }}",
-            honestyNote = "PROPOSED · NOT YET ACTIVE — nothing is scheduled until you approve.",
-            reviewLabel = block.actions.getOrNull(0) ?: "Review & approve",
-            dismissLabel = block.actions.getOrNull(1) ?: "Not now",
-            proposalId = linked?.id ?: block.linkedObjectIds.firstOrNull(),
-            blockId = block.blockId,
-            sourceLabel = block.sourceLabel
-        )
+        return if (linked != null) {
+            proposalFromPending(linked, intentionTitle)?.copy(
+                blockId = block.blockId,
+                sourceLabel = block.sourceLabel,
+                reviewLabel = block.actions.getOrNull(0) ?: "Start this routine",
+                editLabel = block.actions.getOrNull(1) ?: "Edit plan",
+                keepDiscussingLabel = block.actions.getOrNull(2) ?: "Keep discussing",
+                dismissLabel = block.actions.getOrNull(2) ?: "Keep discussing"
+            )
+        } else {
+            ProposalCard(
+                title = block.title.ifBlank { "Proposed change" },
+                body = block.body,
+                scheduleLine = block.actions.getOrNull(0).orEmpty()
+                    .ifBlank { "Schedule pending your review" },
+                durationLine = "Duration shown after you review details",
+                linkedIntentionLine = "Linked to ${intentionTitle.ifBlank { "this intention" }}",
+                honestyNote = "PROPOSED · NOT YET ACTIVE — nothing is scheduled until you approve.",
+                reviewLabel = block.actions.getOrNull(0) ?: "Review & approve",
+                dismissLabel = block.actions.getOrNull(1) ?: "Not now",
+                proposalId = block.linkedObjectIds.firstOrNull(),
+                blockId = block.blockId,
+                sourceLabel = block.sourceLabel
+            )
+        }
     }
 
     fun proposalFromPending(
@@ -278,21 +298,39 @@ object AgentModuleProjection {
         intentionTitle: String
     ): ProposalCard? {
         if (proposal.status != ProposalStatus.PENDING) return null
-        val day = DAY_NAMES.getOrElse(proposal.proposedDayOfWeek) { "Day ${proposal.proposedDayOfWeek}" }
+        val days = proposal.proposedDaysOfWeek.ifEmpty { listOf(proposal.proposedDayOfWeek) }
+        val dayLabel = if (days.size == 7) {
+            "Everyday"
+        } else {
+            days.sorted().joinToString(", ") {
+                DAY_NAMES.getOrElse(it) { "Day $it" }
+            }
+        }
         val time = "%02d:%02d".format(proposal.proposedHour, proposal.proposedMinute)
+        val duration = "${proposal.durationMinutes} minutes"
         return ProposalCard(
-            title = "Make this a weekly session?",
+            title = "Ready to begin?",
             body = proposal.summary,
-            scheduleLine = "$day · $time",
-            durationLine = "60 minutes",
+            scheduleLine = "$dayLabel · $time",
+            durationLine = duration,
             linkedIntentionLine = "Linked to ${intentionTitle.ifBlank { proposal.title }}",
-            honestyNote = "If approved, INTENT can bring this session into Home when relevant " +
-                "and ask how it went. No tutor or calendar service will be contacted.",
-            reviewLabel = "Review & approve",
-            dismissLabel = "Not now",
+            honestyNote = "PROPOSAL · NOT YET ACTIVE — nothing is scheduled until you approve.",
+            reviewLabel = "Start this routine",
+            dismissLabel = "Keep discussing",
             proposalId = proposal.id,
             blockId = null,
-            sourceLabel = proposal.provenance.sourceLabel
+            sourceLabel = proposal.provenance.sourceLabel,
+            methodsLine = proposal.methodsSummary,
+            capabilityLine = proposal.capabilityHonesty.ifBlank {
+                "Can open linked apps; lesson completion requires your check-in."
+            },
+            homeImpactLine = proposal.homeImpactNote.ifBlank {
+                "After approval, this session can appear on Home when relevant."
+            },
+            morningCheckIn = proposal.includeMorningCheckIn,
+            eveningReview = proposal.includeEveningReview,
+            keepDiscussingLabel = "Keep discussing",
+            editLabel = "Edit plan"
         )
     }
 

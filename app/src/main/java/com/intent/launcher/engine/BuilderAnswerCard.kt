@@ -1,17 +1,22 @@
 package com.intent.launcher.engine
 
+import com.intent.launcher.domain.AnswerSchema
+import com.intent.launcher.domain.BuilderDecision
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
 
 /**
  * Encodes adaptive-builder in-chat answer cards on [ResponseBlock] without a
- * schema migration. Quantity wheels and choice sets (with Other) share one
- * AnswerQuestion path via [CreateIntentionChat].
+ * schema migration. All [AnswerSchema] shapes share one AnswerQuestion path.
  */
 object BuilderAnswerCard {
     const val SOURCE_SCOPE = "adaptive_builder"
     private const val KIND_QUANTITY = "quantity"
     private const val KIND_CHOICE = "choice"
+    private const val KIND_MULTI = "multi"
+    private const val KIND_WEEKDAYS = "weekdays"
+    private const val KIND_DATETIME = "datetime"
+    private const val KIND_FREE = "free"
     private const val KIND_CONFIRM = "confirm"
 
     /** Default practice-minute span — every whole integer (F3). */
@@ -19,6 +24,10 @@ object BuilderAnswerCard {
     const val DEFAULT_MAX = 120
     const val DEFAULT_VALUE = 20
     const val DEFAULT_UNIT = "minutes per day"
+
+    val WEEKDAY_OPTIONS = listOf(
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    )
 
     data class QuantitySpec(
         val promptId: String,
@@ -33,10 +42,16 @@ object BuilderAnswerCard {
 
     data class ChoiceSpec(
         val promptId: String,
-        /** Predefined options — [ChoiceOptions.OTHER] is appended for display. */
-        val options: List<String>
+        /** Predefined options — deferral options appended for adaptive Ask. */
+        val options: List<String>,
+        val includeDeferral: Boolean = true
     ) {
-        val displayOptions: List<String> get() = ChoiceOptions.withOther(options)
+        val displayOptions: List<String>
+            get() = if (includeDeferral) {
+                ChoiceOptions.withDeferralOptions(options)
+            } else {
+                ChoiceOptions.withOther(options)
+            }
     }
 
     sealed class Decoded {
@@ -56,6 +71,26 @@ object BuilderAnswerCard {
         data class Choice(
             override val promptId: String,
             val options: List<String>
+        ) : Decoded()
+
+        data class MultiChoice(
+            override val promptId: String,
+            val options: List<String>
+        ) : Decoded()
+
+        data class Weekdays(
+            override val promptId: String,
+            val options: List<String> = WEEKDAY_OPTIONS
+        ) : Decoded()
+
+        data class DateTime(
+            override val promptId: String,
+            val hint: String = "Approximate dates are OK"
+        ) : Decoded()
+
+        data class FreeText(
+            override val promptId: String,
+            val hint: String = "Answer in your own words"
         ) : Decoded()
 
         data class Confirm(
@@ -97,6 +132,79 @@ object BuilderAnswerCard {
             active = true
         )
 
+    fun multiChoiceBlock(
+        blockId: String,
+        title: String,
+        body: String,
+        promptId: String,
+        options: List<String>
+    ): ResponseBlock =
+        ResponseBlock(
+            blockId = blockId,
+            type = ResponseBlockType.CHOICE_SET,
+            title = title,
+            body = body,
+            sourceLabel = encodeKind(KIND_MULTI, promptId),
+            linkedObjectIds = listOf(promptId),
+            actions = ChoiceOptions.withDeferralOptions(options),
+            active = true
+        )
+
+    fun weekdaysBlock(
+        blockId: String,
+        title: String,
+        body: String,
+        promptId: String
+    ): ResponseBlock =
+        ResponseBlock(
+            blockId = blockId,
+            type = ResponseBlockType.CHOICE_SET,
+            title = title,
+            body = body,
+            sourceLabel = encodeKind(KIND_WEEKDAYS, promptId),
+            linkedObjectIds = listOf(promptId),
+            actions = ChoiceOptions.withDeferralOptions(
+                listOf("Everyday") + WEEKDAY_OPTIONS
+            ),
+            active = true
+        )
+
+    fun dateTimeBlock(
+        blockId: String,
+        title: String,
+        body: String,
+        promptId: String,
+        hint: String = "Approximate dates are OK"
+    ): ResponseBlock =
+        ResponseBlock(
+            blockId = blockId,
+            type = ResponseBlockType.QUESTION,
+            title = title,
+            body = body,
+            sourceLabel = encodeKind(KIND_DATETIME, promptId, hint.replace(' ', '+')),
+            linkedObjectIds = listOf(promptId),
+            actions = listOf(ChoiceOptions.NOT_SURE, ChoiceOptions.SKIP_FOR_NOW),
+            active = true
+        )
+
+    fun freeTextBlock(
+        blockId: String,
+        title: String,
+        body: String,
+        promptId: String,
+        hint: String = "Answer in your own words"
+    ): ResponseBlock =
+        ResponseBlock(
+            blockId = blockId,
+            type = ResponseBlockType.QUESTION,
+            title = title,
+            body = body,
+            sourceLabel = encodeKind(KIND_FREE, promptId, hint.replace(' ', '+')),
+            linkedObjectIds = listOf(promptId),
+            actions = listOf(ChoiceOptions.NOT_SURE, ChoiceOptions.SKIP_FOR_NOW),
+            active = true
+        )
+
     fun confirmBlock(
         blockId: String,
         title: String,
@@ -112,6 +220,79 @@ object BuilderAnswerCard {
             actions = listOf("Confirm intention", "Keep discussing"),
             active = true
         )
+
+    /** Project a schema-aware in-chat card from a builder Ask decision. */
+    fun blockForAsk(decision: BuilderDecision.Ask, nowEpochMs: Long = 0L): ResponseBlock {
+        val blockId = "block-ask-${decision.questionId}"
+        val title = decision.purpose.ifBlank { "Question" }
+        val body = decision.whyItMatters
+        return when (decision.answerSchema) {
+            AnswerSchema.NUMBER, AnswerSchema.DURATION -> quantityBlock(
+                blockId = blockId,
+                title = title,
+                body = body,
+                spec = QuantitySpec(
+                    promptId = decision.questionId,
+                    unitLabel = if (decision.answerSchema == AnswerSchema.DURATION) {
+                        DEFAULT_UNIT
+                    } else {
+                        "count"
+                    },
+                    min = DEFAULT_MIN,
+                    max = DEFAULT_MAX,
+                    defaultValue = DEFAULT_VALUE
+                )
+            )
+            AnswerSchema.MULTI_CHOICE -> multiChoiceBlock(
+                blockId = blockId,
+                title = title,
+                body = body,
+                promptId = decision.questionId,
+                options = decision.options.ifEmpty {
+                    listOf("Option A", "Option B", "Something else")
+                }
+            )
+            AnswerSchema.WEEKDAYS -> weekdaysBlock(
+                blockId = blockId,
+                title = title,
+                body = body,
+                promptId = decision.questionId
+            )
+            AnswerSchema.DATE_TIME -> dateTimeBlock(
+                blockId = blockId,
+                title = title,
+                body = body,
+                promptId = decision.questionId
+            )
+            AnswerSchema.FREE_TEXT -> freeTextBlock(
+                blockId = blockId,
+                title = title,
+                body = body,
+                promptId = decision.questionId
+            )
+            AnswerSchema.CONFIRM -> confirmBlock(
+                blockId = blockId,
+                title = title,
+                body = body
+            ).copy(
+                sourceLabel = encodeKind(KIND_CONFIRM, decision.questionId),
+                linkedObjectIds = listOf(decision.questionId),
+                actions = decision.options.ifEmpty {
+                    listOf("Still about right", "Update the date")
+                }.let { ChoiceOptions.withDeferralOptions(it) }
+            )
+            AnswerSchema.SINGLE_CHOICE -> choiceBlock(
+                blockId = blockId,
+                title = title,
+                body = body,
+                spec = ChoiceSpec(
+                    promptId = decision.questionId,
+                    options = decision.options,
+                    includeDeferral = true
+                )
+            )
+        }
+    }
 
     fun decode(block: ResponseBlock): Decoded? {
         if (!block.active) return null
@@ -143,13 +324,46 @@ object BuilderAnswerCard {
                     options = block.actions
                 )
             }
-            KIND_CONFIRM -> Decoded.Confirm()
+            KIND_MULTI -> {
+                val promptId = parts.getOrNull(2) ?: return null
+                Decoded.MultiChoice(promptId = promptId, options = block.actions)
+            }
+            KIND_WEEKDAYS -> {
+                val promptId = parts.getOrNull(2) ?: return null
+                Decoded.Weekdays(promptId = promptId, options = block.actions)
+            }
+            KIND_DATETIME -> {
+                val promptId = parts.getOrNull(2) ?: return null
+                val hint = parts.getOrNull(3)?.replace('+', ' ') ?: "Approximate dates are OK"
+                Decoded.DateTime(promptId = promptId, hint = hint)
+            }
+            KIND_FREE -> {
+                val promptId = parts.getOrNull(2) ?: return null
+                val hint = parts.getOrNull(3)?.replace('+', ' ') ?: "Answer in your own words"
+                Decoded.FreeText(promptId = promptId, hint = hint)
+            }
+            KIND_CONFIRM -> Decoded.Confirm(promptId = parts.getOrNull(2) ?: "confirm")
             else -> null
         }
     }
 
     fun isBuilderCard(block: ResponseBlock): Boolean =
         block.sourceLabel.startsWith("$SOURCE_SCOPE|")
+
+    fun schemaOf(decoded: Decoded): AnswerSchema = when (decoded) {
+        is Decoded.Quantity ->
+            if (decoded.unitLabel.contains("minute", ignoreCase = true)) {
+                AnswerSchema.DURATION
+            } else {
+                AnswerSchema.NUMBER
+            }
+        is Decoded.Choice -> AnswerSchema.SINGLE_CHOICE
+        is Decoded.MultiChoice -> AnswerSchema.MULTI_CHOICE
+        is Decoded.Weekdays -> AnswerSchema.WEEKDAYS
+        is Decoded.DateTime -> AnswerSchema.DATE_TIME
+        is Decoded.FreeText -> AnswerSchema.FREE_TEXT
+        is Decoded.Confirm -> AnswerSchema.CONFIRM
+    }
 
     private fun encodeQuantity(spec: QuantitySpec): String =
         listOf(
@@ -165,6 +379,12 @@ object BuilderAnswerCard {
 
     private fun encodeChoice(promptId: String): String =
         "$SOURCE_SCOPE|$KIND_CHOICE|$promptId"
+
+    private fun encodeKind(kind: String, promptId: String, extra: String? = null): String =
+        buildString {
+            append(SOURCE_SCOPE).append('|').append(kind).append('|').append(promptId)
+            if (extra != null) append('|').append(extra)
+        }
 
     private fun encodeConfirm(): String =
         "$SOURCE_SCOPE|$KIND_CONFIRM|confirm"

@@ -25,7 +25,9 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.TrackChanges
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.engine.AgentModuleProjection
+import com.intent.launcher.engine.ChoiceOptions
 import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.ui.theme.IntentColors
 
@@ -229,19 +232,35 @@ fun AgentOneQuestionCard(
         }
         if (model.options.isNotEmpty()) {
             Spacer(modifier = Modifier.height(14.dp))
+            val otherIndex = model.options.indexOfFirst {
+                ChoiceOptions.isOther(it)
+            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 model.options.forEachIndexed { index, label ->
+                    val isOther = ChoiceOptions.isOther(label)
                     RadioOptionRow(
-                        text = label,
+                        text = if (isOther) "Other — type your own" else label,
                         selected = selectedIndex == index,
-                        onClick = { onSelect(index) }
+                        onClick = { onSelect(index) },
+                        emphasize = isOther
                     )
                 }
+            }
+            if (otherIndex >= 0 && selectedIndex == otherIndex) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Type your answer in the composer below.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Warm,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
         Spacer(modifier = Modifier.height(14.dp))
         FreeTextPromptRow(
-            hint = model.freeTextHint,
+            hint = model.freeTextHint.ifBlank {
+                "Or type here — Other is always available"
+            },
             onMic = onFreeTextMic
         )
     }
@@ -252,6 +271,7 @@ fun AgentProposalCard(
     model: AgentModuleProjection.ProposalCard,
     onReview: () -> Unit,
     onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -276,7 +296,7 @@ fun AgentProposalCard(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "PROPOSED · NOT YET ACTIVE",
+                text = "PROPOSAL · NOT YET ACTIVE",
                 style = MaterialTheme.typography.labelMedium,
                 color = IntentColors.Warm,
                 fontWeight = FontWeight.Bold,
@@ -293,11 +313,40 @@ fun AgentProposalCard(
                 color = IntentColors.Ink
             )
             Spacer(modifier = Modifier.height(14.dp))
-            MetaRow(icon = Icons.Outlined.CalendarMonth, text = model.scheduleLine)
+            if (model.methodsLine.isNotBlank()) {
+                MetaRow(icon = Icons.Outlined.MenuBook, text = model.methodsLine)
+                DividerLine()
+            }
+            MetaRow(
+                icon = Icons.Outlined.CalendarMonth,
+                text = "${model.scheduleLine} · ${model.durationLine}"
+            )
             DividerLine()
-            MetaRow(icon = Icons.Outlined.HourglassBottom, text = model.durationLine)
-            DividerLine()
+            if (model.capabilityLine.isNotBlank()) {
+                MetaRow(icon = Icons.Outlined.PhoneAndroid, text = model.capabilityLine)
+                DividerLine()
+            }
             MetaRow(icon = Icons.Outlined.TrackChanges, text = model.linkedIntentionLine)
+            if (model.morningCheckIn || model.eveningReview) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = buildString {
+                        append("Optional: ")
+                        if (model.morningCheckIn) append("morning check-in")
+                        if (model.morningCheckIn && model.eveningReview) append(" · ")
+                        if (model.eveningReview) append("evening review")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Optional check-ins stay off until you choose them.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = model.honestyNote,
@@ -305,14 +354,31 @@ fun AgentProposalCard(
                 color = IntentColors.Muted,
                 lineHeight = 17.sp
             )
+            if (model.homeImpactLine.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = model.homeImpactLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted,
+                    lineHeight = 17.sp
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             IntentPrimaryButton(text = model.reviewLabel, onClick = onReview)
             Spacer(modifier = Modifier.height(8.dp))
-            IntentSecondaryButton(
-                text = model.dismissLabel,
-                onClick = onDismiss,
-                accentOutline = true
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IntentSecondaryButton(
+                    text = model.editLabel,
+                    onClick = { onEdit?.invoke() ?: onReview() },
+                    accentOutline = true,
+                    modifier = Modifier.weight(1f)
+                )
+                IntentQuietButton(
+                    text = model.keepDiscussingLabel,
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -944,15 +1010,28 @@ private fun DividerLine() {
 private fun RadioOptionRow(
     text: String,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    emphasize: Boolean = false
 ) {
-    val border = if (selected) IntentColors.Accent else IntentColors.Line
-    val bg = if (selected) IntentColors.AccentSoft else IntentColors.Card
+    val border = when {
+        selected -> IntentColors.Accent
+        emphasize -> IntentColors.AccentDark
+        else -> IntentColors.Line
+    }
+    val bg = when {
+        selected -> IntentColors.AccentSoft
+        emphasize -> IntentColors.AccentSoft.copy(alpha = 0.35f)
+        else -> IntentColors.Card
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, border, RoundedCornerShape(14.dp))
+            .border(
+                width = if (emphasize || selected) 1.5.dp else 1.dp,
+                color = border,
+                shape = RoundedCornerShape(14.dp)
+            )
             .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 13.dp),
@@ -965,7 +1044,11 @@ private fun RadioOptionRow(
                 Icons.Outlined.RadioButtonUnchecked
             },
             contentDescription = null,
-            tint = if (selected) IntentColors.Accent else IntentColors.Muted,
+            tint = when {
+                selected -> IntentColors.Accent
+                emphasize -> IntentColors.AccentDark
+                else -> IntentColors.Muted
+            },
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -973,6 +1056,7 @@ private fun RadioOptionRow(
             text = text,
             fontFamily = SerifTitle,
             fontSize = 15.sp,
+            fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Normal,
             color = IntentColors.Ink,
             modifier = Modifier.weight(1f)
         )

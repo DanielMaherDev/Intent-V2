@@ -197,27 +197,42 @@ fun ConversationScreen(
         null
     }
 
+    // Gate D: only the latest active builder card accepts input (historical read-only).
     val builderBlocks = turns.asSequence()
         .flatMap { it.blocks }
         .filter { it.active && BuilderAnswerCard.isBuilderCard(it) }
         .toList()
-    val builderQuantity = builderBlocks
-        .mapNotNull { block ->
-            (BuilderAnswerCard.decode(block) as? BuilderAnswerCard.Decoded.Quantity)?.let {
-                block to it
+    val activeBuilderBlock = builderBlocks.lastOrNull()
+    val builderQuantity = activeBuilderBlock?.let { block ->
+        (BuilderAnswerCard.decode(block) as? BuilderAnswerCard.Decoded.Quantity)?.let {
+            block to it
+        }
+    }
+    val activeDecoded = activeBuilderBlock?.let { BuilderAnswerCard.decode(it) }
+    val choiceBlock = when (activeDecoded) {
+        is BuilderAnswerCard.Decoded.Choice,
+        is BuilderAnswerCard.Decoded.MultiChoice,
+        is BuilderAnswerCard.Decoded.Weekdays,
+        is BuilderAnswerCard.Decoded.Confirm -> activeBuilderBlock
+        else -> turns.asSequence()
+            .flatMap { it.blocks }
+            .filter { it.type == ResponseBlockType.CHOICE_SET && it.active }
+            .filterNot { BuilderAnswerCard.isBuilderCard(it) }
+            .lastOrNull()
+    }
+    val questionBlock = when (activeDecoded) {
+        is BuilderAnswerCard.Decoded.FreeText,
+        is BuilderAnswerCard.Decoded.DateTime -> activeBuilderBlock
+        else -> turns.asSequence()
+            .flatMap { it.blocks }
+            .filter {
+                it.type == ResponseBlockType.QUESTION &&
+                    it.active &&
+                    BuilderAnswerCard.decode(it) !is BuilderAnswerCard.Decoded.Quantity
             }
-        }
-        .lastOrNull()
-    val choiceBlock = turns.asSequence()
-        .flatMap { it.blocks }
-        .firstOrNull { it.type == ResponseBlockType.CHOICE_SET && it.active }
-    val questionBlock = turns.asSequence()
-        .flatMap { it.blocks }
-        .firstOrNull {
-            it.type == ResponseBlockType.QUESTION &&
-                it.active &&
-                BuilderAnswerCard.decode(it) !is BuilderAnswerCard.Decoded.Quantity
-        }
+            .filterNot { BuilderAnswerCard.isBuilderCard(it) }
+            .lastOrNull()
+    }
     val oneQuestion = if (builderQuantity != null) {
         null
     } else {
@@ -496,7 +511,8 @@ fun ConversationScreen(
                     AgentProposalCard(
                         model = proposalCard,
                         onReview = onOpenProposal,
-                        onDismiss = onDeclineProposal
+                        onDismiss = onDeclineProposal,
+                        onEdit = onOpenProposal
                     )
                 }
             }

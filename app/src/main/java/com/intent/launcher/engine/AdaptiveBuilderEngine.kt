@@ -37,6 +37,9 @@ object AdaptiveBuilderEngine {
     const val KEY_MOTIVATION = "motivation"
     const val KEY_MOVE_ESTIMATE = "move_estimate"
     const val KEY_PRACTICE_FREQUENCY = "practice_frequency"
+    const val KEY_PRACTICE_DURATION = "practice_duration"
+    const val KEY_PRACTICE_TIME = "practice_time"
+    const val KEY_PRACTICE_DAYS = "practice_days"
 
     data class ApplyResult(
         val accepted: Boolean,
@@ -137,25 +140,18 @@ object AdaptiveBuilderEngine {
         val hasFrequency =
             context.confirmedFacts.any { it.key == KEY_PRACTICE_FREQUENCY }
 
-        // Near-term plan readiness outranks unanswered discovery once approaches are chosen.
+        // Near-term plan readiness: frequency unlocks a compiled draft (defaults fill
+        // missing duration/time/days). Richer timing Ask cards remain available when
+        // Conversation advances via AdaptiveAnswerPath without a frequency fact yet.
         if (context.pendingProposals.isEmpty() && hasSelectedApproaches && hasFrequency) {
-            return BuilderDecision.Propose(
-                intentionId = context.intentionId,
-                expectedRevision = context.revision,
-                proposalId = "proposal-practice-${context.intentionId}",
-                title = "Practice routine (draft)",
-                summary = "Draft only — no active recurrence until you approve.",
-                dayOfWeek = 2,
-                hour = 18,
-                minute = 0,
-                basedOnFactIds = context.confirmedFacts.map { it.id },
-                rationale = "Compiled from selected approaches and stated frequency.",
-                effects = listOf(
-                    "Creates a PENDING proposal only",
-                    "Does not create ScheduledSession until ApproveProposal",
-                    "Optional check-ins remain independently selectable"
+            val draft = PlanCompiler.compile(context)
+            if (draft != null) {
+                return PlanCompiler.toProposeDecision(
+                    draft = draft,
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision
                 )
-            )
+            }
         }
         if (context.pendingProposals.isEmpty() && hasSelectedApproaches && !hasFrequency) {
             return BuilderDecision.Ask(
@@ -377,17 +373,7 @@ object AdaptiveBuilderEngine {
                             role = "agent",
                             text = decision.whyItMatters,
                             nowEpochMs = nowEpochMs,
-                            blocks = listOf(
-                                ResponseBlock(
-                                    blockId = "block-ask-${decision.questionId}",
-                                    type = ResponseBlockType.QUESTION,
-                                    title = decision.purpose.ifBlank { "Question" },
-                                    body = decision.whyItMatters,
-                                    sourceLabel = "adaptive-builder",
-                                    linkedObjectIds = listOf(decision.questionId),
-                                    actions = decision.options
-                                )
-                            )
+                            blocks = listOf(BuilderAnswerCard.blockForAsk(decision, nowEpochMs))
                         )
                     )
                 }
@@ -456,22 +442,57 @@ object AdaptiveBuilderEngine {
                 bumpState(store, decision.intentionId, nowEpochMs) { it }
             }
             is BuilderDecision.Propose -> {
+                val summary = decision.summary +
+                    if (decision.effects.isNotEmpty()) {
+                        " Effects: ${decision.effects.joinToString("; ")}"
+                    } else {
+                        ""
+                    }
                 store.apply(
                     FlowCommand.ProposeRecurringSession(
                         proposalId = decision.proposalId,
                         intentionId = decision.intentionId,
                         title = decision.title,
-                        summary = decision.summary +
-                            if (decision.effects.isNotEmpty()) {
-                                " Effects: ${decision.effects.joinToString("; ")}"
-                            } else {
-                                ""
-                            },
+                        summary = summary,
                         dayOfWeek = decision.dayOfWeek,
                         hour = decision.hour,
                         minute = decision.minute,
                         basedOnFactIds = decision.basedOnFactIds,
-                        nowEpochMs = nowEpochMs
+                        nowEpochMs = nowEpochMs,
+                        daysOfWeek = decision.daysOfWeek.ifEmpty { listOf(decision.dayOfWeek) },
+                        durationMinutes = decision.durationMinutes,
+                        timeZoneId = decision.timeZoneId.ifBlank { timeZone.id },
+                        methodsSummary = decision.methodsSummary,
+                        capabilityHonesty = decision.capabilityHonesty,
+                        homeImpactNote = decision.homeImpactNote,
+                        includeMorningCheckIn = decision.includeMorningCheckIn,
+                        includeEveningReview = decision.includeEveningReview
+                    )
+                )
+                // In-chat review card — nothing active until Approve via gateway.
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-propose-${decision.proposalId}-$nowEpochMs",
+                        intentionId = decision.intentionId,
+                        role = "agent",
+                        text = "Ready to begin? Review your routine before activating it.",
+                        nowEpochMs = nowEpochMs,
+                        blocks = listOf(
+                            ResponseBlock(
+                                blockId = "block-proposal-${decision.proposalId}",
+                                type = ResponseBlockType.PROPOSAL,
+                                title = decision.title,
+                                body = summary,
+                                sourceLabel = "adaptive_builder|review",
+                                linkedObjectIds = listOf(decision.proposalId),
+                                actions = listOf(
+                                    "Start this routine",
+                                    "Edit plan",
+                                    "Keep discussing"
+                                ),
+                                active = true
+                            )
+                        )
                     )
                 )
                 bumpState(store, decision.intentionId, nowEpochMs) { state ->

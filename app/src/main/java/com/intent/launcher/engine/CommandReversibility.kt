@@ -148,6 +148,13 @@ object CommandReversibility {
                 Reversibility(true, "Selected approaches for ${command.intentionId}")
             is FlowCommand.SetAdaptiveBuilderState ->
                 Reversibility(true, "Updated adaptive builder state for ${command.state.intentionId}")
+            is FlowCommand.RemapIntentionId ->
+                Reversibility(
+                    true,
+                    "Remap intention ${command.fromIntentionId} → ${command.toIntentionId}"
+                )
+            is FlowCommand.DeactivateBuilderAnswerCards ->
+                Reversibility(true, "Deactivate builder cards ${command.intentionId}")
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

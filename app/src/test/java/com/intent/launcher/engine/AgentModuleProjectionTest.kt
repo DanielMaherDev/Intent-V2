@@ -85,8 +85,8 @@ class AgentModuleProjectionTest {
             card.honestyNote.contains("approve", ignoreCase = true))
         assertTrue(card.scheduleLine.contains("Thursday"))
         assertTrue(card.scheduleLine.contains("18:00"))
-        assertEquals("Review & approve", card.reviewLabel)
-        assertEquals("Not now", card.dismissLabel)
+        assertEquals("Start this routine", card.reviewLabel)
+        assertEquals("Keep discussing", card.dismissLabel)
 
         val approved = proposal.copy(status = ProposalStatus.APPROVED)
         assertNull(AgentModuleProjection.proposalFromPending(approved, "Learn Spanish"))

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,8 +17,10 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.HourglassBottom
-import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,11 +52,20 @@ fun ProposalReviewScreen(
     onEdit: () -> Unit,
     onDecline: () -> Unit,
     onBack: () -> Unit,
+    onKeepDiscussing: () -> Unit = onBack,
     modifier: Modifier = Modifier
 ) {
     val pending = proposal?.status == ProposalStatus.PENDING
-    val dayName = proposal?.let { dayName(it.proposedDayOfWeek) } ?: "—"
+    val days = proposal?.proposedDaysOfWeek?.ifEmpty {
+        listOf(proposal.proposedDayOfWeek)
+    }.orEmpty()
+    val dayLabel = when {
+        days.size == 7 -> "Everyday"
+        days.isEmpty() -> "—"
+        else -> days.sorted().joinToString(", ") { dayName(it) }
+    }
     val timeLabel = proposal?.let { "%02d:%02d".format(it.proposedHour, it.proposedMinute) } ?: "—"
+    val durationLabel = proposal?.let { "${it.durationMinutes} minutes" } ?: "—"
 
     Column(
         modifier = modifier
@@ -107,18 +119,18 @@ fun ProposalReviewScreen(
                 Callout(text = "Choosing an approach will not create a schedule until you approve one.")
             } else {
                 SmallLabel(
-                    text = if (pending) "Your approval required" else "Reviewed",
+                    text = if (pending) "PROPOSAL · NOT YET ACTIVE" else "Reviewed",
                     color = if (pending) IntentColors.Warm else IntentColors.Accent
                 )
                 Spacer(modifier = Modifier.height(7.dp))
                 Text(
-                    text = if (pending) "Make this part of your week?" else proposal.title,
+                    text = if (pending) "Ready to begin?" else proposal.title,
                     style = MaterialTheme.typography.displayLarge,
                     color = IntentColors.Ink
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Lede(
-                    if (pending) "You can change the details now or later."
+                    if (pending) "Review your learning routine before activating it."
                     else proposal.summary
                 )
                 Spacer(modifier = Modifier.height(26.dp))
@@ -126,34 +138,69 @@ fun ProposalReviewScreen(
                 SessionSummaryCard(
                     title = proposal.title,
                     headerIcon = Icons.Outlined.School,
-                    cells = listOf(
-                        SessionMetaCell(
-                            icon = Icons.Outlined.CalendarMonth,
-                            label = "Day",
-                            value = "Every $dayName"
-                        ),
-                        SessionMetaCell(
-                            icon = Icons.Outlined.AccessTime,
-                            label = "Time",
-                            value = timeLabel
-                        ),
-                        SessionMetaCell(
-                            icon = Icons.Outlined.HourglassBottom,
-                            label = "Duration",
-                            value = "60 minutes"
-                        ),
-                        SessionMetaCell(
-                            icon = Icons.Outlined.PersonOutline,
-                            label = "Source",
-                            value = "You told INTENT"
+                    cells = buildList {
+                        if (proposal.methodsSummary.isNotBlank()) {
+                            add(
+                                SessionMetaCell(
+                                    icon = Icons.Outlined.MenuBook,
+                                    label = "Methods",
+                                    value = proposal.methodsSummary
+                                )
+                            )
+                        }
+                        add(
+                            SessionMetaCell(
+                                icon = Icons.Outlined.CalendarMonth,
+                                label = "Practice",
+                                value = "$dayLabel · $durationLabel · $timeLabel"
+                            )
                         )
-                    )
+                        add(
+                            SessionMetaCell(
+                                icon = Icons.Outlined.PhoneAndroid,
+                                label = "App access",
+                                value = proposal.capabilityHonesty.ifBlank {
+                                    "Can open linked apps; progress inside apps needs your check-in."
+                                }
+                            )
+                        )
+                        add(
+                            SessionMetaCell(
+                                icon = Icons.Outlined.TrackChanges,
+                                label = "Home",
+                                value = proposal.homeImpactNote.ifBlank {
+                                    "Appears on Home when relevant — only after approval succeeds."
+                                }
+                            )
+                        )
+                        add(
+                            SessionMetaCell(
+                                icon = Icons.Outlined.HourglassBottom,
+                                label = "Timezone",
+                                value = proposal.timeZoneId.ifBlank { "Device local" }
+                            )
+                        )
+                        add(
+                            SessionMetaCell(
+                                icon = Icons.Outlined.AccessTime,
+                                label = "Check-ins",
+                                value = buildString {
+                                    append("Morning: ")
+                                    append(if (proposal.includeMorningCheckIn) "on" else "off")
+                                    append(" · Evening: ")
+                                    append(if (proposal.includeEveningReview) "on" else "off")
+                                    append(" (independent)")
+                                }
+                            )
+                        )
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Callout(
                     title = "What changes",
-                    text = "This session can appear on Home when it is relevant. INTENT can ask how it went afterward. No tutor or calendar service will be contacted."
+                    text = "Nothing is active until approval succeeds at the gateway. " +
+                        "Your answers stay saved even if you wait or keep discussing."
                 )
 
                 if (relatedFacts.isNotEmpty()) {
@@ -172,7 +219,7 @@ fun ProposalReviewScreen(
                 if (pending) {
                     Spacer(modifier = Modifier.height(16.dp))
                     IntentSecondaryButton(
-                        text = "Edit the details",
+                        text = "Edit plan",
                         onClick = onEdit,
                         accentOutline = true
                     )
@@ -198,8 +245,19 @@ fun ProposalReviewScreen(
                     IntentPrimaryButton(text = "Discuss the options", onClick = onBack)
                     IntentQuietButton(text = "Return to intention", onClick = onBack)
                 } else if (pending) {
-                    IntentPrimaryButton(text = "Approve weekly session", onClick = onApprove)
-                    IntentQuietButton(text = "Not now", onClick = onDecline)
+                    IntentPrimaryButton(text = "Start this routine", onClick = onApprove)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IntentQuietButton(
+                            text = "Keep discussing",
+                            onClick = onKeepDiscussing,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IntentQuietButton(
+                            text = "Not now",
+                            onClick = onDecline,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 } else {
                     IntentQuietButton(text = "Return", onClick = onBack)
                 }

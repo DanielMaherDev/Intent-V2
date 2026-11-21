@@ -27,8 +27,9 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
- * Gate F JVM harness — worksheet §8 scenarios 1, 4, 5, 6, 7, 9 (deterministic).
+ * Gate F JVM harness — worksheet §8 scenarios 1, 2, 4, 5, 6, 7, 9 (deterministic).
  * Fixtures cover companion other-cases seeds without inventing plans.
+ * Gate D/E paths: AnswerQuestion parity + PlanCompiler review fields.
  */
 class AdaptiveBuilderAcceptanceTest {
 
@@ -149,6 +150,125 @@ class AdaptiveBuilderAcceptanceTest {
         )
     }
 
+    // —— §8.2 Multimodal choice (tap vs speech → same AnswerQuestion records) ——
+    @Test
+    fun scenario2_multimodalChoice_tapAndSpeechSameRecords() {
+        AdaptiveBuilderFixtures.seedSpanishDiscovery(store, now)
+        val id = AdaptiveBuilderFixtures.SPANISH_ID
+        var t = now
+        fun rev(): Long =
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+
+        AdaptiveBuilderEngine.applyDecision(
+            store,
+            BuilderDecision.Ask(
+                intentionId = id,
+                expectedRevision = rev(),
+                questionId = "q-lang-multi",
+                whyItMatters = "Target language changes tools.",
+                answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
+                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
+                options = listOf("Spanish", "French", "Other")
+            ),
+            t,
+            timeZone = tz
+        )
+        // Ask projects a BuilderAnswerCard (Gate D), not a bare QUESTION.
+        val askBlock = store.snapshot().turns.flatMap { it.blocks }
+            .first { "q-lang-multi" in it.linkedObjectIds }
+        assertTrue(BuilderAnswerCard.isBuilderCard(askBlock))
+        assertNotNull(BuilderAnswerCard.decode(askBlock))
+
+        t += 5
+        val tap = AdaptiveAnswerPath.submit(
+            store = store,
+            intentionId = id,
+            rawValue = "Spanish",
+            modality = "TEXT_CHIP",
+            nowEpochMs = t,
+            timeZone = tz,
+            expectedQuestionId = "q-lang-multi"
+        )
+        assertTrue(tap.honestyNote, tap.accepted)
+        val afterTap = store.snapshot()
+        assertEquals(
+            OpenQuestionState.ANSWERED,
+            afterTap.openQuestions.first { it.id == "q-lang-multi" }.state
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.activeFacts(afterTap, id)
+                .any { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE && it.text == "Spanish" }
+        )
+
+        // Fresh run: speech with same value + modality VOICE yields same fact key (idempotent shape).
+        val storeB = IntentionFlowStore(tmp.newFile("adaptive-builder-voice.json"))
+        AdaptiveBuilderFixtures.seedSpanishDiscovery(storeB, now)
+        AdaptiveBuilderEngine.applyDecision(
+            storeB,
+            BuilderDecision.Ask(
+                intentionId = id,
+                expectedRevision = 0L,
+                questionId = "q-lang-voice",
+                whyItMatters = "Target language changes tools.",
+                answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
+                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
+                options = listOf("Spanish", "French", "Other")
+            ),
+            now,
+            timeZone = tz
+        )
+        val speech = AdaptiveAnswerPath.submit(
+            store = storeB,
+            intentionId = id,
+            rawValue = "Spanish",
+            modality = "VOICE_TRANSCRIPT",
+            nowEpochMs = now + 10,
+            timeZone = tz,
+            expectedQuestionId = "q-lang-voice"
+        )
+        assertTrue(speech.honestyNote, speech.accepted)
+        val voiceFact = AdaptiveBuilderEngine.activeFacts(storeB.snapshot(), id)
+            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        assertEquals("Spanish", voiceFact.text)
+        assertEquals(
+            OpenQuestionState.ANSWERED,
+            storeB.snapshot().openQuestions.first { it.id == "q-lang-voice" }.state
+        )
+
+        // Uncertain voice → confirm card, no fact write yet.
+        val storeC = IntentionFlowStore(tmp.newFile("adaptive-builder-unc.json"))
+        AdaptiveBuilderFixtures.seedSpanishDiscovery(storeC, now)
+        AdaptiveBuilderEngine.applyDecision(
+            storeC,
+            BuilderDecision.Ask(
+                intentionId = id,
+                expectedRevision = 0L,
+                questionId = "q-lang-unc",
+                whyItMatters = "Need language",
+                answerSchema = com.intent.launcher.domain.AnswerSchema.FREE_TEXT,
+                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE
+            ),
+            now,
+            timeZone = tz
+        )
+        val unc = AdaptiveAnswerPath.submit(
+            store = storeC,
+            intentionId = id,
+            rawValue = "Spanish",
+            modality = "VOICE_TRANSCRIPT",
+            nowEpochMs = now + 20,
+            timeZone = tz,
+            voiceUncertain = true,
+            expectedQuestionId = "q-lang-unc"
+        )
+        assertTrue(unc.needsVoiceConfirm)
+        assertFalse(unc.accepted)
+        assertTrue(
+            AdaptiveBuilderEngine.activeFacts(storeC.snapshot(), id)
+                .none { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        )
+    }
+
     // —— §8.4 Review boundary ——
     @Test
     fun scenario4_reviewBoundary_noSessionUntilApprove_declineKeepsFacts() {
@@ -247,6 +367,17 @@ class AdaptiveBuilderAcceptanceTest {
         assertEquals(1, snap.proposals.count { it.status == ProposalStatus.PENDING })
         assertTrue(snap.sessions.isEmpty())
         assertEquals(0, snap.sessions.size)
+        val pending = snap.proposals.first { it.status == ProposalStatus.PENDING }
+        // PlanCompiler fields present on draft — check-ins independent and off by default.
+        assertTrue(pending.methodsSummary.isNotBlank())
+        assertTrue(pending.capabilityHonesty.isNotBlank())
+        assertEquals(false, pending.includeMorningCheckIn)
+        assertEquals(false, pending.includeEveningReview)
+        assertTrue(pending.proposedDaysOfWeek.isNotEmpty())
+        assertTrue(pending.durationMinutes in 1..180)
+        assertTrue(pending.timeZoneId.isNotBlank())
+        // No daily check-in occurrences until approve.
+        assertTrue(snap.occurrences.none { it.intentionId == id })
 
         AdaptiveBuilderEngine.declineProposalKeepFacts(
             store,
@@ -265,6 +396,73 @@ class AdaptiveBuilderAcceptanceTest {
                 it.id == "approach-learning-app" && it.status == ApproachStatus.SELECTED
             }
         )
+    }
+
+    @Test
+    fun scenario4b_approveCreatesSession_receiptPath_noSetupBeforeApply() {
+        AdaptiveBuilderFixtures.seedSpanishDiscovery(store, now)
+        val id = AdaptiveBuilderFixtures.SPANISH_ID
+        var t = now
+        fun rev(): Long =
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+
+        AdaptiveBuilderEngine.applyDecision(
+            store,
+            BuilderDecision.OfferApproaches(
+                intentionId = id,
+                expectedRevision = rev(),
+                approachDrafts = listOf(
+                    com.intent.launcher.domain.ApproachDraft(
+                        approachId = "approach-ai-practice",
+                        title = "AI conversation practice",
+                        summary = "Guided",
+                        capabilityNote = "Guided session only."
+                    )
+                )
+            ),
+            t,
+            timeZone = tz
+        )
+        t += 2
+        AdaptiveBuilderEngine.selectApproaches(
+            store, id, listOf("approach-ai-practice"), t, "turn-sel", rev(), "TEXT_CHIP"
+        )
+        t += 2
+        AdaptiveBuilderEngine.applyDecision(
+            store,
+            BuilderDecision.SaveFact(
+                intentionId = id,
+                expectedRevision = rev(),
+                factDraft = FactDraft(
+                    factId = "fact-freq2",
+                    text = "Everyday",
+                    key = AdaptiveBuilderEngine.KEY_PRACTICE_FREQUENCY
+                ),
+                sourceTurnId = "turn-freq2"
+            ),
+            t,
+            timeZone = tz
+        )
+        t += 2
+        val propose = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+        )
+        assertTrue(propose is BuilderDecision.Propose)
+        AdaptiveBuilderEngine.applyDecision(store, propose, t, timeZone = tz)
+        assertTrue(store.snapshot().sessions.isEmpty())
+
+        val proposalId = (propose as BuilderDecision.Propose).proposalId
+        store.apply(
+            FlowCommand.ApproveProposal(
+                proposalId = proposalId,
+                sessionId = "session-$proposalId",
+                nowEpochMs = t + 10
+            )
+        )
+        val snap = store.snapshot()
+        assertEquals(1, snap.sessions.size)
+        assertEquals(ProposalStatus.APPROVED, snap.proposals.first { it.id == proposalId }.status)
+        assertEquals(IntentionPhase.ACTIVE, snap.intentions.first { it.id == id }.phase)
     }
 
     // —— §8.5 Date correction ——

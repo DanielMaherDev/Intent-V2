@@ -48,6 +48,7 @@ import com.intent.launcher.domain.ThoughtCaptureStatus
 import com.intent.launcher.domain.ThoughtDisposition
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
+import com.intent.launcher.engine.BuilderAnswerCard
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.domain.TrashKind
 import com.intent.launcher.domain.TriggerCooldown
@@ -228,7 +229,15 @@ class IntentionFlowStore(
                     proposedMinute = command.minute,
                     status = ProposalStatus.PENDING,
                     basedOnFactIds = command.basedOnFactIds,
-                    provenance = Provenance(ProvenanceKind.INFERRED, command.nowEpochMs, "agent")
+                    provenance = Provenance(ProvenanceKind.INFERRED, command.nowEpochMs, "agent"),
+                    proposedDaysOfWeek = command.daysOfWeek.ifEmpty { listOf(command.dayOfWeek) },
+                    durationMinutes = command.durationMinutes,
+                    timeZoneId = command.timeZoneId,
+                    methodsSummary = command.methodsSummary,
+                    capabilityHonesty = command.capabilityHonesty,
+                    homeImpactNote = command.homeImpactNote,
+                    includeMorningCheckIn = command.includeMorningCheckIn,
+                    includeEveningReview = command.includeEveningReview
                 )
                 migrated.copy(
                     proposals = migrated.proposals.filterNot { it.id == proposal.id } + proposal,
@@ -886,7 +895,12 @@ class IntentionFlowStore(
                             ProvenanceKind.SAID,
                             command.nowEpochMs + index,
                             "user"
-                        )
+                        ),
+                        // Prompt id as key so Intention Space / adaptive hero
+                        // can stop re-asking answered discovery questions.
+                        key = promptId,
+                        rawUtterance = text,
+                        normalizedValue = text
                     )
                     facts = facts.filterNot { it.id == fact.id } + fact
                 }
@@ -1446,6 +1460,114 @@ class IntentionFlowStore(
                         .filterNot { it.intentionId == command.state.intentionId } + command.state
                 )
             }
+
+            is FlowCommand.RemapIntentionId -> {
+                if (command.fromIntentionId == command.toIntentionId) return migrated
+                if (migrated.intentions.none { it.id == command.fromIntentionId }) return migrated
+                if (migrated.intentions.any { it.id == command.toIntentionId }) return migrated
+                fun remapId(id: String) =
+                    if (id == command.fromIntentionId) command.toIntentionId else id
+                migrated.copy(
+                    intentions = migrated.intentions.map {
+                        if (it.id == command.fromIntentionId) {
+                            it.copy(id = command.toIntentionId, updatedAtEpochMs = command.nowEpochMs)
+                        } else {
+                            it.copy(parentIntentionId = it.parentIntentionId?.let(::remapId))
+                        }
+                    },
+                    facts = migrated.facts.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    hypotheses = migrated.hypotheses.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    proposals = migrated.proposals.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    sessions = migrated.sessions.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    sessionRuns = migrated.sessionRuns.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    turns = migrated.turns.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    thoughtCaptures = migrated.thoughtCaptures.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    openQuestions = migrated.openQuestions.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    approaches = migrated.approaches.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    adaptiveBuilderStates = migrated.adaptiveBuilderStates.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    drawerCardLayouts = migrated.drawerCardLayouts.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    evidence = migrated.evidence.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    trackerEntries = migrated.trackerEntries.map {
+                        if (it.intentionId == command.fromIntentionId) {
+                            it.copy(intentionId = command.toIntentionId)
+                        } else it
+                    },
+                    activeIntentionId = if (migrated.activeIntentionId == command.fromIntentionId) {
+                        command.toIntentionId
+                    } else {
+                        migrated.activeIntentionId
+                    }
+                )
+            }
+
+            is FlowCommand.DeactivateBuilderAnswerCards -> {
+                migrated.copy(
+                    turns = migrated.turns.map { turn ->
+                        if (turn.intentionId != command.intentionId) return@map turn
+                        turn.copy(
+                            blocks = turn.blocks.map { block ->
+                                if (command.exceptBlockId != null &&
+                                    block.blockId == command.exceptBlockId
+                                ) {
+                                    block
+                                } else if (BuilderAnswerCard.isBuilderCard(block) && block.active) {
+                                    block.copy(active = false)
+                                } else {
+                                    block
+                                }
+                            }
+                        )
+                    }
+                )
+            }
         }
     }
 
@@ -1704,6 +1826,8 @@ class IntentionFlowStore(
                     is FlowCommand.UpsertApproach -> command.nowEpochMs
                     is FlowCommand.SelectApproaches -> command.nowEpochMs
                     is FlowCommand.SetAdaptiveBuilderState -> command.nowEpochMs
+                    is FlowCommand.RemapIntentionId -> command.nowEpochMs
+                    is FlowCommand.DeactivateBuilderAnswerCards -> command.nowEpochMs
                 }
         }
         val occurredAt = when (command) {
@@ -1771,6 +1895,8 @@ class IntentionFlowStore(
             is FlowCommand.UpsertApproach -> command.nowEpochMs
             is FlowCommand.SelectApproaches -> command.nowEpochMs
             is FlowCommand.SetAdaptiveBuilderState -> command.nowEpochMs
+            is FlowCommand.RemapIntentionId -> command.nowEpochMs
+            is FlowCommand.DeactivateBuilderAnswerCards -> command.nowEpochMs
         }
         val txn = FlowTransaction(
             id = txnId,
@@ -2394,7 +2520,15 @@ class IntentionFlowStore(
         val proposedMinute: Int = 0,
         val status: String = ProposalStatus.PENDING.name,
         val basedOnFactIds: List<String> = emptyList(),
-        val provenance: WireProvenance = WireProvenance()
+        val provenance: WireProvenance = WireProvenance(),
+        val proposedDaysOfWeek: List<Int> = emptyList(),
+        val durationMinutes: Int = 60,
+        val timeZoneId: String = "",
+        val methodsSummary: String = "",
+        val capabilityHonesty: String = "",
+        val homeImpactNote: String = "",
+        val includeMorningCheckIn: Boolean = false,
+        val includeEveningReview: Boolean = false
     ) {
         fun toDomain() = Proposal(
             id = id,
@@ -2406,13 +2540,36 @@ class IntentionFlowStore(
             proposedMinute = proposedMinute,
             status = ProposalStatus.valueOf(status),
             basedOnFactIds = basedOnFactIds,
-            provenance = provenance.toDomain()
+            provenance = provenance.toDomain(),
+            proposedDaysOfWeek = proposedDaysOfWeek,
+            durationMinutes = durationMinutes,
+            timeZoneId = timeZoneId,
+            methodsSummary = methodsSummary,
+            capabilityHonesty = capabilityHonesty,
+            homeImpactNote = homeImpactNote,
+            includeMorningCheckIn = includeMorningCheckIn,
+            includeEveningReview = includeEveningReview
         )
         companion object {
             fun from(p: Proposal) = WireProposal(
-                p.id, p.intentionId, p.title, p.summary,
-                p.proposedDayOfWeek, p.proposedHour, p.proposedMinute,
-                p.status.name, p.basedOnFactIds, WireProvenance.from(p.provenance)
+                id = p.id,
+                intentionId = p.intentionId,
+                title = p.title,
+                summary = p.summary,
+                proposedDayOfWeek = p.proposedDayOfWeek,
+                proposedHour = p.proposedHour,
+                proposedMinute = p.proposedMinute,
+                status = p.status.name,
+                basedOnFactIds = p.basedOnFactIds,
+                provenance = WireProvenance.from(p.provenance),
+                proposedDaysOfWeek = p.proposedDaysOfWeek,
+                durationMinutes = p.durationMinutes,
+                timeZoneId = p.timeZoneId,
+                methodsSummary = p.methodsSummary,
+                capabilityHonesty = p.capabilityHonesty,
+                homeImpactNote = p.homeImpactNote,
+                includeMorningCheckIn = p.includeMorningCheckIn,
+                includeEveningReview = p.includeEveningReview
             )
         }
     }

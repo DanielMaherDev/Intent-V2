@@ -45,9 +45,12 @@ import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
+import com.intent.launcher.engine.AdaptiveAnswerPath
+import com.intent.launcher.engine.AdaptiveBuilderEngine
 import com.intent.launcher.engine.AmbiguousChoiceSetCard
 import com.intent.launcher.engine.AssistantSpeech
 import com.intent.launcher.engine.CrossIntentionRelationCard
+import com.intent.launcher.engine.GatewayStatus
 import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.InterruptedVoice
 import com.intent.launcher.engine.AppConnectionInventory
@@ -1156,14 +1159,30 @@ class LauncherViewModel(
         ConversationCoordinator.chipsForIntention(activeIntention(), capabilityRegistry)
 
     fun onConversationChip(chip: String) {
+        val now = System.currentTimeMillis()
         if (CreateIntentionChat.isCreateSession(activeIntention()) ||
             store.snapshot().builderDraft.active
         ) {
             val result = CreateIntentionChat.submitChoice(
                 store = store,
                 label = chip,
-                nowEpochMs = System.currentTimeMillis(),
+                nowEpochMs = now,
                 registry = capabilityRegistry
+            )
+            voicePathNote = result.honestyNote
+            refresh()
+            return
+        }
+        // Gate D: durable adaptive Ask cards → one AnswerQuestion path.
+        val intention = activeIntention()
+        if (intention != null && hasActiveAdaptiveQuestion(intention.id)) {
+            val result = AdaptiveAnswerPath.submit(
+                store = store,
+                intentionId = intention.id,
+                rawValue = chip,
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                nowEpochMs = now,
+                expectedQuestionId = currentAdaptiveQuestionId(intention.id)
             )
             voicePathNote = result.honestyNote
             refresh()
@@ -1171,27 +1190,56 @@ class LauncherViewModel(
         }
         ConversationCoordinator.submitChip(
             store = store,
-            intention = activeIntention(),
+            intention = intention,
             chip = chip,
-            nowEpochMs = System.currentTimeMillis(),
+            nowEpochMs = now,
             registry = capabilityRegistry
         )
         voicePathNote = null
         refresh()
     }
 
-    /** In-chat NumberWheel confirm during create / builder quantity prompts. */
+    /** In-chat NumberWheel confirm during create / adaptive duration cards. */
     fun onBuilderQuantity(value: Int, unitLabel: String) {
+        val now = System.currentTimeMillis()
+        val intention = activeIntention()
+        if (intention != null &&
+            !CreateIntentionChat.isCreateSession(intention) &&
+            !store.snapshot().builderDraft.active &&
+            hasActiveAdaptiveQuestion(intention.id)
+        ) {
+            val result = AdaptiveAnswerPath.submit(
+                store = store,
+                intentionId = intention.id,
+                rawValue = "$value $unitLabel",
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                nowEpochMs = now,
+                expectedQuestionId = currentAdaptiveQuestionId(intention.id)
+            )
+            voicePathNote = result.honestyNote
+            refresh()
+            return
+        }
         val result = CreateIntentionChat.submitQuantity(
             store = store,
             value = value,
             unitLabel = unitLabel,
-            nowEpochMs = System.currentTimeMillis(),
+            nowEpochMs = now,
             registry = capabilityRegistry
         )
         voicePathNote = result.honestyNote
         refresh()
     }
+
+    private fun hasActiveAdaptiveQuestion(intentionId: String): Boolean =
+        store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }
+            ?.currentQuestionId != null
+
+    private fun currentAdaptiveQuestionId(intentionId: String): String? =
+        store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }
+            ?.currentQuestionId
 
     /** True while a live OpenAI Discuss call is in flight. */
     var freeTextBusy by mutableStateOf(false)
@@ -1216,21 +1264,31 @@ class LauncherViewModel(
                 val createActive = CreateIntentionChat.isCreateSession(activeIntention()) ||
                     store.snapshot().builderDraft.active
                 val honesty = withContext(Dispatchers.IO) {
-                    if (createActive) {
-                        CreateIntentionChat.submitUtterance(
+                    val now = System.currentTimeMillis()
+                    val intention = activeIntention()
+                    when {
+                        createActive -> CreateIntentionChat.submitUtterance(
                             store = store,
                             text = text,
-                            nowEpochMs = System.currentTimeMillis(),
+                            nowEpochMs = now,
                             registry = capabilityRegistry,
                             access = liveLlmAccess,
                             client = openAiDiscussClient
                         ).honestyNote
-                    } else {
-                        ConversationCoordinator.submitFreeText(
+                        intention != null && hasActiveAdaptiveQuestion(intention.id) ->
+                            AdaptiveAnswerPath.submit(
+                                store = store,
+                                intentionId = intention.id,
+                                rawValue = text,
+                                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                                nowEpochMs = now,
+                                expectedQuestionId = currentAdaptiveQuestionId(intention.id)
+                            ).honestyNote
+                        else -> ConversationCoordinator.submitFreeText(
                             store = store,
-                            intention = activeIntention(),
+                            intention = intention,
                             text = text,
-                            nowEpochMs = System.currentTimeMillis(),
+                            nowEpochMs = now,
                             registry = capabilityRegistry,
                             access = liveLlmAccess,
                             client = openAiDiscussClient,
@@ -1421,6 +1479,7 @@ class LauncherViewModel(
             ?: pendingList.first()
         val sessionId = sessionIdForProposal(pending.id)
         // §17 case 33 — bare approve with two+ pending → clarify, never arbitrary.
+        // Gate E: never claim “set up” before gateway APPLIED.
         val result = CommandGateway.approveProposal(
             store = store,
             turnId = "turn-ui-approve-$now",
@@ -1431,7 +1490,35 @@ class LauncherViewModel(
             explicitProposalId = explicitProposalId
                 ?: pendingList.singleOrNull()?.id
         )
-        voicePathNote = result.message
+        voicePathNote = when (result.status) {
+            GatewayStatus.APPLIED ->
+                "Routine activated. Undo is available for this reversible change."
+            else -> result.message
+        }
+        if (result.status == GatewayStatus.APPLIED) {
+            store.apply(
+                FlowCommand.AddConversationTurn(
+                    turnId = "turn-approve-receipt-$now",
+                    intentionId = pending.intentionId,
+                    role = "agent",
+                    text = "Activated: ${pending.title}. First session is on your schedule — " +
+                        "it can appear on Home when relevant. Undo available.",
+                    nowEpochMs = now + 1,
+                    blocks = listOf(
+                        com.intent.launcher.domain.ResponseBlock(
+                            blockId = "block-receipt-$now",
+                            type = com.intent.launcher.domain.ResponseBlockType.RECORDED_ENTRY,
+                            title = "Activated",
+                            body = pending.title,
+                            sourceLabel = "adaptive_builder|receipt",
+                            linkedObjectIds = listOf(pending.id, sessionId),
+                            actions = listOf("Undo"),
+                            active = true
+                        )
+                    )
+                )
+            )
+        }
         refresh()
     }
 
@@ -1512,12 +1599,19 @@ class LauncherViewModel(
 
     fun declineProposal() {
         val pending = snapshot.proposals.firstOrNull { it.status == ProposalStatus.PENDING } ?: return
-        store.apply(
-            FlowCommand.DeclineProposal(
-                proposalId = pending.id,
-                nowEpochMs = System.currentTimeMillis()
-            )
+        // Gate E: decline keeps user facts + selected approaches.
+        AdaptiveBuilderEngine.declineProposalKeepFacts(
+            store = store,
+            proposalId = pending.id,
+            nowEpochMs = System.currentTimeMillis()
         )
+        voicePathNote = "Proposal declined — your answers and approach preferences stay saved."
+        refresh()
+    }
+
+    /** Keep discussing — leave PENDING proposal intact, return to conversation. */
+    fun keepDiscussingProposal() {
+        voicePathNote = "Okay — keep discussing. The draft routine stays pending until you approve."
         refresh()
     }
 
