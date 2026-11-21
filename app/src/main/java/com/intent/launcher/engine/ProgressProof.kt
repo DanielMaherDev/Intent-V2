@@ -3,8 +3,10 @@ package com.intent.launcher.engine
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.ProvenanceKind
+import com.intent.launcher.domain.ReportDateRange
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.domain.TrackerModules
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
@@ -37,7 +39,15 @@ object ProgressProof {
         val dayBuckets: List<DayBucket>,
         val weekBuckets: List<DayBucket>,
         val emptyState: String?,
-        val honestyNote: String
+        val honestyNote: String,
+        /** Active report window (null only in legacy callers that ignore range chrome). */
+        val range: ReportDateRange.Selection? = null,
+        /** Rows inside [range]; empty list when none — never invented. */
+        val rangeItems: List<LabeledItem> = emptyList(),
+        val rangeSaidCount: Int = 0,
+        val rangeObservedCount: Int = 0,
+        val rangeInferredCount: Int = 0,
+        val rangeEmptyState: String? = null
     )
 
     fun provenanceLabel(kind: ProvenanceKind): String =
@@ -52,7 +62,9 @@ object ProgressProof {
         intentionId: String?,
         nowEpochMs: Long,
         shapeTag: String? = null,
-        registry: CapabilityRegistry = CapabilityRegistry.default
+        registry: CapabilityRegistry = CapabilityRegistry.default,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        range: ReportDateRange.Selection? = null
     ): View? {
         if (intentionId == null) return null
         val items = mutableListOf<LabeledItem>()
@@ -100,10 +112,8 @@ object ProgressProof {
         val observed = items.count { it.kind == ProvenanceKind.OBSERVED }
         val inferred = items.count { it.kind == ProvenanceKind.INFERRED }
 
-        val dayMs = TimeUnit.DAYS.toMillis(1)
-        val weekMs = TimeUnit.DAYS.toMillis(7)
-        val dayStart = startOfUtcDay(nowEpochMs)
-        val weekStart = dayStart - 6 * dayMs
+        val dayStart = DailyCycle.startOfLocalDayEpochMs(nowEpochMs, timeZone)
+        val weekStart = dayStart - 6 * TimeUnit.DAYS.toMillis(1)
 
         val dayItems = items.filter { it.recordedAtEpochMs >= dayStart }
         val weekItems = items.filter { it.recordedAtEpochMs >= weekStart }
@@ -113,13 +123,18 @@ object ProgressProof {
                 "No progress proof yet. Add a tracker entry (SAID), or wait for OBSERVED " +
                     "package rows when UsageStats evidence is recorded. Partner lesson charts " +
                     "are not available."
-            observed == 0 ->
-                null // still show mixed list; honesty note covers missing OBSERVED
             else -> null
         }
 
         val limit = registry.get(CapabilityRegistry.ID_PROGRESS_REPORTS)?.limitNote
             ?: "Labels every row SAID / OBSERVED / INFERRED — no fabricated completion charts."
+
+        val activeRange = range ?: ReportDateRange.selectionFor(
+            span = ReportDateRange.Span.WEEK,
+            nowEpochMs = nowEpochMs,
+            timeZone = timeZone
+        )
+        val ranged = projectForRange(items, activeRange)
 
         return View(
             intentionId = intentionId,
@@ -140,12 +155,57 @@ object ProgressProof {
                     append(" No OBSERVED rows in store yet")
                     append(" (UsageStats / partner adapters do not invent completion).")
                 }
-            }
+            },
+            range = activeRange,
+            rangeItems = ranged.items,
+            rangeSaidCount = ranged.said,
+            rangeObservedCount = ranged.observed,
+            rangeInferredCount = ranged.inferred,
+            rangeEmptyState = ranged.emptyState
         )
     }
 
-    private fun startOfUtcDay(epochMs: Long): Long {
-        val dayMs = TimeUnit.DAYS.toMillis(1)
-        return epochMs - (epochMs % dayMs)
+    /**
+     * Re-project an existing proof onto a different report window without rebuilding
+     * from the store (UI prev/next / span chips).
+     */
+    fun withRange(view: View, range: ReportDateRange.Selection): View {
+        val ranged = projectForRange(view.items, range)
+        return view.copy(
+            range = range,
+            rangeItems = ranged.items,
+            rangeSaidCount = ranged.said,
+            rangeObservedCount = ranged.observed,
+            rangeInferredCount = ranged.inferred,
+            rangeEmptyState = ranged.emptyState
+        )
+    }
+
+    private data class RangeProjection(
+        val items: List<LabeledItem>,
+        val said: Int,
+        val observed: Int,
+        val inferred: Int,
+        val emptyState: String?
+    )
+
+    private fun projectForRange(
+        items: List<LabeledItem>,
+        range: ReportDateRange.Selection
+    ): RangeProjection {
+        val filtered = items.filter { ReportDateRange.contains(range, it.recordedAtEpochMs) }
+        val said = filtered.count { it.kind == ProvenanceKind.SAID }
+        val observed = filtered.count { it.kind == ProvenanceKind.OBSERVED }
+        val inferred = filtered.count { it.kind == ProvenanceKind.INFERRED }
+        val empty = when {
+            items.isEmpty() ->
+                "No progress proof yet. Add a tracker entry (SAID), or wait for OBSERVED " +
+                    "package rows when UsageStats evidence is recorded."
+            filtered.isEmpty() ->
+                "Nothing recorded in ${range.label} (${range.localDateSpan}). " +
+                    "Empty on purpose — not a fabricated zero."
+            else -> null
+        }
+        return RangeProjection(filtered, said, observed, inferred, empty)
     }
 }

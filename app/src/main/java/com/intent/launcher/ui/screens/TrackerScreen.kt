@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,11 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.intent.launcher.domain.DateControls
 import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrackerEntryStatus
+import com.intent.launcher.domain.TrackerFieldControls
+import com.intent.launcher.domain.TrackerFieldType
 import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.ui.components.HeroCard
 import com.intent.launcher.ui.components.HeroTone
@@ -65,6 +70,11 @@ fun TrackerScreen(
         mutableStateOf(DateControls.selectionFor(nowEpochMs, nowEpochMs, timeZone))
     }
 
+    fun eventAtOrNull(): Long? {
+        val eventAt = DateControls.eventAtEpochMs(daySelection, nowEpochMs, timeZone)
+        return if (daySelection.isToday) null else eventAt
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -86,6 +96,12 @@ fun TrackerScreen(
         Spacer(modifier = Modifier.height(18.dp))
         Text(
             text = honestyNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = TrackerFieldControls.HONESTY_NOTE,
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )
@@ -113,32 +129,27 @@ fun TrackerScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = IntentColors.Muted
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Field · ${TrackerFieldControls.typeLabel(module.fieldType)}" +
+                    (module.unit?.let { " · unit $it" } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Accent
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Saving for ${daySelection.label} · ${daySelection.localDate}",
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Accent
             )
             Spacer(modifier = Modifier.height(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                module.suggestedValues.forEach { value ->
-                    IntentSecondaryButton(
-                        text = value,
-                        onClick = {
-                            val eventAt = DateControls.eventAtEpochMs(
-                                daySelection,
-                                nowEpochMs,
-                                timeZone
-                            )
-                            onRecord(
-                                module.id,
-                                value,
-                                if (daySelection.isToday) null else eventAt
-                            )
-                        }
-                    )
+            ModuleFieldEntry(
+                module = module,
+                daySelection = daySelection,
+                onSave = { value ->
+                    onRecord(module.id, value, eventAtOrNull())
                 }
-            }
+            )
             val moduleEntries = active.filter { it.moduleId == module.id }
             if (moduleEntries.isEmpty()) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -152,7 +163,7 @@ fun TrackerScreen(
                 moduleEntries.forEach { entry ->
                     TrackerEntryRow(
                         entry = entry,
-                        suggestedValues = module.suggestedValues,
+                        module = module,
                         correcting = correctingEntryId == entry.id,
                         nowEpochMs = nowEpochMs,
                         timeZone = timeZone,
@@ -162,16 +173,7 @@ fun TrackerScreen(
                                 if (correctingEntryId == entry.id) null else entry.id
                         },
                         onCorrectValue = { value ->
-                            val eventAt = DateControls.eventAtEpochMs(
-                                daySelection,
-                                nowEpochMs,
-                                timeZone
-                            )
-                            onCorrect(
-                                entry.id,
-                                value,
-                                if (daySelection.isToday) null else eventAt
-                            )
+                            onCorrect(entry.id, value, eventAtOrNull())
                             correctingEntryId = null
                         },
                         onDelete = { onDelete(entry.id) }
@@ -180,6 +182,196 @@ fun TrackerScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ModuleFieldEntry(
+    module: TrackerModuleDef,
+    daySelection: DateControls.DaySelection,
+    onSave: (String) -> Unit
+) {
+    when (module.fieldType) {
+        TrackerFieldType.NUMERIC -> {
+            NumericOrDurationEntry(
+                label = "Exact value",
+                unit = module.unit,
+                keyboardType = KeyboardType.Decimal,
+                suggested = module.suggestedValues,
+                format = { TrackerFieldControls.formatNumeric(it, module.unit) },
+                onSave = onSave
+            )
+        }
+        TrackerFieldType.DURATION -> {
+            NumericOrDurationEntry(
+                label = "Minutes",
+                unit = module.unit ?: "min",
+                keyboardType = KeyboardType.Number,
+                suggested = module.suggestedValues,
+                format = { raw ->
+                    TrackerFieldControls.formatDurationMinutes(raw)
+                        ?: TrackerFieldControls.formatNumeric(raw, module.unit ?: "min")
+                },
+                onSave = onSave
+            )
+        }
+        TrackerFieldType.YES_NO -> {
+            ChoiceRow(
+                choices = module.suggestedValues.ifEmpty { TrackerFieldControls.YES_NO_VALUES },
+                onPick = onSave
+            )
+        }
+        TrackerFieldType.SINGLE_CHOICE -> {
+            ChoiceRow(choices = module.suggestedValues, onPick = onSave)
+        }
+        TrackerFieldType.RATING -> {
+            ChoiceRow(
+                choices = module.suggestedValues.ifEmpty { TrackerFieldControls.RATING_VALUES },
+                onPick = onSave
+            )
+        }
+        TrackerFieldType.DATE_TIME -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = TrackerFieldControls.formatDateTimeValue(
+                        daySelection.label,
+                        daySelection.localDate
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Ink,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Uses the entry date above (SAID). Save records that day — " +
+                        "not an OBSERVED adapter clock.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+                IntentSecondaryButton(
+                    text = "Save entry date",
+                    onClick = {
+                        onSave(
+                            TrackerFieldControls.formatDateTimeValue(
+                                daySelection.label,
+                                daySelection.localDate
+                            )
+                        )
+                    }
+                )
+            }
+        }
+        TrackerFieldType.MULTIPLE_CHOICE -> {
+            MultiChoiceEntry(
+                choices = module.suggestedValues,
+                onSave = onSave
+            )
+        }
+    }
+}
+
+@Composable
+private fun NumericOrDurationEntry(
+    label: String,
+    unit: String?,
+    keyboardType: KeyboardType,
+    suggested: List<String>,
+    format: (String) -> String?,
+    onSave: (String) -> Unit
+) {
+    var draft by remember { mutableStateOf("") }
+    val preview = remember(draft, unit) { format(draft) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(label) },
+            placeholder = {
+                Text(if (unit.isNullOrBlank()) "Enter value" else "Enter $unit")
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            singleLine = true
+        )
+        if (draft.isNotBlank() && preview == null) {
+            Text(
+                text = "Enter a number to save — blank/unknown is not saved as zero.",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+        }
+        IntentSecondaryButton(
+            text = if (preview != null) "Save $preview" else "Save value",
+            onClick = {
+                val value = preview ?: return@IntentSecondaryButton
+                onSave(value)
+                draft = ""
+            }
+        )
+        if (suggested.isNotEmpty()) {
+            Text(
+                text = "Shortcuts",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            ChoiceRow(choices = suggested, onPick = onSave)
+        }
+    }
+}
+
+@Composable
+private fun ChoiceRow(
+    choices: List<String>,
+    onPick: (String) -> Unit
+) {
+    if (choices.isEmpty()) {
+        Text(
+            text = "No choices configured for this module.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        choices.forEach { value ->
+            IntentSecondaryButton(text = value, onClick = { onPick(value) })
+        }
+    }
+}
+
+@Composable
+private fun MultiChoiceEntry(
+    choices: List<String>,
+    onSave: (String) -> Unit
+) {
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    if (choices.isEmpty()) {
+        Text(
+            text = "No choices configured for this module.",
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        choices.forEach { value ->
+            val on = value in selected
+            IntentSecondaryButton(
+                text = if (on) "✓ $value" else value,
+                onClick = {
+                    selected = if (on) selected - value else selected + value
+                },
+                accentOutline = on
+            )
+        }
+        val joined = TrackerFieldControls.joinMultiple(selected)
+        IntentSecondaryButton(
+            text = if (joined != null) "Save selection" else "Select at least one",
+            onClick = {
+                val value = joined ?: return@IntentSecondaryButton
+                onSave(value)
+                selected = emptySet()
+            }
+        )
     }
 }
 
@@ -271,7 +463,7 @@ private fun EntryDateControls(
 @Composable
 private fun TrackerEntryRow(
     entry: TrackerEntry,
-    suggestedValues: List<String>,
+    module: TrackerModuleDef,
     correcting: Boolean,
     nowEpochMs: Long,
     timeZone: TimeZone,
@@ -280,7 +472,6 @@ private fun TrackerEntryRow(
     onCorrectValue: (String) -> Unit,
     onDelete: () -> Unit
 ) {
-    val correctionChoices = suggestedValues.filter { it != entry.valueText }
     HeroCard(tone = HeroTone.Accent) {
         SmallLabel(
             text = provenanceChip(entry.provenance.kind),
@@ -315,28 +506,19 @@ private fun TrackerEntryRow(
         if (correcting) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Pick a corrected value — marks this row CORRECTED and inserts a new " +
-                    "ACTIVE SAID row (source · user_correction) for ${daySelection.label}.",
+                text = "Corrected value for ${daySelection.label} — marks this row CORRECTED " +
+                    "and inserts a new ACTIVE SAID row (source · user_correction).",
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
             Spacer(modifier = Modifier.height(8.dp))
-            if (correctionChoices.isEmpty()) {
-                Text(
-                    text = "No alternate suggested values for this module.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = IntentColors.Muted
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    correctionChoices.forEach { value ->
-                        IntentSecondaryButton(
-                            text = value,
-                            onClick = { onCorrectValue(value) }
-                        )
-                    }
-                }
-            }
+            ModuleFieldEntry(
+                module = module.copy(
+                    suggestedValues = module.suggestedValues.filter { it != entry.valueText }
+                ),
+                daySelection = daySelection,
+                onSave = onCorrectValue
+            )
         }
     }
 }

@@ -4,11 +4,16 @@ package com.intent.launcher.domain
  * Shape-default tracker modules — configuration only, not a separate progress DB.
  * Entries live in [IntentionSnapshot.trackerEntries] with explicit provenance.
  * Cessation modules are SAID self-report only — never invented smoke-free streaks.
+ *
+ * [TrackerFieldType] drives honest entry controls (worksheet §11 seven types).
  */
 data class TrackerModuleDef(
     val id: String,
     val title: String,
     val prompt: String,
+    val fieldType: TrackerFieldType = TrackerFieldType.SINGLE_CHOICE,
+    /** Optional unit for numeric / duration display (e.g. "km", "min", "cigarettes"). */
+    val unit: String? = null,
     /** Suggested one-tap values for manual SAID entry (not fabricated progress). */
     val suggestedValues: List<String> = emptyList()
 )
@@ -21,44 +26,41 @@ object TrackerModules {
                 TrackerModuleDef(
                     id = "practice_log",
                     title = "Practice log",
-                    prompt = "What did you practise?",
-                    suggestedValues = listOf(
-                        "Spoke for 10 minutes",
-                        "Reviewed vocabulary",
-                        "Tutor session done"
-                    )
+                    prompt = "How many minutes did you practise?",
+                    fieldType = TrackerFieldType.DURATION,
+                    unit = "min",
+                    suggestedValues = listOf("10 min", "20 min", "30 min")
                 ),
                 TrackerModuleDef(
                     id = "confidence_note",
                     title = "Confidence note",
-                    prompt = "How did speaking feel?",
-                    suggestedValues = listOf(
-                        "Felt clearer than last time",
-                        "Stuck on vocabulary",
-                        "Ready for work small-talk"
-                    )
+                    prompt = "How did speaking feel? (1 low – 5 clear)",
+                    fieldType = TrackerFieldType.RATING,
+                    suggestedValues = listOf("1", "2", "3", "4", "5")
+                ),
+                TrackerModuleDef(
+                    id = "practice_when",
+                    title = "Practice day",
+                    prompt = "Which day does this practice apply to?",
+                    fieldType = TrackerFieldType.DATE_TIME,
+                    suggestedValues = emptyList()
                 )
             )
             "marathon" -> listOf(
                 TrackerModuleDef(
                     id = "mileage",
                     title = "Mileage",
-                    prompt = "Distance or effort you completed?",
-                    suggestedValues = listOf(
-                        "Easy 5 km",
-                        "Long run done",
-                        "Rest day held"
-                    )
+                    prompt = "Distance you completed (km)?",
+                    fieldType = TrackerFieldType.NUMERIC,
+                    unit = "km",
+                    suggestedValues = listOf("5 km", "10 km", "Rest day held")
                 ),
                 TrackerModuleDef(
                     id = "body_check",
                     title = "Body check",
-                    prompt = "How did the run feel?",
-                    suggestedValues = listOf(
-                        "Legs felt strong",
-                        "Needed more recovery",
-                        "Skipped — noted honestly"
-                    )
+                    prompt = "How did the run feel? (1–5)",
+                    fieldType = TrackerFieldType.RATING,
+                    suggestedValues = listOf("1", "2", "3", "4", "5")
                 )
             )
             "business" -> listOf(
@@ -66,6 +68,7 @@ object TrackerModules {
                     id = "research_notes",
                     title = "Research notes",
                     prompt = "What did you learn or decide?",
+                    fieldType = TrackerFieldType.SINGLE_CHOICE,
                     suggestedValues = listOf(
                         "Talked to one customer",
                         "Updated one-pager",
@@ -75,12 +78,9 @@ object TrackerModules {
                 TrackerModuleDef(
                     id = "validation_log",
                     title = "Validation log",
-                    prompt = "Evidence of interest?",
-                    suggestedValues = listOf(
-                        "One useful conversation",
-                        "No signal yet",
-                        "Need a clearer offer"
-                    )
+                    prompt = "Did you get a useful signal today?",
+                    fieldType = TrackerFieldType.YES_NO,
+                    suggestedValues = listOf("Yes", "No")
                 )
             )
             QuitSmokingScenario.SHAPE_TAG, "quit_smoking" -> listOf(
@@ -88,8 +88,10 @@ object TrackerModules {
                     id = "cigarettes_today",
                     title = "Cigarettes today",
                     prompt = "How many cigarettes today? (self-report only)",
+                    fieldType = TrackerFieldType.NUMERIC,
+                    unit = "cigarettes",
                     suggestedValues = listOf(
-                        "0 today (self-reported)",
+                        "0 cigarettes",
                         "Fewer than baseline (8)",
                         "About baseline (8)",
                         "More than usual"
@@ -99,6 +101,7 @@ object TrackerModules {
                     id = "craving_log",
                     title = "Craving log",
                     prompt = "How did a craving go?",
+                    fieldType = TrackerFieldType.SINGLE_CHOICE,
                     suggestedValues = listOf(
                         "Rode it out",
                         "Smoked one",
@@ -109,7 +112,8 @@ object TrackerModules {
                 TrackerModuleDef(
                     id = "support_check",
                     title = "Support check",
-                    prompt = "What helped (or did not)?",
+                    prompt = "What helped (or did not)? Pick all that apply.",
+                    fieldType = TrackerFieldType.MULTIPLE_CHOICE,
                     suggestedValues = listOf(
                         "Told someone",
                         "Changed routine",
@@ -123,8 +127,10 @@ object TrackerModules {
                     id = "rating_self_report",
                     title = "Rating (self-report)",
                     prompt = "What rapid rating will you log? (manual — not Chess.com sync)",
+                    fieldType = TrackerFieldType.NUMERIC,
+                    unit = "rating",
                     suggestedValues = listOf(
-                        "About 900 (baseline)",
+                        "900 rating",
                         "Improved since last log",
                         "About the same",
                         "Dropped — noted honestly"
@@ -133,24 +139,17 @@ object TrackerModules {
                 TrackerModuleDef(
                     id = "practice_log",
                     title = "Practice log",
-                    prompt = "What did you practise?",
-                    suggestedValues = listOf(
-                        "Tactics session",
-                        "Opening review",
-                        "Endgame drills",
-                        "Skipped — noted honestly"
-                    )
+                    prompt = "How many minutes did you practise?",
+                    fieldType = TrackerFieldType.DURATION,
+                    unit = "min",
+                    suggestedValues = listOf("15 min", "30 min", "45 min", "Skipped — noted honestly")
                 ),
                 TrackerModuleDef(
                     id = "game_review",
                     title = "Game review",
                     prompt = "Did you review a real game you played?",
-                    suggestedValues = listOf(
-                        "Reviewed one recent game",
-                        "Noted a blunder pattern",
-                        "No game to review today",
-                        "Skipped review — honest"
-                    )
+                    fieldType = TrackerFieldType.YES_NO,
+                    suggestedValues = listOf("Yes", "No")
                 )
             )
             else -> listOf(
@@ -158,7 +157,16 @@ object TrackerModules {
                     id = "general_log",
                     title = "Progress log",
                     prompt = "What happened toward this intention?",
+                    fieldType = TrackerFieldType.SINGLE_CHOICE,
                     suggestedValues = listOf("Made progress", "Blocked", "Paused on purpose")
+                ),
+                TrackerModuleDef(
+                    id = "effort_minutes",
+                    title = "Effort minutes",
+                    prompt = "Minutes of deliberate effort?",
+                    fieldType = TrackerFieldType.DURATION,
+                    unit = "min",
+                    suggestedValues = listOf("15 min", "30 min", "60 min")
                 )
             )
         }
@@ -166,4 +174,13 @@ object TrackerModules {
     fun moduleTitle(moduleId: String, shapeTag: String?): String =
         forShape(shapeTag).firstOrNull { it.id == moduleId }?.title
             ?: moduleId
+
+    /** All seven worksheet field types appear at least once across shape defaults. */
+    fun coversAllFieldTypes(): Boolean {
+        val types = listOf("language", "marathon", "business", "quit_smoking", "chess_rating", null)
+            .flatMap { forShape(it) }
+            .map { it.fieldType }
+            .toSet()
+        return types.containsAll(TrackerFieldType.entries)
+    }
 }
