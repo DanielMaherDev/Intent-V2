@@ -30,6 +30,7 @@ import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.TrackerEntryStatus
+import com.intent.launcher.engine.AnimationBudgetGate
 import com.intent.launcher.engine.CaptureThought
 import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
@@ -582,6 +583,10 @@ class MainActivity : ComponentActivity() {
                                 onReducedMotionPreferenceChange = {
                                     vm.setReducedMotionPreference(it)
                                 },
+                                animationBudgetStatusLabel =
+                                    AnimationBudgetGate.settingsCopy().statusLabel,
+                                animationBudgetHonestyNote =
+                                    AnimationBudgetGate.settingsCopy().body,
                                 quietModeStatusLabel = vm.quietModeSettingsCopy().statusLabel,
                                 quietModeHonestyNote = vm.quietModeSettingsCopy().body,
                                 showQuietSilenceToggle = vm.quietModeSettingsCopy().showSilenceToggle,

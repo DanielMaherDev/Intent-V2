@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.engine.AnimationBudgetGate
 import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.ReducedMotionPreference
 import com.intent.launcher.engine.ThemePreference
@@ -57,6 +58,8 @@ fun SettingsScreen(
     onThemePreferenceChange: (ThemePreference) -> Unit = {},
     reducedMotionPreference: ReducedMotionPreference = ReducedMotionPreference.FOLLOW_SYSTEM,
     onReducedMotionPreferenceChange: (ReducedMotionPreference) -> Unit = {},
+    animationBudgetStatusLabel: String = "Frame / jank gate unmet · no charts",
+    animationBudgetHonestyNote: String = "",
     quietModeStatusLabel: String = "Not supported · quiet_mode",
     quietModeHonestyNote: String = "",
     showQuietSilenceToggle: Boolean = false,
@@ -173,6 +176,26 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(6.dp))
         SmallLabel(
             text = "Drives LocalReducedMotion · SharedPreferences only · SCHEMA unchanged",
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        SectionTitle(AnimationBudgetGate.SETTINGS_SECTION_TITLE)
+        Spacer(modifier = Modifier.height(10.dp))
+        SmallLabel(
+            text = animationBudgetStatusLabel,
+            color = IntentColors.AccentDark
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = animationBudgetHonestyNote.ifBlank {
+                AnimationBudgetGate.settingsCopy().body
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        SmallLabel(
+            text = "Honesty gate only · no fps SLO invented · SCHEMA unchanged",
             color = IntentColors.Muted
         )
         Spacer(modifier = Modifier.height(28.dp))
