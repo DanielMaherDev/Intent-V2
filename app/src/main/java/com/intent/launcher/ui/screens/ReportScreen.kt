@@ -2,7 +2,9 @@ package com.intent.launcher.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,21 +15,32 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.intent.launcher.domain.ReportDateRange
 import com.intent.launcher.engine.ParentRollup
 import com.intent.launcher.engine.PathSummary
 import com.intent.launcher.engine.ProgressProof
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.HeroCard
 import com.intent.launcher.ui.components.HeroTone
+import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
+import java.util.TimeZone
 
 @Composable
 fun ReportScreen(
@@ -35,8 +48,23 @@ fun ReportScreen(
     progressProof: ProgressProof.View?,
     parentRollup: ParentRollup.View? = null,
     onBack: () -> Unit,
+    nowEpochMs: Long = System.currentTimeMillis(),
+    timeZone: TimeZone = TimeZone.getDefault(),
     modifier: Modifier = Modifier
 ) {
+    var range by remember(nowEpochMs, timeZone) {
+        mutableStateOf(
+            ReportDateRange.selectionFor(
+                span = ReportDateRange.Span.WEEK,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        )
+    }
+    val rangedProof = remember(progressProof, range) {
+        progressProof?.let { ProgressProof.withRange(it, range) }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -53,6 +81,20 @@ fun ReportScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Lede("Reads the same intention store. Every proof row keeps its provenance label.")
+
+        Spacer(modifier = Modifier.height(18.dp))
+        ReportRangeControls(
+            selection = range,
+            onSpan = { span ->
+                range = ReportDateRange.withSpan(range, span, timeZone)
+            },
+            onPrevious = {
+                range = ReportDateRange.stepPrevious(range, timeZone)
+            },
+            onNext = {
+                range = ReportDateRange.stepNext(range, timeZone)
+            }
+        )
 
         if (parentRollup != null) {
             Spacer(modifier = Modifier.height(22.dp))
@@ -172,64 +214,160 @@ fun ReportScreen(
         Spacer(modifier = Modifier.height(26.dp))
         SectionTitle("Progress proof")
         Spacer(modifier = Modifier.height(8.dp))
-        if (progressProof == null) {
+        if (rangedProof == null) {
             EmptyNote(text = "No active intention to report on.")
         } else {
             Text(
-                text = "SAID ${progressProof.saidCount} · OBSERVED ${progressProof.observedCount} · " +
-                    "INFERRED ${progressProof.inferredCount}",
+                text = "Range · ${range.label}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = IntentColors.Ink,
                 fontWeight = FontWeight.Medium
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = progressProof.honestyNote,
+                text = range.localDateSpan,
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
-            if (progressProof.emptyState != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "In range · SAID ${rangedProof.rangeSaidCount} · " +
+                    "OBSERVED ${rangedProof.rangeObservedCount} · " +
+                    "INFERRED ${rangedProof.rangeInferredCount}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "All time · SAID ${rangedProof.saidCount} · " +
+                    "OBSERVED ${rangedProof.observedCount} · " +
+                    "INFERRED ${rangedProof.inferredCount}",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = rangedProof.honestyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            if (rangedProof.rangeEmptyState != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                EmptyNote(text = progressProof.emptyState)
+                EmptyNote(text = rangedProof.rangeEmptyState)
+            } else if (rangedProof.rangeItems.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                ProofList(rangedProof.rangeItems)
             }
 
-            progressProof.dayBuckets.forEach { bucket ->
-                Spacer(modifier = Modifier.height(18.dp))
-                SectionTitle(bucket.label)
-                Spacer(modifier = Modifier.height(8.dp))
-                if (bucket.items.isEmpty()) {
-                    Text(
-                        text = "Nothing recorded in this window.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IntentColors.Muted
-                    )
-                } else {
-                    ProofList(bucket.items)
-                }
-            }
-
-            progressProof.weekBuckets.forEach { bucket ->
-                Spacer(modifier = Modifier.height(18.dp))
-                SectionTitle(bucket.label)
-                Spacer(modifier = Modifier.height(8.dp))
-                if (bucket.items.isEmpty()) {
-                    Text(
-                        text = "Nothing recorded in this window.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = IntentColors.Muted
-                    )
-                } else {
-                    ProofList(bucket.items)
-                }
-            }
-
-            if (progressProof.items.isNotEmpty()) {
+            if (rangedProof.items.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(18.dp))
                 SectionTitle("All labeled rows")
                 Spacer(modifier = Modifier.height(8.dp))
-                ProofList(progressProof.items)
+                ProofList(rangedProof.items)
             }
         }
+    }
+}
+
+@Composable
+private fun ReportRangeControls(
+    selection: ReportDateRange.Selection,
+    onSpan: (ReportDateRange.Span) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+            .background(IntentColors.Card, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .semantics {
+                contentDescription =
+                    "Report date range ${selection.label} ${selection.localDateSpan}. " +
+                        selection.honestyNote
+            }
+    ) {
+        SmallLabel(text = "Report date range", color = IntentColors.Section)
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ReportDateRange.Span.entries.forEach { span ->
+                val selected = selection.span == span
+                IntentSecondaryButton(
+                    text = span.chipLabel,
+                    onClick = { onSpan(span) },
+                    modifier = Modifier.weight(1f),
+                    accentOutline = selected
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            TextButton(
+                onClick = onPrevious,
+                enabled = selection.canGoPrevious
+            ) {
+                Text(
+                    text = "Previous",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (selection.canGoPrevious) {
+                        IntentColors.AccentDark
+                    } else {
+                        IntentColors.Muted
+                    }
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = selection.label,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = IntentColors.Ink,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = selection.localDateSpan,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = IntentColors.Muted
+                )
+            }
+            TextButton(
+                onClick = onNext,
+                enabled = selection.canGoNext
+            ) {
+                Text(
+                    text = "Next",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (selection.canGoNext) {
+                        IntentColors.AccentDark
+                    } else {
+                        IntentColors.Muted
+                    }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = selection.honestyNote,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = ReportDateRange.HONESTY_NOTE,
+            style = MaterialTheme.typography.bodySmall,
+            color = IntentColors.Muted
+        )
     }
 }
 
