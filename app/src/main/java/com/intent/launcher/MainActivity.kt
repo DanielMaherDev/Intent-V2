@@ -504,7 +504,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenFloaterDrawer = { showFloaterDrawer = true },
                                 thoughtCaptureNote = vm.thoughtCaptureNote,
                                 // CASE / explore fixture rows hidden from product Home —
-                                // real create is Intention Builder + Triage only.
+                                // real create is chat-first Conversation + Triage.
                                 onExploreMarathon = null,
                                 onExploreBusiness = null,
                                 onExploreMove = null,
@@ -518,7 +518,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onUndo = vm.lastUndoableTransaction()?.let { { vm.undoLast() } },
                                 undoTrashNote = vm.undoTrashNote,
-                                onStartBuilder = { nav.navigate("builder") },
+                                onStartBuilder = {
+                                    val route = vm.beginCreateIntentionChat()
+                                    if (route != null) {
+                                        nav.navigate(route)
+                                    }
+                                },
                                 onOpenTriage = { nav.navigate("triage") },
                                 rawThoughtCount = vm.rawThoughtCount(),
                                 openErrands = vm.openErrands(),
@@ -896,6 +901,9 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         vm.undoLast()
                                     }
+                                },
+                                onBuilderQuantity = { value, unit ->
+                                    vm.onBuilderQuantity(value, unit)
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )

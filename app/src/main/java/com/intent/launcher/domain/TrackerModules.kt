@@ -34,7 +34,7 @@ object TrackerModules {
                     fieldType = TrackerFieldType.DURATION,
                     unit = "min",
                     suggestedValues = listOf("10 min", "20 min", "30 min"),
-                    quantityChoices = listOf(5, 10, 15, 20, 30, 45, 60),
+                    quantityChoices = (1..120).toList(),
                     quantityUnitLabel = "minutes"
                 ),
                 TrackerModuleDef(
@@ -153,7 +153,7 @@ object TrackerModules {
                     fieldType = TrackerFieldType.DURATION,
                     unit = "min",
                     suggestedValues = listOf("15 min", "30 min", "45 min", "Skipped — noted honestly"),
-                    quantityChoices = listOf(5, 10, 15, 20, 30, 45, 60),
+                    quantityChoices = (1..120).toList(),
                     quantityUnitLabel = "minutes"
                 ),
                 TrackerModuleDef(
@@ -179,7 +179,7 @@ object TrackerModules {
                     fieldType = TrackerFieldType.DURATION,
                     unit = "min",
                     suggestedValues = listOf("15 min", "30 min", "60 min"),
-                    quantityChoices = listOf(5, 10, 15, 20, 30, 45, 60),
+                    quantityChoices = (1..120).toList(),
                     quantityUnitLabel = "minutes"
                 )
             )

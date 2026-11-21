@@ -687,7 +687,7 @@ fun HomeScreen(
             if (onStartBuilder != null) {
                 LineRow(
                     title = "Start a new intention",
-                    subtitle = "Describe a goal — we’ll ask a few useful questions",
+                    subtitle = "Opens conversation — describe a goal in chat",
                     onClick = onStartBuilder,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent

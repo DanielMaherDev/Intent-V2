@@ -25,7 +25,12 @@ object IntentionBuilder {
         /** When set, the UI shows a NumberWheel instead of free text. */
         val quantityChoices: List<Int>? = null,
         val quantityUnitLabel: String? = null,
-        val quantitySummaryTemplate: String = "{value} {unit}"
+        val quantitySummaryTemplate: String = "{value} {unit}",
+        /**
+         * Predefined chip labels (without Other). Conversation / builder UI
+         * appends [ChoiceOptions.OTHER] for the free-text path.
+         */
+        val choiceOptions: List<String>? = null
     )
 
     data class StartResult(
@@ -69,33 +74,81 @@ object IntentionBuilder {
             "language" -> listOf(
                 Prompt(
                     id = "practice_minutes",
-                    question = "How often can you practise?",
+                    question = "How many minutes can you practise on a typical day?",
                     quantityChoices = PracticeMinuteChoices.VALUES,
                     quantityUnitLabel = PracticeMinuteChoices.UNIT,
                     quantitySummaryTemplate = "{value} {unit}"
                 ),
                 Prompt(
                     id = "existing_method",
-                    question = "Do you already have a tutor, class, or app?"
+                    question = "Do you already have a tutor, class, or app?",
+                    choiceOptions = listOf(
+                        "Tutor or class",
+                        "Learning app",
+                        "Self-study",
+                        "Not yet"
+                    )
                 )
             )
             "marathon" -> listOf(
-                Prompt("focus_area", "What part of prep matters most right now?"),
+                Prompt(
+                    id = "focus_area",
+                    question = "What part of prep matters most right now?",
+                    choiceOptions = listOf(
+                        "Building base mileage",
+                        "Long-run stamina",
+                        "Speed work",
+                        "Recovery / injury care"
+                    )
+                ),
                 Prompt(
                     id = "available_time",
-                    question = "How much time can you train in a typical week?",
-                    quantityChoices = listOf(30, 45, 60, 90, 120, 180),
+                    question = "How many minutes can you train in a typical week?",
+                    quantityChoices = (1..180).toList(),
                     quantityUnitLabel = "minutes per week",
                     quantitySummaryTemplate = "{value} {unit}"
                 )
             )
             "business" -> listOf(
-                Prompt("learn_next", "What would help you learn what to do next?"),
-                Prompt("existing_method", "Do you already talk with customers or mentors?")
+                Prompt(
+                    id = "learn_next",
+                    question = "What would help you learn what to do next?",
+                    choiceOptions = listOf(
+                        "Talk to a customer",
+                        "Write a one-pager",
+                        "Research competitors",
+                        "Not sure yet"
+                    )
+                ),
+                Prompt(
+                    id = "existing_method",
+                    question = "Do you already talk with customers or mentors?",
+                    choiceOptions = listOf(
+                        "Yes — regularly",
+                        "A little",
+                        "Not yet"
+                    )
+                )
             )
             else -> listOf(
-                Prompt("current_state", "Where are you starting from today?"),
-                Prompt("constraint", "Any deadline or time constraint that matters?")
+                Prompt(
+                    id = "current_state",
+                    question = "Where are you starting from today?",
+                    choiceOptions = listOf(
+                        "Just exploring",
+                        "Already underway",
+                        "Stuck / restarting"
+                    )
+                ),
+                Prompt(
+                    id = "constraint",
+                    question = "Any deadline or time constraint that matters?",
+                    choiceOptions = listOf(
+                        "This week",
+                        "This month",
+                        "Flexible / none"
+                    )
+                )
             )
         }
 
@@ -235,8 +288,11 @@ object IntentionBuilder {
     )
 }
 
-/** Shared minute ladder for builder / tracker quantity wheels. */
-private object PracticeMinuteChoices {
-    val VALUES: List<Int> = listOf(5, 10, 15, 20, 30, 45, 60)
+/** Shared minute ladder — every whole integer in range (F3). */
+internal object PracticeMinuteChoices {
+    const val MIN = 1
+    const val MAX = 120
+    const val DEFAULT = 20
     const val UNIT = "minutes per day"
+    val VALUES: List<Int> = (MIN..MAX).toList()
 }

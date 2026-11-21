@@ -167,24 +167,40 @@ object AgentModuleProjection {
         when (block.type) {
             ResponseBlockType.CHOICE_SET -> {
                 if (!block.active || block.actions.isEmpty()) return null
+                // Ambiguous approval/tracker CHOICE_SETs stay exact; builder /
+                // discovery questions prefer predefined options + Other (F4).
+                val options = if (prefersOtherPath(block)) {
+                    ChoiceOptions.withOther(block.actions)
+                } else {
+                    block.actions
+                }
                 return OneQuestionCard(
                     title = block.title.ifBlank { "One question" },
                     body = block.body,
                     provenanceChip = "ONE QUESTION",
-                    options = block.actions,
-                    freeTextHint = "Tell me in your own words",
+                    options = options,
+                    freeTextHint = if (prefersOtherPath(block)) {
+                        "Tell me in your own words — or choose Other"
+                    } else {
+                        "Tell me in your own words"
+                    },
                     blockId = block.blockId,
                     sourceLabel = block.sourceLabel
                 )
             }
             ResponseBlockType.QUESTION -> {
                 if (!block.active) return null
+                val options = if (block.actions.isEmpty()) {
+                    emptyList()
+                } else {
+                    ChoiceOptions.withOther(block.actions)
+                }
                 return OneQuestionCard(
                     title = block.title.ifBlank { "One question" },
                     body = block.body,
                     provenanceChip = interventionProvenanceChip(block.sourceLabel, block.title),
-                    options = block.actions,
-                    freeTextHint = "Tell me in your own words",
+                    options = options,
+                    freeTextHint = "Tell me in your own words — or choose Other",
                     blockId = block.blockId,
                     sourceLabel = block.sourceLabel
                 )
@@ -204,11 +220,28 @@ object AgentModuleProjection {
             title = headline.ifBlank { "Let's shape how you practise." },
             body = body,
             provenanceChip = "ONE QUESTION",
-            options = chips,
-            freeTextHint = "Tell me in your own words",
+            options = ChoiceOptions.withOther(chips),
+            freeTextHint = "Tell me in your own words — or choose Other",
             blockId = null,
             sourceLabel = "Local heuristics"
         )
+    }
+
+    private fun prefersOtherPath(block: ResponseBlock): Boolean {
+        when (BuilderAnswerCard.decode(block)) {
+            is BuilderAnswerCard.Decoded.Choice -> return true
+            is BuilderAnswerCard.Decoded.Confirm -> return false
+            is BuilderAnswerCard.Decoded.Quantity -> return false
+            null -> Unit
+        }
+        val src = block.sourceLabel
+        if (src == AmbiguousChoiceSetCard.SOURCE_APPROVAL ||
+            src == AmbiguousChoiceSetCard.SOURCE_SCOPE
+        ) {
+            return false
+        }
+        // Discovery / scripted question CHOICE_SETs (e.g. vague health).
+        return true
     }
 
     fun proposalFromBlock(
