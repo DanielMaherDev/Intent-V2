@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.159** (this branch) · based on tip **v0.0.158** (#104) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.161** (this branch) · based on tip **v0.0.159** (#105) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.159** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.159.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.161.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.161:** Adaptive builder Gates B–C domain core + Gate F JVM harness — typed source-linked Fact / OpenQuestion / Approach / AdaptiveBuilderState; BuilderDecision + validator; RelativeDateAnchoring; Conversation-callable AdaptiveBuilderEngine hooks; §8 scenarios 1/4/5/6/7/9 green. Does **not** change chat-first create UX (IV-189 / 0.0.160). SCHEMA 10 stamp-compatible. Based on tip **0.0.159** (#105).
 - **v0.0.159:** INTENT UI redesign package — strip user-visible heuristics/SAID/CASE jargon from Home/Builder/Settings; agent auto-classifies intention shape (no forced Language/Marathon/Business pick); empty Home focuses on Start a new intention; NumberWheel for practice/quantity prompts (and FE-C3 duration/numeric tracker fields); Settings Appearance + Use live assistant primary; floater top clearance raised; SCHEMA 10 stamp-only. Based on tip **0.0.158** (#104).
 - **v0.0.158:** FE-C3 remaining depth — Reports Day/Week/30-day date-range prev/next (filters store rows only; empty windows stay empty) + tracker seven field-type controls (numeric/yes-no/single/rating/duration/date-time/multi) without coercing blank→zero; SCHEMA 10 stamp-only. Based on tip **0.0.157** (#103).
 - **v0.0.157:** FE-E3 fps/jank/charts honesty gate — `AnimationBudgetGate` encodes measured 0.0.137 KVM budget; JVM tests refuse invented fps SLOs / jank % / chart UX; Settings Appearance → Animation budget honesty surface; charts intentionally absent; SCHEMA 10 stamp-only. Based on tip **0.0.156** (#101).

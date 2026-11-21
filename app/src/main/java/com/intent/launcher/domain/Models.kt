@@ -78,7 +78,25 @@ data class Fact(
     val id: String,
     val intentionId: String,
     val text: String,
-    val provenance: Provenance
+    val provenance: Provenance,
+    /** Stable key for ranking / freshness (e.g. move_estimate, target_language). */
+    val key: String? = null,
+    val rawUtterance: String? = null,
+    val normalizedValue: String? = null,
+    val sourceTurnId: String? = null,
+    val timeZoneId: String? = null,
+    val validFromEpochMs: Long? = null,
+    val validUntilEpochMs: Long? = null,
+    /** Anchored absolute estimate for relative phrases like "in three months". */
+    val estimatedEpochMs: Long? = null,
+    val estimatedRangeStartEpochMs: Long? = null,
+    val estimatedRangeEndEpochMs: Long? = null,
+    val approximate: Boolean = false,
+    val confirmation: FactConfirmation = FactConfirmation.CONFIRMED,
+    val status: FactStatus = FactStatus.ACTIVE,
+    /** Prior fact id when this row corrects an earlier estimate. */
+    val supersedesFactId: String? = null,
+    val revision: Int = 1
 )
 
 data class Hypothesis(
@@ -512,6 +530,12 @@ data class IntentionSnapshot(
     val triage: TriageState = TriageState(),
     /** Lightweight errands — OS-073 inbox, not intentions. */
     val errandTodos: List<ErrandTodo> = emptyList(),
+    /** Adaptive builder open questions (worksheet Gate B). */
+    val openQuestions: List<OpenQuestion> = emptyList(),
+    /** Adaptive builder approaches (worksheet Gate C). */
+    val approaches: List<Approach> = emptyList(),
+    /** Per-intention adaptive builder cursors. */
+    val adaptiveBuilderStates: List<AdaptiveBuilderState> = emptyList(),
     val activeIntentionId: String? = null,
     val dayCycle: DayCycleState = DayCycleState(),
     val transactions: List<FlowTransaction> = emptyList(),
@@ -1049,6 +1073,87 @@ sealed class FlowCommand {
     data class DismissIntervention(
         val jobId: String,
         val cooldownUntilEpochMs: Long,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /**
+     * Persist a typed, source-linked fact (adaptive builder Gate B).
+     * Prefer over [AddUserFact] when key / estimate / turn linkage is known.
+     */
+    data class SaveTypedFact(
+        val factId: String,
+        val intentionId: String,
+        val text: String,
+        val nowEpochMs: Long,
+        val key: String? = null,
+        val rawUtterance: String? = null,
+        val normalizedValue: String? = null,
+        val sourceTurnId: String? = null,
+        val timeZoneId: String? = null,
+        val validFromEpochMs: Long? = null,
+        val validUntilEpochMs: Long? = null,
+        val estimatedEpochMs: Long? = null,
+        val estimatedRangeStartEpochMs: Long? = null,
+        val estimatedRangeEndEpochMs: Long? = null,
+        val approximate: Boolean = false,
+        val confirmation: FactConfirmation = FactConfirmation.CONFIRMED,
+        val supersedesFactId: String? = null,
+        val revision: Int = 1
+    ) : FlowCommand()
+
+    /**
+     * Correct an existing fact: mark prior CORRECTED and write a replacement ACTIVE row.
+     */
+    data class CorrectTypedFact(
+        val priorFactId: String,
+        val newFactId: String,
+        val intentionId: String,
+        val text: String,
+        val nowEpochMs: Long,
+        val key: String? = null,
+        val rawUtterance: String? = null,
+        val normalizedValue: String? = null,
+        val sourceTurnId: String? = null,
+        val timeZoneId: String? = null,
+        val validFromEpochMs: Long? = null,
+        val validUntilEpochMs: Long? = null,
+        val estimatedEpochMs: Long? = null,
+        val estimatedRangeStartEpochMs: Long? = null,
+        val estimatedRangeEndEpochMs: Long? = null,
+        val approximate: Boolean = false,
+        val confirmation: FactConfirmation = FactConfirmation.CONFIRMED
+    ) : FlowCommand()
+
+    data class UpsertOpenQuestion(
+        val question: OpenQuestion,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class AnswerOpenQuestion(
+        val questionId: String,
+        val intentionId: String,
+        val answerText: String,
+        val nowEpochMs: Long,
+        val sourceTurnId: String,
+        val modality: String,
+        val idempotencyKey: String,
+        val factId: String? = null
+    ) : FlowCommand()
+
+    data class UpsertApproach(
+        val approach: Approach,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    data class SelectApproaches(
+        val intentionId: String,
+        val approachIds: List<String>,
+        val nowEpochMs: Long,
+        val sourceTurnId: String? = null
+    ) : FlowCommand()
+
+    data class SetAdaptiveBuilderState(
+        val state: AdaptiveBuilderState,
         val nowEpochMs: Long
     ) : FlowCommand()
 }

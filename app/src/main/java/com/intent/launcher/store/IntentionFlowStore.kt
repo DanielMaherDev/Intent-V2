@@ -2,6 +2,9 @@ package com.intent.launcher.store
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.intent.launcher.domain.AdaptiveBuilderState
+import com.intent.launcher.domain.Approach
+import com.intent.launcher.domain.ApproachStatus
 import com.intent.launcher.domain.BuilderDraft
 import com.intent.launcher.domain.BuilderPhase
 import com.intent.launcher.domain.ConversationTurn
@@ -14,6 +17,8 @@ import com.intent.launcher.domain.ErrandTodo
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
+import com.intent.launcher.domain.FactConfirmation
+import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.FlowTransaction
 import com.intent.launcher.domain.HeldApp
@@ -22,6 +27,10 @@ import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.IntentionSnapshot
 import com.intent.launcher.domain.Occurrence
+import com.intent.launcher.domain.OpenQuestion
+import com.intent.launcher.domain.OpenQuestionState
+import com.intent.launcher.domain.AnswerSchema
+import com.intent.launcher.domain.ApproachActor
 import com.intent.launcher.domain.ProactivityPrefs
 import com.intent.launcher.domain.Proposal
 import com.intent.launcher.domain.ProposalStatus
@@ -1280,6 +1289,163 @@ class IntentionFlowStore(
             is FlowCommand.RecordExternalAction -> migrated
 
             is FlowCommand.UndoLastReversible -> migrated
+
+            is FlowCommand.SaveTypedFact -> {
+                val fact = Fact(
+                    id = command.factId,
+                    intentionId = command.intentionId,
+                    text = command.text,
+                    provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user"),
+                    key = command.key,
+                    rawUtterance = command.rawUtterance,
+                    normalizedValue = command.normalizedValue,
+                    sourceTurnId = command.sourceTurnId,
+                    timeZoneId = command.timeZoneId,
+                    validFromEpochMs = command.validFromEpochMs,
+                    validUntilEpochMs = command.validUntilEpochMs,
+                    estimatedEpochMs = command.estimatedEpochMs,
+                    estimatedRangeStartEpochMs = command.estimatedRangeStartEpochMs,
+                    estimatedRangeEndEpochMs = command.estimatedRangeEndEpochMs,
+                    approximate = command.approximate,
+                    confirmation = command.confirmation,
+                    status = FactStatus.ACTIVE,
+                    supersedesFactId = command.supersedesFactId,
+                    revision = command.revision
+                )
+                migrated.copy(
+                    facts = migrated.facts.filterNot { it.id == fact.id } + fact,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.CorrectTypedFact -> {
+                val prior = migrated.facts.firstOrNull { it.id == command.priorFactId }
+                    ?: return migrated
+                val corrected = prior.copy(status = FactStatus.CORRECTED)
+                val replacement = Fact(
+                    id = command.newFactId,
+                    intentionId = command.intentionId,
+                    text = command.text,
+                    provenance = Provenance(ProvenanceKind.SAID, command.nowEpochMs, "user"),
+                    key = command.key ?: prior.key,
+                    rawUtterance = command.rawUtterance,
+                    normalizedValue = command.normalizedValue,
+                    sourceTurnId = command.sourceTurnId,
+                    timeZoneId = command.timeZoneId ?: prior.timeZoneId,
+                    validFromEpochMs = command.validFromEpochMs ?: command.nowEpochMs,
+                    validUntilEpochMs = command.validUntilEpochMs,
+                    estimatedEpochMs = command.estimatedEpochMs,
+                    estimatedRangeStartEpochMs = command.estimatedRangeStartEpochMs,
+                    estimatedRangeEndEpochMs = command.estimatedRangeEndEpochMs,
+                    approximate = command.approximate,
+                    confirmation = command.confirmation,
+                    status = FactStatus.ACTIVE,
+                    supersedesFactId = prior.id,
+                    revision = prior.revision + 1
+                )
+                migrated.copy(
+                    facts = migrated.facts
+                        .filterNot { it.id == prior.id || it.id == replacement.id } +
+                        corrected + replacement,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.UpsertOpenQuestion -> {
+                migrated.copy(
+                    openQuestions = migrated.openQuestions
+                        .filterNot { it.id == command.question.id } + command.question,
+                    intentions = touch(
+                        migrated.intentions,
+                        command.question.intentionId,
+                        command.nowEpochMs
+                    )
+                )
+            }
+
+            is FlowCommand.AnswerOpenQuestion -> {
+                val question = migrated.openQuestions.firstOrNull { it.id == command.questionId }
+                    ?: return migrated
+                if (question.state == OpenQuestionState.ANSWERED) return migrated
+                val answered = question.copy(
+                    state = OpenQuestionState.ANSWERED,
+                    answeredAtEpochMs = command.nowEpochMs,
+                    sourceTurnId = command.sourceTurnId
+                )
+                val turn = ConversationTurn(
+                    id = command.sourceTurnId,
+                    intentionId = command.intentionId,
+                    role = "user",
+                    text = command.answerText,
+                    atEpochMs = command.nowEpochMs,
+                    modality = command.modality,
+                    blocks = listOf(
+                        ResponseBlock(
+                            blockId = "block-answered-${command.questionId}",
+                            type = ResponseBlockType.RECORDED_ENTRY,
+                            title = "Answered",
+                            body = command.answerText,
+                            sourceLabel = command.modality,
+                            linkedObjectIds = listOf(
+                                command.questionId,
+                                command.idempotencyKey
+                            ) + listOfNotNull(command.factId)
+                        )
+                    )
+                )
+                val turns = if (migrated.turns.any { it.id == turn.id }) {
+                    migrated.turns
+                } else {
+                    migrated.turns + turn
+                }
+                migrated.copy(
+                    openQuestions = migrated.openQuestions
+                        .filterNot { it.id == answered.id } + answered,
+                    turns = turns,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.UpsertApproach -> {
+                migrated.copy(
+                    approaches = migrated.approaches
+                        .filterNot { it.id == command.approach.id } + command.approach,
+                    intentions = touch(
+                        migrated.intentions,
+                        command.approach.intentionId,
+                        command.nowEpochMs
+                    )
+                )
+            }
+
+            is FlowCommand.SelectApproaches -> {
+                val updated = migrated.approaches.map { approach ->
+                    if (approach.intentionId != command.intentionId) {
+                        approach
+                    } else if (approach.id in command.approachIds) {
+                        approach.copy(
+                            status = ApproachStatus.SELECTED,
+                            selectedAtEpochMs = command.nowEpochMs,
+                            sourceTurnId = command.sourceTurnId ?: approach.sourceTurnId
+                        )
+                    } else if (approach.status == ApproachStatus.SELECTED) {
+                        approach.copy(status = ApproachStatus.CANDIDATE, selectedAtEpochMs = null)
+                    } else {
+                        approach
+                    }
+                }
+                migrated.copy(
+                    approaches = updated,
+                    intentions = touch(migrated.intentions, command.intentionId, command.nowEpochMs)
+                )
+            }
+
+            is FlowCommand.SetAdaptiveBuilderState -> {
+                migrated.copy(
+                    adaptiveBuilderStates = migrated.adaptiveBuilderStates
+                        .filterNot { it.intentionId == command.state.intentionId } + command.state
+                )
+            }
         }
     }
 
@@ -1308,7 +1474,14 @@ class IntentionFlowStore(
                 .map(WireSessionRun::from),
             turns = migrated.turns.filter { it.intentionId == intention.id }.map(WireTurn::from),
             thoughtCaptures = migrated.thoughtCaptures.filter { it.intentionId == intention.id }
-                .map(WireThoughtCapture::from)
+                .map(WireThoughtCapture::from),
+            openQuestions = migrated.openQuestions.filter { it.intentionId == intention.id }
+                .map(WireOpenQuestion::from),
+            approaches = migrated.approaches.filter { it.intentionId == intention.id }
+                .map(WireApproach::from),
+            adaptiveBuilderStates = migrated.adaptiveBuilderStates
+                .filter { it.intentionId == intention.id }
+                .map(WireAdaptiveBuilderState::from)
         )
         val entry = TrashEntry(
             id = command.trashId,
@@ -1330,6 +1503,10 @@ class IntentionFlowStore(
             sessionRuns = migrated.sessionRuns.filterNot { it.intentionId == intention.id },
             turns = migrated.turns.filterNot { it.intentionId == intention.id },
             thoughtCaptures = migrated.thoughtCaptures.filterNot { it.intentionId == intention.id },
+            openQuestions = migrated.openQuestions.filterNot { it.intentionId == intention.id },
+            approaches = migrated.approaches.filterNot { it.intentionId == intention.id },
+            adaptiveBuilderStates = migrated.adaptiveBuilderStates
+                .filterNot { it.intentionId == intention.id },
             drawerCardLayouts = migrated.drawerCardLayouts.filterNot { it.intentionId == intention.id },
             activeIntentionId = if (migrated.activeIntentionId == intention.id) {
                 migrated.intentions.firstOrNull { it.id != intention.id }?.id
@@ -1411,6 +1588,18 @@ class IntentionFlowStore(
                         migrated.thoughtCaptures,
                         payload.thoughtCaptures.map { it.toDomain() }
                     ) { it.id },
+                    openQuestions = mergeById(
+                        migrated.openQuestions,
+                        payload.openQuestions.map { it.toDomain() }
+                    ) { it.id },
+                    approaches = mergeById(
+                        migrated.approaches,
+                        payload.approaches.map { it.toDomain() }
+                    ) { it.id },
+                    adaptiveBuilderStates = mergeById(
+                        migrated.adaptiveBuilderStates,
+                        payload.adaptiveBuilderStates.map { it.toDomain() }
+                    ) { it.intentionId },
                     activeIntentionId = migrated.activeIntentionId ?: intention.id,
                     trash = migrated.trash.filterNot { it.id == entry.id }
                 )
@@ -1508,6 +1697,13 @@ class IntentionFlowStore(
                     is FlowCommand.MarkInterventionShown -> command.nowEpochMs
                     is FlowCommand.DismissIntervention -> command.nowEpochMs
                     is FlowCommand.UndoLastReversible -> command.nowEpochMs
+                    is FlowCommand.SaveTypedFact -> command.nowEpochMs
+                    is FlowCommand.CorrectTypedFact -> command.nowEpochMs
+                    is FlowCommand.UpsertOpenQuestion -> command.nowEpochMs
+                    is FlowCommand.AnswerOpenQuestion -> command.nowEpochMs
+                    is FlowCommand.UpsertApproach -> command.nowEpochMs
+                    is FlowCommand.SelectApproaches -> command.nowEpochMs
+                    is FlowCommand.SetAdaptiveBuilderState -> command.nowEpochMs
                 }
         }
         val occurredAt = when (command) {
@@ -1568,6 +1764,13 @@ class IntentionFlowStore(
             is FlowCommand.MarkInterventionShown -> command.nowEpochMs
             is FlowCommand.DismissIntervention -> command.nowEpochMs
             is FlowCommand.UndoLastReversible -> command.nowEpochMs
+            is FlowCommand.SaveTypedFact -> command.nowEpochMs
+            is FlowCommand.CorrectTypedFact -> command.nowEpochMs
+            is FlowCommand.UpsertOpenQuestion -> command.nowEpochMs
+            is FlowCommand.AnswerOpenQuestion -> command.nowEpochMs
+            is FlowCommand.UpsertApproach -> command.nowEpochMs
+            is FlowCommand.SelectApproaches -> command.nowEpochMs
+            is FlowCommand.SetAdaptiveBuilderState -> command.nowEpochMs
         }
         val txn = FlowTransaction(
             id = txnId,
@@ -1912,7 +2115,10 @@ class IntentionFlowStore(
         val sessions: List<WireSession> = emptyList(),
         val sessionRuns: List<WireSessionRun> = emptyList(),
         val turns: List<WireTurn> = emptyList(),
-        val thoughtCaptures: List<WireThoughtCapture> = emptyList()
+        val thoughtCaptures: List<WireThoughtCapture> = emptyList(),
+        val openQuestions: List<WireOpenQuestion> = emptyList(),
+        val approaches: List<WireApproach> = emptyList(),
+        val adaptiveBuilderStates: List<WireAdaptiveBuilderState> = emptyList()
     )
 
     data class SessionTrashPayload(
@@ -1968,11 +2174,200 @@ class IntentionFlowStore(
         val id: String = "",
         val intentionId: String = "",
         val text: String = "",
-        val provenance: WireProvenance = WireProvenance()
+        val provenance: WireProvenance = WireProvenance(),
+        val key: String? = null,
+        val rawUtterance: String? = null,
+        val normalizedValue: String? = null,
+        val sourceTurnId: String? = null,
+        val timeZoneId: String? = null,
+        val validFromEpochMs: Long? = null,
+        val validUntilEpochMs: Long? = null,
+        val estimatedEpochMs: Long? = null,
+        val estimatedRangeStartEpochMs: Long? = null,
+        val estimatedRangeEndEpochMs: Long? = null,
+        val approximate: Boolean = false,
+        val confirmation: String = FactConfirmation.CONFIRMED.name,
+        val status: String = FactStatus.ACTIVE.name,
+        val supersedesFactId: String? = null,
+        val revision: Int = 1
     ) {
-        fun toDomain() = Fact(id, intentionId, text, provenance.toDomain())
+        fun toDomain() = Fact(
+            id = id,
+            intentionId = intentionId,
+            text = text,
+            provenance = provenance.toDomain(),
+            key = key,
+            rawUtterance = rawUtterance,
+            normalizedValue = normalizedValue,
+            sourceTurnId = sourceTurnId,
+            timeZoneId = timeZoneId,
+            validFromEpochMs = validFromEpochMs,
+            validUntilEpochMs = validUntilEpochMs,
+            estimatedEpochMs = estimatedEpochMs,
+            estimatedRangeStartEpochMs = estimatedRangeStartEpochMs,
+            estimatedRangeEndEpochMs = estimatedRangeEndEpochMs,
+            approximate = approximate,
+            confirmation = runCatching { FactConfirmation.valueOf(confirmation) }
+                .getOrDefault(FactConfirmation.CONFIRMED),
+            status = runCatching { FactStatus.valueOf(status) }.getOrDefault(FactStatus.ACTIVE),
+            supersedesFactId = supersedesFactId,
+            revision = revision
+        )
         companion object {
-            fun from(f: Fact) = WireFact(f.id, f.intentionId, f.text, WireProvenance.from(f.provenance))
+            fun from(f: Fact) = WireFact(
+                id = f.id,
+                intentionId = f.intentionId,
+                text = f.text,
+                provenance = WireProvenance.from(f.provenance),
+                key = f.key,
+                rawUtterance = f.rawUtterance,
+                normalizedValue = f.normalizedValue,
+                sourceTurnId = f.sourceTurnId,
+                timeZoneId = f.timeZoneId,
+                validFromEpochMs = f.validFromEpochMs,
+                validUntilEpochMs = f.validUntilEpochMs,
+                estimatedEpochMs = f.estimatedEpochMs,
+                estimatedRangeStartEpochMs = f.estimatedRangeStartEpochMs,
+                estimatedRangeEndEpochMs = f.estimatedRangeEndEpochMs,
+                approximate = f.approximate,
+                confirmation = f.confirmation.name,
+                status = f.status.name,
+                supersedesFactId = f.supersedesFactId,
+                revision = f.revision
+            )
+        }
+    }
+
+    data class WireOpenQuestion(
+        val id: String = "",
+        val intentionId: String = "",
+        val purpose: String = "",
+        val whyItMatters: String = "",
+        val blocksWhat: String = "",
+        val answerSchema: String = AnswerSchema.FREE_TEXT.name,
+        val optionIds: List<String> = emptyList(),
+        val state: String = OpenQuestionState.OPEN.name,
+        val priority: Int = 0,
+        val askedAtEpochMs: Long? = null,
+        val answeredAtEpochMs: Long? = null,
+        val sourceTurnId: String? = null,
+        val lastAskedEpochMs: Long? = null
+    ) {
+        fun toDomain() = OpenQuestion(
+            id = id,
+            intentionId = intentionId,
+            purpose = purpose,
+            whyItMatters = whyItMatters,
+            blocksWhat = blocksWhat,
+            answerSchema = runCatching { AnswerSchema.valueOf(answerSchema) }
+                .getOrDefault(AnswerSchema.FREE_TEXT),
+            optionIds = optionIds,
+            state = runCatching { OpenQuestionState.valueOf(state) }
+                .getOrDefault(OpenQuestionState.OPEN),
+            priority = priority,
+            askedAtEpochMs = askedAtEpochMs,
+            answeredAtEpochMs = answeredAtEpochMs,
+            sourceTurnId = sourceTurnId,
+            lastAskedEpochMs = lastAskedEpochMs
+        )
+        companion object {
+            fun from(q: OpenQuestion) = WireOpenQuestion(
+                id = q.id,
+                intentionId = q.intentionId,
+                purpose = q.purpose,
+                whyItMatters = q.whyItMatters,
+                blocksWhat = q.blocksWhat,
+                answerSchema = q.answerSchema.name,
+                optionIds = q.optionIds,
+                state = q.state.name,
+                priority = q.priority,
+                askedAtEpochMs = q.askedAtEpochMs,
+                answeredAtEpochMs = q.answeredAtEpochMs,
+                sourceTurnId = q.sourceTurnId,
+                lastAskedEpochMs = q.lastAskedEpochMs
+            )
+        }
+    }
+
+    data class WireApproach(
+        val id: String = "",
+        val intentionId: String = "",
+        val title: String = "",
+        val summary: String = "",
+        val status: String = ApproachStatus.CANDIDATE.name,
+        val actor: String = ApproachActor.INTENT.name,
+        val packageName: String? = null,
+        val capabilityNote: String = "",
+        val sourceTurnId: String? = null,
+        val selectedAtEpochMs: Long? = null
+    ) {
+        fun toDomain() = Approach(
+            id = id,
+            intentionId = intentionId,
+            title = title,
+            summary = summary,
+            status = runCatching { ApproachStatus.valueOf(status) }
+                .getOrDefault(ApproachStatus.CANDIDATE),
+            actor = runCatching { ApproachActor.valueOf(actor) }
+                .getOrDefault(ApproachActor.INTENT),
+            packageName = packageName,
+            capabilityNote = capabilityNote,
+            sourceTurnId = sourceTurnId,
+            selectedAtEpochMs = selectedAtEpochMs
+        )
+        companion object {
+            fun from(a: Approach) = WireApproach(
+                id = a.id,
+                intentionId = a.intentionId,
+                title = a.title,
+                summary = a.summary,
+                status = a.status.name,
+                actor = a.actor.name,
+                packageName = a.packageName,
+                capabilityNote = a.capabilityNote,
+                sourceTurnId = a.sourceTurnId,
+                selectedAtEpochMs = a.selectedAtEpochMs
+            )
+        }
+    }
+
+    data class WireAdaptiveBuilderState(
+        val intentionId: String = "",
+        val revision: Long = 0L,
+        val typeFacets: List<String> = emptyList(),
+        val currentQuestionId: String? = null,
+        val pendingProposalId: String? = null,
+        val conversationCursorTurnId: String? = null,
+        val lastAnsweredTurnId: String? = null,
+        val lifecycleHint: String = "discovery",
+        val policyVersion: String = AdaptiveBuilderState.POLICY_VERSION,
+        val updatedAtEpochMs: Long = 0L
+    ) {
+        fun toDomain() = AdaptiveBuilderState(
+            intentionId = intentionId,
+            revision = revision,
+            typeFacets = typeFacets,
+            currentQuestionId = currentQuestionId,
+            pendingProposalId = pendingProposalId,
+            conversationCursorTurnId = conversationCursorTurnId,
+            lastAnsweredTurnId = lastAnsweredTurnId,
+            lifecycleHint = lifecycleHint,
+            policyVersion = policyVersion,
+            updatedAtEpochMs = updatedAtEpochMs
+        )
+        companion object {
+            fun from(s: AdaptiveBuilderState) = WireAdaptiveBuilderState(
+                intentionId = s.intentionId,
+                revision = s.revision,
+                typeFacets = s.typeFacets,
+                currentQuestionId = s.currentQuestionId,
+                pendingProposalId = s.pendingProposalId,
+                conversationCursorTurnId = s.conversationCursorTurnId,
+                lastAnsweredTurnId = s.lastAnsweredTurnId,
+                lifecycleHint = s.lifecycleHint,
+                policyVersion = s.policyVersion,
+                updatedAtEpochMs = s.updatedAtEpochMs
+            )
         }
     }
 
@@ -2710,6 +3105,9 @@ class IntentionFlowStore(
         val builderDraft: WireBuilderDraft = WireBuilderDraft(),
         val triage: WireTriageState = WireTriageState(),
         val errandTodos: List<WireErrandTodo> = emptyList(),
+        val openQuestions: List<WireOpenQuestion> = emptyList(),
+        val approaches: List<WireApproach> = emptyList(),
+        val adaptiveBuilderStates: List<WireAdaptiveBuilderState> = emptyList(),
         val activeIntentionId: String? = null,
         val dayCycle: WireDayCycle = WireDayCycle(),
         val transactions: List<WireTransaction> = emptyList(),
@@ -2738,6 +3136,9 @@ class IntentionFlowStore(
             builderDraft = builderDraft.toDomain(),
             triage = triage.toDomain(),
             errandTodos = errandTodos.map { it.toDomain() },
+            openQuestions = openQuestions.map { it.toDomain() },
+            approaches = approaches.map { it.toDomain() },
+            adaptiveBuilderStates = adaptiveBuilderStates.map { it.toDomain() },
             activeIntentionId = activeIntentionId,
             dayCycle = dayCycle.toDomain(),
             transactions = transactions.map { it.toDomain() },
@@ -2768,6 +3169,9 @@ class IntentionFlowStore(
                 builderDraft = WireBuilderDraft.from(s.builderDraft),
                 triage = WireTriageState.from(s.triage),
                 errandTodos = s.errandTodos.map(WireErrandTodo::from),
+                openQuestions = s.openQuestions.map(WireOpenQuestion::from),
+                approaches = s.approaches.map(WireApproach::from),
+                adaptiveBuilderStates = s.adaptiveBuilderStates.map(WireAdaptiveBuilderState::from),
                 activeIntentionId = s.activeIntentionId,
                 dayCycle = WireDayCycle.from(s.dayCycle),
                 transactions = s.transactions.map(WireTransaction::from),

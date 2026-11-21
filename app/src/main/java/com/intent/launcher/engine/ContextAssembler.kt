@@ -44,11 +44,40 @@ object ContextAssembler {
         sb.appendLine()
         sb.appendLine("## SAID facts (capped $MAX_FACTS)")
         val facts = snapshot.facts
-            .filter { it.intentionId == intentionId && it.provenance.kind == ProvenanceKind.SAID }
+            .filter {
+                it.intentionId == intentionId &&
+                    it.provenance.kind == ProvenanceKind.SAID &&
+                    it.status == com.intent.launcher.domain.FactStatus.ACTIVE
+            }
             .sortedByDescending { it.provenance.learnedAtEpochMs }
             .take(MAX_FACTS)
         if (facts.isEmpty()) sb.appendLine("(none)")
-        else facts.forEach { sb.appendLine("- [${it.id}] ${it.text}") }
+        else facts.forEach { fact ->
+            val key = fact.key?.let { " key=$it" }.orEmpty()
+            sb.appendLine("- [${fact.id}]$key ${fact.text}")
+        }
+        val openQs = snapshot.openQuestions
+            .filter {
+                it.intentionId == intentionId &&
+                    it.state != com.intent.launcher.domain.OpenQuestionState.ANSWERED
+            }
+            .sortedByDescending { it.priority }
+            .take(5)
+        if (openQs.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("## Open questions (adaptive builder)")
+            openQs.forEach { q ->
+                sb.appendLine("- [${q.id}] ${q.purpose}: ${q.whyItMatters}")
+            }
+        }
+        val approaches = snapshot.approaches.filter { it.intentionId == intentionId }
+        if (approaches.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("## Approaches")
+            approaches.take(8).forEach { a ->
+                sb.appendLine("- [${a.id}] ${a.status}: ${a.title}")
+            }
+        }
         sb.appendLine()
         sb.appendLine("## Pending proposals (capped $MAX_PROPOSALS)")
         val proposals = snapshot.proposals
