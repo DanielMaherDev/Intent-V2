@@ -42,7 +42,7 @@ fun ThoughtCaptureDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Saved as raw text (SAID) — no summary. Classify later.",
+                    text = "Saved as your words — no summary. Classify later.",
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Muted
                 )

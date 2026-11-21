@@ -803,16 +803,17 @@ class IntentionFlowStore(
             is FlowCommand.StartBuilderDraft -> {
                 val text = command.freeText.trim()
                 if (text.isEmpty()) return migrated
+                val auto = command.autoApplyShape
                 migrated.copy(
                     builderDraft = BuilderDraft(
                         active = true,
                         freeText = text,
                         suggestedShapeTag = command.suggestedShapeTag,
-                        shapeTag = null,
+                        shapeTag = if (auto) command.suggestedShapeTag else null,
                         title = command.title,
                         statement = command.statement,
                         factAnswers = emptyMap(),
-                        phase = BuilderPhase.PICK_SHAPE,
+                        phase = if (auto) BuilderPhase.MISSING_FACTS else BuilderPhase.PICK_SHAPE,
                         honestyNote = command.honestyNote
                     )
                 )

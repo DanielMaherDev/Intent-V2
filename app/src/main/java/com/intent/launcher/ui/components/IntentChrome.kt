@@ -438,12 +438,12 @@ fun IntentQuietButton(
     }
 }
 
-enum class GlyphTone { Accent, Success }
+enum class GlyphTone { Accent, Success, Neutral }
 
 @Composable
 fun LineRow(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     onClick: (() -> Unit)? = null,
     showArrow: Boolean = true,
     glyph: String? = null,
@@ -454,10 +454,12 @@ fun LineRow(
     val bg = when (glyphTone) {
         GlyphTone.Accent -> IntentColors.AccentSoft
         GlyphTone.Success -> IntentColors.SuccessSoft
+        GlyphTone.Neutral -> IntentColors.Paper
     }
     val fg = when (glyphTone) {
         GlyphTone.Accent -> IntentColors.AccentDark
         GlyphTone.Success -> IntentColors.Success
+        GlyphTone.Neutral -> IntentColors.Muted
     }
     Row(
         modifier = modifier
@@ -490,7 +492,7 @@ fun LineRow(
                 fontWeight = FontWeight.SemiBold,
                 color = IntentColors.Ink
             )
-            Text(
+            if (!subtitle.isNullOrBlank()) Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted

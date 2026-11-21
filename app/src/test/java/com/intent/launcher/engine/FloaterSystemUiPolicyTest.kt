@@ -93,7 +93,7 @@ class FloaterSystemUiPolicyTest {
     @Test
     fun preferredTop_clampedBelowStatusBar() {
         val insets = FloaterSystemUiPolicy.Insets(statusBar = 400)
-        val preferred = FloaterSystemUiPolicy.preferredTopPx(density) // 120dp → 300px
+        val preferred = FloaterSystemUiPolicy.preferredTopPx(density) // 168dp → 420px
         assertTrue(preferred < 400)
         val p = FloaterSystemUiPolicy.place(screen, insets)
         assertTrue(p.visible)

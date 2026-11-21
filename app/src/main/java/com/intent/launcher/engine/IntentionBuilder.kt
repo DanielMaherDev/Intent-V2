@@ -7,17 +7,25 @@ import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
- * Guided intention builder — free text → heuristic shape → missing-fact prompts → confirm.
- * All durable writes go through [FlowCommand]; facts are SAID only on commit.
- * No auto-commit of INFERRED hypotheses.
+ * Guided intention builder — free text → agent shape classification →
+ * missing-fact prompts → confirm.
+ * Shape is chosen by the agent from the description; the user is not forced
+ * to pick Language / Marathon / Business / Other. Optional correction stays
+ * available via [setShape]. All durable writes go through [FlowCommand];
+ * facts are stored only on commit.
  */
 object IntentionBuilder {
 
-    const val HONESTY = "Heuristic shape suggestion — no live LLM."
+    /** Internal honesty for logs / drafts — not shown as a user banner. */
+    const val HONESTY = "Shape chosen from your description."
 
     data class Prompt(
         val id: String,
-        val question: String
+        val question: String,
+        /** When set, the UI shows a NumberWheel instead of free text. */
+        val quantityChoices: List<Int>? = null,
+        val quantityUnitLabel: String? = null,
+        val quantitySummaryTemplate: String = "{value} {unit}"
     )
 
     data class StartResult(
@@ -39,6 +47,9 @@ object IntentionBuilder {
         }
     }
 
+    fun shapeDisplayLabel(shapeTag: String): String =
+        shapeChoices().firstOrNull { it.first == shapeTag }?.second ?: "Something else"
+
     fun titleFrom(text: String, shapeTag: String): String {
         val trimmed = text.trim().replace('\n', ' ')
         if (trimmed.length <= 48) return trimmed.ifBlank { defaultTitle(shapeTag) }
@@ -56,12 +67,27 @@ object IntentionBuilder {
     fun missingFactPrompts(shapeTag: String): List<Prompt> =
         when (shapeTag) {
             "language" -> listOf(
-                Prompt("current_practice", "What kind of practice matters most right now?"),
-                Prompt("existing_method", "Do you already have a tutor, class, or app?")
+                Prompt(
+                    id = "practice_minutes",
+                    question = "How often can you practise?",
+                    quantityChoices = PracticeMinuteChoices.VALUES,
+                    quantityUnitLabel = PracticeMinuteChoices.UNIT,
+                    quantitySummaryTemplate = "{value} {unit}"
+                ),
+                Prompt(
+                    id = "existing_method",
+                    question = "Do you already have a tutor, class, or app?"
+                )
             )
             "marathon" -> listOf(
                 Prompt("focus_area", "What part of prep matters most right now?"),
-                Prompt("available_time", "How much time can you train in a typical week?")
+                Prompt(
+                    id = "available_time",
+                    question = "How much time can you train in a typical week?",
+                    quantityChoices = listOf(30, 45, 60, 90, 120, 180),
+                    quantityUnitLabel = "minutes per week",
+                    quantitySummaryTemplate = "{value} {unit}"
+                )
             )
             "business" -> listOf(
                 Prompt("learn_next", "What would help you learn what to do next?"),
@@ -76,6 +102,23 @@ object IntentionBuilder {
     fun nextPrompt(draft: BuilderDraft): Prompt? {
         val shape = draft.shapeTag ?: draft.suggestedShapeTag
         return missingFactPrompts(shape).firstOrNull { it.id !in draft.factAnswers }
+    }
+
+    fun progressStep(draft: BuilderDraft): Pair<Int, Int> {
+        if (!draft.active || draft.phase == BuilderPhase.ENTER_TEXT) return 0 to 3
+        val total = 3
+        return when (draft.phase) {
+            BuilderPhase.ENTER_TEXT -> 0 to total
+            BuilderPhase.PICK_SHAPE -> 1 to total
+            BuilderPhase.MISSING_FACTS -> {
+                val shape = draft.shapeTag ?: draft.suggestedShapeTag
+                val prompts = missingFactPrompts(shape)
+                val answered = draft.factAnswers.size.coerceAtMost(prompts.size)
+                // Step 1 = description done; steps 2..n = prompts; last = confirm
+                (1 + answered).coerceAtMost(total - 1) to total
+            }
+            BuilderPhase.CONFIRM -> total to total
+        }
     }
 
     fun start(
@@ -105,14 +148,17 @@ object IntentionBuilder {
                 title = title,
                 statement = trimmed,
                 nowEpochMs = nowEpochMs,
-                honestyNote = HONESTY
+                honestyNote = HONESTY,
+                // Agent auto-classifies — skip forced shape pick.
+                autoApplyShape = true
             )
         )
         val draft = store.snapshot().builderDraft
+        val label = shapeDisplayLabel(shape)
         return StartResult(
             ok = draft.active,
             draft = draft,
-            note = "$HONESTY Suggested shape: $shape."
+            note = "We’ve treated this as a ${label.lowercase()} intention."
         )
     }
 
@@ -185,6 +231,12 @@ object IntentionBuilder {
         "language" to "Language",
         "marathon" to "Marathon / race",
         "business" to "Business",
-        "other" to "Other"
+        "other" to "Something else"
     )
+}
+
+/** Shared minute ladder for builder / tracker quantity wheels. */
+private object PracticeMinuteChoices {
+    val VALUES: List<Int> = listOf(5, 10, 15, 20, 30, 45, 60)
+    const val UNIT = "minutes per day"
 }

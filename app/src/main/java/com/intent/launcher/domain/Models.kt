@@ -364,7 +364,7 @@ data class BuilderDraft(
     /** promptId → user answer (written as SAID facts only on commit). */
     val factAnswers: Map<String, String> = emptyMap(),
     val phase: BuilderPhase = BuilderPhase.ENTER_TEXT,
-    val honestyNote: String = "Heuristic shape suggestion — no live LLM."
+    val honestyNote: String = "Shape chosen from your description."
 )
 
 enum class TriageItemStatus {
@@ -825,7 +825,9 @@ sealed class FlowCommand {
         val title: String,
         val statement: String,
         val nowEpochMs: Long,
-        val honestyNote: String = "Heuristic shape suggestion — no live LLM."
+        val honestyNote: String = "Shape chosen from your description.",
+        /** When true, agent applies [suggestedShapeTag] and skips forced PICK_SHAPE. */
+        val autoApplyShape: Boolean = true
     ) : FlowCommand()
 
     data class SetBuilderShape(

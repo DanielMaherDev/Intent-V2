@@ -42,11 +42,13 @@ import com.intent.launcher.ui.components.HeroTone
 import com.intent.launcher.ui.components.IntentQuietButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
 import com.intent.launcher.ui.components.Lede
+import com.intent.launcher.ui.components.NumberWheel
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 import java.util.TimeZone
+import androidx.compose.runtime.mutableIntStateOf
 
 @Composable
 fun TrackerScreen(
@@ -92,10 +94,13 @@ fun TrackerScreen(
             color = IntentColors.Ink
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Lede("Same intention store — manual rows are SAID. Corrections supersede; no fabricated streaks.")
+        Lede("Log what happened in plain language. Corrections replace earlier entries.")
         Spacer(modifier = Modifier.height(18.dp))
+        val plainHonesty = honestyNote
+            .replace(Regex("\\bSAID\\b"), "reported")
+            .replace(Regex("\\bOBSERVED\\b"), "recorded")
         Text(
-            text = honestyNote,
+            text = plainHonesty,
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )
@@ -130,13 +135,7 @@ fun TrackerScreen(
                 color = IntentColors.Muted
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Field · ${TrackerFieldControls.typeLabel(module.fieldType)}" +
-                    (module.unit?.let { " · unit $it" } ?: ""),
-                style = MaterialTheme.typography.bodySmall,
-                color = IntentColors.Accent
-            )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(0.dp))
             Text(
                 text = "Saving for ${daySelection.label} · ${daySelection.localDate}",
                 style = MaterialTheme.typography.bodySmall,
@@ -193,27 +192,57 @@ private fun ModuleFieldEntry(
 ) {
     when (module.fieldType) {
         TrackerFieldType.NUMERIC -> {
-            NumericOrDurationEntry(
-                label = "Exact value",
-                unit = module.unit,
-                keyboardType = KeyboardType.Decimal,
-                suggested = module.suggestedValues,
-                format = { TrackerFieldControls.formatNumeric(it, module.unit) },
-                onSave = onSave
-            )
+            val choices = module.quantityChoices
+            val unitLabel = module.quantityUnitLabel ?: module.unit
+            if (choices != null && unitLabel != null) {
+                QuantityWheelEntry(
+                    choices = choices,
+                    unitLabel = unitLabel,
+                    suggested = module.suggestedValues,
+                    format = { TrackerFieldControls.formatNumeric(it.toString(), module.unit) },
+                    onSave = onSave
+                )
+            } else {
+                NumericOrDurationEntry(
+                    label = "Exact value",
+                    unit = module.unit,
+                    keyboardType = KeyboardType.Decimal,
+                    suggested = module.suggestedValues,
+                    format = { TrackerFieldControls.formatNumeric(it, module.unit) },
+                    onSave = onSave
+                )
+            }
         }
         TrackerFieldType.DURATION -> {
-            NumericOrDurationEntry(
-                label = "Minutes",
-                unit = module.unit ?: "min",
-                keyboardType = KeyboardType.Number,
-                suggested = module.suggestedValues,
-                format = { raw ->
-                    TrackerFieldControls.formatDurationMinutes(raw)
-                        ?: TrackerFieldControls.formatNumeric(raw, module.unit ?: "min")
-                },
-                onSave = onSave
-            )
+            val choices = module.quantityChoices
+            val unitLabel = module.quantityUnitLabel ?: module.unit ?: "min"
+            if (choices != null) {
+                QuantityWheelEntry(
+                    choices = choices,
+                    unitLabel = unitLabel,
+                    suggested = module.suggestedValues,
+                    format = { mins ->
+                        TrackerFieldControls.formatDurationMinutes(mins.toString())
+                            ?: TrackerFieldControls.formatNumeric(
+                                mins.toString(),
+                                module.unit ?: "min"
+                            )
+                    },
+                    onSave = onSave
+                )
+            } else {
+                NumericOrDurationEntry(
+                    label = "Minutes",
+                    unit = module.unit ?: "min",
+                    keyboardType = KeyboardType.Number,
+                    suggested = module.suggestedValues,
+                    format = { raw ->
+                        TrackerFieldControls.formatDurationMinutes(raw)
+                            ?: TrackerFieldControls.formatNumeric(raw, module.unit ?: "min")
+                    },
+                    onSave = onSave
+                )
+            }
         }
         TrackerFieldType.YES_NO -> {
             ChoiceRow(
@@ -242,8 +271,8 @@ private fun ModuleFieldEntry(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "Uses the entry date above (SAID). Save records that day — " +
-                        "not an OBSERVED adapter clock.",
+                    text = "Uses the entry date above. Save records that day — " +
+                        "not an automatic device clock.",
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Muted
                 )
@@ -265,6 +294,46 @@ private fun ModuleFieldEntry(
                 choices = module.suggestedValues,
                 onSave = onSave
             )
+        }
+    }
+}
+
+@Composable
+private fun QuantityWheelEntry(
+    choices: List<Int>,
+    unitLabel: String,
+    suggested: List<String>,
+    format: (Int) -> String?,
+    onSave: (String) -> Unit
+) {
+    var selected by remember(choices) {
+        mutableIntStateOf(
+            choices.firstOrNull { it == 20 } ?: choices.getOrElse(choices.size / 2) { choices.first() }
+        )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        NumberWheel(
+            values = choices,
+            selected = selected,
+            onSelectedChange = { selected = it },
+            unitLabel = unitLabel,
+            summaryTemplate = "{value} {unit}"
+        )
+        val preview = format(selected)
+        IntentSecondaryButton(
+            text = if (preview != null) "Save $preview" else "Save $selected $unitLabel",
+            onClick = {
+                val value = preview ?: "$selected $unitLabel"
+                onSave(value)
+            }
+        )
+        if (suggested.isNotEmpty()) {
+            Text(
+                text = "Shortcuts",
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            ChoiceRow(choices = suggested, onPick = onSave)
         }
     }
 }
@@ -507,7 +576,7 @@ private fun TrackerEntryRow(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "Corrected value for ${daySelection.label} — marks this row CORRECTED " +
-                    "and inserts a new ACTIVE SAID row (source · user_correction).",
+                    "and inserts a new active correction row.",
                 style = MaterialTheme.typography.bodySmall,
                 color = IntentColors.Muted
             )
@@ -525,7 +594,7 @@ private fun TrackerEntryRow(
 
 private fun provenanceChip(kind: ProvenanceKind): String =
     when (kind) {
-        ProvenanceKind.SAID -> "SAID"
-        ProvenanceKind.OBSERVED -> "OBSERVED"
+        ProvenanceKind.SAID -> "Reported"
+        ProvenanceKind.OBSERVED -> "Recorded"
         ProvenanceKind.INFERRED -> "INFERRED"
     }
