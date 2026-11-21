@@ -93,7 +93,7 @@ fun ConversationScreen(
     conversationEyebrow: String = "A conversation about your goal",
     conversationHeadline: String = "Let's find a way that fits.",
     /** Honest Discuss source: local heuristics vs model suggestion. */
-    discussSourceLabel: String = "Local heuristics",
+    discussSourceLabel: String = "On-device replies",
     discussHonestyNote: String? = null,
     /** SAID intention statement shown as find-a-way framing when no user turns yet. */
     intentionStatement: String = "",

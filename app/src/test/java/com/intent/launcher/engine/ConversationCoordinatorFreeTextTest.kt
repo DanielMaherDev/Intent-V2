@@ -56,7 +56,7 @@ class ConversationCoordinatorFreeTextTest {
         assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
         val agent = store.snapshot().turns.last { it.role == "agent" }
         assertTrue(agent.text.contains("local heuristics", ignoreCase = true))
-        assertFalse(agent.text.contains("Model suggestion"))
+        assertFalse(agent.text.contains("Live assistant"))
     }
 
     @Test
@@ -133,7 +133,7 @@ class ConversationCoordinatorFreeTextTest {
         assertEquals(1, httpCalls)
         assertEquals(LiveLlmProbe.MODEL_SUGGESTION_LABEL, result.sourceLabel)
         val agent = store.snapshot().turns.last { it.role == "agent" }
-        assertTrue(agent.text.contains("Model suggestion"))
+        assertTrue(agent.text.contains("Live assistant"))
         assertTrue(agent.text.contains("not observed evidence"))
         assertTrue(agent.text.contains("Keep Thursday at six."))
         assertTrue(LiveLlmDiscussGuard.assertSafeModelSideEffect(false, false))

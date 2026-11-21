@@ -454,41 +454,73 @@ fun HomeScreen(
                 )
             }
 
-            QuietGrantStrip(
-                showGrantUsageAccess = showGrantUsageAccess &&
-                    nextAction.kind != NextActionKind.ACTIVE_SESSION,
-                onGrantUsageAccess = onGrantUsageAccess,
-                usageNote = if (
-                    showGrantUsageAccess && nextAction.kind != NextActionKind.ACTIVE_SESSION
-                ) {
-                    usageNote
-                } else {
-                    null
-                },
-                checkoutObservationNote = if (
-                    nextAction.kind != NextActionKind.ACTIVE_SESSION
-                ) {
-                    checkoutObservationNote
-                } else {
-                    null
-                },
-                onClearCheckoutNote = onClearCheckoutNote,
-                overlayNote = overlayNote,
-                showGrantOverlay = showGrantOverlay,
-                onGrantOverlay = onGrantOverlay,
-                homeRoleNote = homeRoleNote,
-                showSetAsHome = showSetAsHome,
-                onSetAsHome = onSetAsHome,
-                floatingCompanionLabel = floatingCompanionLabel,
-                floatingManualRouteNote = floatingManualRouteNote,
-                floatingInterventionProvenance = interventionPrompt?.provenanceLabel,
-                floaterTodayNote = floaterTodayNote,
-                onOpenFloaterDrawer = onOpenFloaterDrawer,
-                onCaptureThought = onCaptureThought,
-                thoughtCaptureNote = thoughtCaptureNote
-            )
+            // Empty home: keep permission / overlay essays out of the primary view.
+            val emptyHome = nextAction.kind == NextActionKind.NONE
+            if (!emptyHome) {
+                QuietGrantStrip(
+                    showGrantUsageAccess = showGrantUsageAccess &&
+                        nextAction.kind != NextActionKind.ACTIVE_SESSION,
+                    onGrantUsageAccess = onGrantUsageAccess,
+                    usageNote = if (
+                        showGrantUsageAccess && nextAction.kind != NextActionKind.ACTIVE_SESSION
+                    ) {
+                        usageNote
+                    } else {
+                        null
+                    },
+                    checkoutObservationNote = if (
+                        nextAction.kind != NextActionKind.ACTIVE_SESSION
+                    ) {
+                        checkoutObservationNote
+                    } else {
+                        null
+                    },
+                    onClearCheckoutNote = onClearCheckoutNote,
+                    overlayNote = overlayNote,
+                    showGrantOverlay = showGrantOverlay,
+                    onGrantOverlay = onGrantOverlay,
+                    homeRoleNote = homeRoleNote,
+                    showSetAsHome = showSetAsHome,
+                    onSetAsHome = onSetAsHome,
+                    floatingCompanionLabel = floatingCompanionLabel,
+                    floatingManualRouteNote = floatingManualRouteNote,
+                    floatingInterventionProvenance = interventionPrompt?.provenanceLabel,
+                    floaterTodayNote = floaterTodayNote,
+                    onOpenFloaterDrawer = onOpenFloaterDrawer,
+                    onCaptureThought = onCaptureThought,
+                    thoughtCaptureNote = thoughtCaptureNote
+                )
+            } else {
+                // Compact secondary actions only (redesign empty home).
+                Spacer(modifier = Modifier.height(18.dp))
+                if (onAddQuickTodo != null) {
+                    LineRow(
+                        title = "Add a quick to-do",
+                        subtitle = null,
+                        onClick = onAddQuickTodo,
+                        glyphIcon = Icons.Outlined.AddTask,
+                        glyphTone = GlyphTone.Neutral
+                    )
+                }
+                LineRow(
+                    title = "Capture a thought",
+                    subtitle = null,
+                    onClick = onCaptureThought,
+                    glyphIcon = Icons.Outlined.AutoAwesome,
+                    glyphTone = GlyphTone.Neutral
+                )
+                if (thoughtCaptureNote != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = thoughtCaptureNote,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = IntentColors.Success
+                    )
+                }
+            }
 
-            if (nextAction.kind != NextActionKind.ACTIVE_SESSION &&
+            if (!emptyHome &&
+                nextAction.kind != NextActionKind.ACTIVE_SESSION &&
                 sessionNotificationRows.isNotEmpty()
             ) {
                 Spacer(modifier = Modifier.height(14.dp))
@@ -512,13 +544,14 @@ fun HomeScreen(
                 }
             }
 
+            if (!emptyHome) {
             Spacer(modifier = Modifier.height(26.dp))
             SectionTitle("Errands")
             Spacer(modifier = Modifier.height(9.dp))
             if (onAddQuickTodo != null) {
                 LineRow(
                     title = "Add a quick to-do",
-                    subtitle = "Small errand with a reminder — not an intention",
+                    subtitle = "Small errand with a reminder",
                     onClick = onAddQuickTodo,
                     glyphIcon = Icons.Outlined.AddTask,
                     glyphTone = GlyphTone.Accent
@@ -615,7 +648,7 @@ fun HomeScreen(
             if (onExploreQuitSmoking != null) {
                 LineRow(
                     title = "Explore quitting smoking",
-                    subtitle = "CASE-05 — baseline + honest self-report",
+                    subtitle = "Baseline + honest self-report",
                     onClick = onExploreQuitSmoking,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
@@ -624,7 +657,7 @@ fun HomeScreen(
             if (onExploreAppUse != null) {
                 LineRow(
                     title = "Cut Instagram & Shorts time",
-                    subtitle = "CASE-06 — 45-min target; package ≠ Shorts identity",
+                    subtitle = "45-minute daily target — package time only",
                     onClick = onExploreAppUse,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
@@ -633,7 +666,7 @@ fun HomeScreen(
             if (onExploreEuWorkSpain != null) {
                 LineRow(
                     title = "Work legally in Spain",
-                    subtitle = "Research checklist — SAID facts, no invented law",
+                    subtitle = "Research checklist — your notes only",
                     onClick = onExploreEuWorkSpain,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
@@ -643,7 +676,7 @@ fun HomeScreen(
             if (onExploreChess != null) {
                 LineRow(
                     title = "Explore chess rating",
-                    subtitle = "CASE-07 — manual baseline + honest practice log",
+                    subtitle = "Manual baseline + honest practice log",
                     onClick = onExploreChess,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
@@ -654,7 +687,7 @@ fun HomeScreen(
             if (onStartBuilder != null) {
                 LineRow(
                     title = "Start a new intention",
-                    subtitle = "Guided builder — heuristic shape, SAID facts on confirm",
+                    subtitle = "Describe a goal — we’ll ask a few useful questions",
                     onClick = onStartBuilder,
                     glyphIcon = Icons.Outlined.AutoAwesome,
                     glyphTone = GlyphTone.Accent
@@ -685,6 +718,12 @@ fun HomeScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Warm
                 )
+            }
+            } // !emptyHome
+
+            if (emptyHome && onUndo != null && undoLabel != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                IntentQuietButton(text = undoLabel, onClick = onUndo)
             }
         }
 
@@ -781,7 +820,7 @@ private fun homeGreeting(
     )
     else -> HomeGreeting(
         headline = "Where would you like to begin?",
-        lede = nextAction.reason.ifBlank { "Your space is ready when you are." },
+        lede = "Nothing scheduled yet.",
         pills = emptyList()
     )
 }
@@ -859,10 +898,10 @@ private fun attentionStripMeta(
             }
         )
         else -> AttentionStripMeta(
-            smallLabel = "Your space",
+            smallLabel = "Ready when you are",
             heroTone = HeroTone.Accent,
-            title = nextAction.label.ifBlank { "Where would you like to begin?" },
-            support = support.ifBlank { "Your space is ready when you are." }
+            title = "Start a new intention",
+            support = "Nothing scheduled yet."
         )
     }
 }

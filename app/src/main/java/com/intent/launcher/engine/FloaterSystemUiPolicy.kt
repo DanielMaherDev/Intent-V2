@@ -29,7 +29,8 @@ object FloaterSystemUiPolicy {
 
     const val BUBBLE_SIZE_DP = 56
     const val PREFERRED_MARGIN_DP = 16
-    const val PREFERRED_TOP_DP = 120
+    /** Keep bubble below brand / headlines so it never covers primary content. */
+    const val PREFERRED_TOP_DP = 168
     /** Extra padding beyond system insets so the hit target is not on the edge. */
     const val CLEARANCE_DP = 8
     /** Floor for bottom clearance when nav/gesture insets are missing (3-button recents). */

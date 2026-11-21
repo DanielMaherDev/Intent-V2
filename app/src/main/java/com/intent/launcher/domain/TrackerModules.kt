@@ -3,9 +3,10 @@ package com.intent.launcher.domain
 /**
  * Shape-default tracker modules — configuration only, not a separate progress DB.
  * Entries live in [IntentionSnapshot.trackerEntries] with explicit provenance.
- * Cessation modules are SAID self-report only — never invented smoke-free streaks.
+ * Cessation modules are self-report only — never invented smoke-free streaks.
  *
  * [TrackerFieldType] drives honest entry controls (worksheet §11 seven types).
+ * Optional [quantityChoices] prefer a NumberWheel for duration/numeric quantities.
  */
 data class TrackerModuleDef(
     val id: String,
@@ -14,8 +15,11 @@ data class TrackerModuleDef(
     val fieldType: TrackerFieldType = TrackerFieldType.SINGLE_CHOICE,
     /** Optional unit for numeric / duration display (e.g. "km", "min", "cigarettes"). */
     val unit: String? = null,
-    /** Suggested one-tap values for manual SAID entry (not fabricated progress). */
-    val suggestedValues: List<String> = emptyList()
+    /** Suggested one-tap values for manual entry (not fabricated progress). */
+    val suggestedValues: List<String> = emptyList(),
+    /** When set, Tracker prefers a NumberWheel for this quantity. */
+    val quantityChoices: List<Int>? = null,
+    val quantityUnitLabel: String? = null
 )
 
 object TrackerModules {
@@ -29,7 +33,9 @@ object TrackerModules {
                     prompt = "How many minutes did you practise?",
                     fieldType = TrackerFieldType.DURATION,
                     unit = "min",
-                    suggestedValues = listOf("10 min", "20 min", "30 min")
+                    suggestedValues = listOf("10 min", "20 min", "30 min"),
+                    quantityChoices = listOf(5, 10, 15, 20, 30, 45, 60),
+                    quantityUnitLabel = "minutes"
                 ),
                 TrackerModuleDef(
                     id = "confidence_note",
@@ -53,7 +59,9 @@ object TrackerModules {
                     prompt = "Distance you completed (km)?",
                     fieldType = TrackerFieldType.NUMERIC,
                     unit = "km",
-                    suggestedValues = listOf("5 km", "10 km", "Rest day held")
+                    suggestedValues = listOf("5 km", "10 km", "Rest day held"),
+                    quantityChoices = listOf(3, 5, 8, 10, 15, 21),
+                    quantityUnitLabel = "km"
                 ),
                 TrackerModuleDef(
                     id = "body_check",
@@ -87,7 +95,7 @@ object TrackerModules {
                 TrackerModuleDef(
                     id = "cigarettes_today",
                     title = "Cigarettes today",
-                    prompt = "How many cigarettes today? (self-report only)",
+                    prompt = "How many cigarettes today?",
                     fieldType = TrackerFieldType.NUMERIC,
                     unit = "cigarettes",
                     suggestedValues = listOf(
@@ -95,7 +103,9 @@ object TrackerModules {
                         "Fewer than baseline (8)",
                         "About baseline (8)",
                         "More than usual"
-                    )
+                    ),
+                    quantityChoices = (0..20).toList(),
+                    quantityUnitLabel = "cigarettes"
                 ),
                 TrackerModuleDef(
                     id = "craving_log",
@@ -142,7 +152,9 @@ object TrackerModules {
                     prompt = "How many minutes did you practise?",
                     fieldType = TrackerFieldType.DURATION,
                     unit = "min",
-                    suggestedValues = listOf("15 min", "30 min", "45 min", "Skipped — noted honestly")
+                    suggestedValues = listOf("15 min", "30 min", "45 min", "Skipped — noted honestly"),
+                    quantityChoices = listOf(5, 10, 15, 20, 30, 45, 60),
+                    quantityUnitLabel = "minutes"
                 ),
                 TrackerModuleDef(
                     id = "game_review",
@@ -166,7 +178,9 @@ object TrackerModules {
                     prompt = "Minutes of deliberate effort?",
                     fieldType = TrackerFieldType.DURATION,
                     unit = "min",
-                    suggestedValues = listOf("15 min", "30 min", "60 min")
+                    suggestedValues = listOf("15 min", "30 min", "60 min"),
+                    quantityChoices = listOf(5, 10, 15, 20, 30, 45, 60),
+                    quantityUnitLabel = "minutes"
                 )
             )
         }

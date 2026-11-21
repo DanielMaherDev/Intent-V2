@@ -391,7 +391,13 @@ class LauncherViewModel(
             nowEpochMs = System.currentTimeMillis(),
             registry = capabilityRegistry
         )
-        builderTriageNote = if (ok) IntentionBuilder.HONESTY else "Could not set shape."
+        builderTriageNote = if (ok) {
+            "Updated — we’ve treated this as a " +
+                IntentionBuilder.shapeDisplayLabel(shapeTag).lowercase() +
+                " intention."
+        } else {
+            "Could not update that."
+        }
         refresh()
         return ok
     }
@@ -405,7 +411,7 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         builderTriageNote = if (ok) {
-            "Answer saved in draft — SAID fact written only when you confirm."
+            "Answer saved — confirmed when you finish."
         } else {
             "Could not save answer."
         }
@@ -420,7 +426,7 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         builderTriageNote = if (ok) {
-            "Intention created — facts stored with SAID provenance."
+            "Intention created."
         } else {
             "Could not confirm intention."
         }

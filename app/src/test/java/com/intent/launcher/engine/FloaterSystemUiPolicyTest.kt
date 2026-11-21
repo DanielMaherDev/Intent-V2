@@ -92,12 +92,15 @@ class FloaterSystemUiPolicyTest {
 
     @Test
     fun preferredTop_clampedBelowStatusBar() {
-        val insets = FloaterSystemUiPolicy.Insets(statusBar = 400)
-        val preferred = FloaterSystemUiPolicy.preferredTopPx(density) // 120dp → 300px
-        assertTrue(preferred < 400)
+        // 168dp @ 2.5 = 420px — keep bubble below brand/headlines.
+        val preferred = FloaterSystemUiPolicy.preferredTopPx(density)
+        assertEquals(420, preferred)
+        // Status bar taller than preferred → placement clamps above chrome.
+        val insets = FloaterSystemUiPolicy.Insets(statusBar = 500)
         val p = FloaterSystemUiPolicy.place(screen, insets)
         assertTrue(p.visible)
         assertTrue(p.yPx >= FloaterSystemUiPolicy.topClearancePx(insets, density))
+        assertTrue(p.yPx >= preferred || p.yPx >= 500)
     }
 
     @Test

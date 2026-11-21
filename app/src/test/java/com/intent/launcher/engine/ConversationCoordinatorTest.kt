@@ -124,7 +124,7 @@ class ConversationCoordinatorTest {
         )
         assertFalse(
             store.snapshot().turns.any {
-                it.role == "agent" && it.text.contains("Model suggestion")
+                it.role == "agent" && it.text.contains("Live assistant")
             }
         )
     }
@@ -179,7 +179,7 @@ class ConversationCoordinatorTest {
         assertEquals(1, httpCalls)
         assertEquals(LiveLlmProbe.MODEL_SUGGESTION_LABEL, result.sourceLabel)
         val agent = store.snapshot().turns.last { it.role == "agent" }
-        assertTrue(agent.text.contains("Model suggestion"))
+        assertTrue(agent.text.contains("Live assistant"))
         assertTrue(agent.text.contains("not observed evidence"))
         assertTrue(agent.text.contains("Spoken path reply."))
         assertFalse(agent.text.contains("Discuss is on local heuristics"))

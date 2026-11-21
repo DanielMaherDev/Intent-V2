@@ -13,8 +13,9 @@ import com.intent.launcher.capability.CapabilityStatus
  */
 object LiveLlmProbe {
 
-    const val LOCAL_HEURISTIC_LABEL = "Local heuristics"
-    const val MODEL_SUGGESTION_LABEL = "Model suggestion"
+    /** User-visible Discuss label when live assistant is off (plain language). */
+    const val LOCAL_HEURISTIC_LABEL = "On-device replies"
+    const val MODEL_SUGGESTION_LABEL = "Live assistant"
 
     data class Observation(
         val keyConfigured: Boolean,

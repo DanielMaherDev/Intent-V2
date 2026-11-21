@@ -33,15 +33,25 @@ class IntentionBuilderTriageTest {
     fun builder_freeTextToShapeToSaidFacts_onConfirm() {
         val start = IntentionBuilder.start(store, "I want to speak Spanish at work", now, registry)
         assertTrue(start.ok)
-        assertTrue(start.note.contains("Heuristic", ignoreCase = true))
+        assertTrue(start.note.contains("language", ignoreCase = true))
+        assertFalse(start.note.contains("Heuristic", ignoreCase = true))
         assertEquals("language", store.snapshot().builderDraft.suggestedShapeTag)
-        assertEquals(BuilderPhase.PICK_SHAPE, store.snapshot().builderDraft.phase)
-
-        assertTrue(IntentionBuilder.setShape(store, "language", now + 1, registry))
+        // Agent auto-classifies — no forced PICK_SHAPE step.
         assertEquals(BuilderPhase.MISSING_FACTS, store.snapshot().builderDraft.phase)
+        assertEquals("language", store.snapshot().builderDraft.shapeTag)
 
         val prompt1 = IntentionBuilder.nextPrompt(store.snapshot().builderDraft)!!
-        assertTrue(IntentionBuilder.answerPrompt(store, prompt1.id, "Everyday conversations", now + 2, registry))
+        assertEquals("practice_minutes", prompt1.id)
+        assertTrue(prompt1.quantityChoices != null)
+        assertTrue(
+            IntentionBuilder.answerPrompt(
+                store,
+                prompt1.id,
+                "20 minutes per day",
+                now + 2,
+                registry
+            )
+        )
         val prompt2 = IntentionBuilder.nextPrompt(store.snapshot().builderDraft)!!
         assertTrue(IntentionBuilder.answerPrompt(store, prompt2.id, "I have a tutor", now + 3, registry))
         assertEquals(BuilderPhase.CONFIRM, store.snapshot().builderDraft.phase)

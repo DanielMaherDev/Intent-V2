@@ -1,6 +1,8 @@
 package com.intent.launcher.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,10 +11,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,28 +29,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.intent.launcher.engine.AnimationBudgetGate
-import com.intent.launcher.engine.QuietModeProbe
 import com.intent.launcher.engine.ReducedMotionPreference
 import com.intent.launcher.engine.ThemePreference
 import com.intent.launcher.store.SnapshotExport
 import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentSecondaryButton
-import com.intent.launcher.ui.components.Lede
 import com.intent.launcher.ui.components.ScreenTopBar
 import com.intent.launcher.ui.components.SectionTitle
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings — appearance theme + reduced motion + quiet-mode honesty + snapshot
- * export/import + History + live OpenAI Discuss (key never shown in full).
- * Theme / motion prefs are SharedPreferences only — not store/SCHEMA.
- * Quiet mode never invents a silence Switch while NOT_SUPPORTED.
- * Reduced motion never overrides system Remove animations off.
+ * Settings — primary surface matches redesign: Appearance + optional live assistant.
+ * Longer quiet / motion / snapshot tools stay below the fold as secondary.
  */
 @Composable
 fun SettingsScreen(
@@ -67,7 +69,7 @@ fun SettingsScreen(
     onOpenDndSettings: () -> Unit = {},
     liveLlmKeyPresent: Boolean = false,
     liveLlmOptedIn: Boolean = false,
-    liveLlmStatusLabel: String = "Local heuristics",
+    liveLlmStatusLabel: String = "On-device replies",
     liveLlmHonestyNote: String = "",
     onLiveLlmOptInChange: (Boolean) -> Unit = {},
     onSaveRuntimeApiKey: (String) -> Unit = {},
@@ -76,6 +78,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     var draftKey by remember { mutableStateOf("") }
+    var showMore by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -89,183 +92,69 @@ fun SettingsScreen(
         Text(
             text = "Settings",
             style = MaterialTheme.typography.headlineLarge,
-            color = IntentColors.Ink
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Lede(
-            "Local device tools only. Connections inventory partners; " +
-                "snapshot export/import stays on this device. " +
-                "Live OpenAI stays off until you opt in with a key on this device."
+            color = IntentColors.Ink,
+            fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(22.dp))
 
         SectionTitle("Appearance")
         Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = "Follow system, lock light / dark, or use high-contrast tokens " +
-                "(stronger ink / paper / line contrast). High contrast still follows " +
-                "the device light/dark setting for which HC palette applies — " +
-                "not a fake checkbox over the standard theme.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        ThemePreference.entries.forEach { option ->
-            val selected = themePreference == option
-            val label = when (option) {
-                ThemePreference.SYSTEM -> "System (follow device)"
-                ThemePreference.LIGHT -> "Light"
-                ThemePreference.DARK -> "Dark"
-                ThemePreference.HIGH_CONTRAST -> "High contrast (follow device light/dark)"
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            if (selected) {
-                IntentPrimaryButton(
-                    text = label,
-                    onClick = { onThemePreferenceChange(option) }
-                )
-            } else {
-                IntentSecondaryButton(
-                    text = label,
-                    onClick = { onThemePreferenceChange(option) }
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        SmallLabel(
-            text = "Stored on device only · does not change schema or snapshot data",
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(22.dp))
-        Text(
-            text = "Motion",
-            style = MaterialTheme.typography.titleMedium,
-            color = IntentColors.Ink
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Follow the system Animator duration scale (Accessibility → Remove " +
-                "animations), or prefer reduced motion in INTENT. Prefer reduced " +
-                "collapses Agent-module card enters and Home↔Intention pager jumps. " +
-                "It cannot turn motion back on when the system already removed animations.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        ReducedMotionPreference.entries.forEach { option ->
-            val selected = reducedMotionPreference == option
-            val label = when (option) {
-                ReducedMotionPreference.FOLLOW_SYSTEM ->
-                    "Follow system (Animator duration scale)"
-                ReducedMotionPreference.PREFER_REDUCED ->
-                    "Prefer reduced motion"
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            if (selected) {
-                IntentPrimaryButton(
-                    text = label,
-                    onClick = { onReducedMotionPreferenceChange(option) }
-                )
-            } else {
-                IntentSecondaryButton(
-                    text = label,
-                    onClick = { onReducedMotionPreferenceChange(option) }
-                )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                .background(IntentColors.Card, RoundedCornerShape(16.dp))
+        ) {
+            ThemePreference.entries.forEachIndexed { index, option ->
+                val selected = themePreference == option
+                val label = when (option) {
+                    ThemePreference.SYSTEM -> "System"
+                    ThemePreference.LIGHT -> "Light"
+                    ThemePreference.DARK -> "Dark"
+                    ThemePreference.HIGH_CONTRAST -> "High contrast"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onThemePreferenceChange(option) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = IntentColors.Ink,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (selected) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = "Selected",
+                            tint = IntentColors.Ink
+                        )
+                    }
+                }
+                if (index < ThemePreference.entries.lastIndex) {
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .padding(horizontal = 16.dp)
+                            .background(IntentColors.Line)
+                    )
+                }
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        SmallLabel(
-            text = "Drives LocalReducedMotion · SharedPreferences only · SCHEMA unchanged",
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(22.dp))
-        SectionTitle(AnimationBudgetGate.SETTINGS_SECTION_TITLE)
-        Spacer(modifier = Modifier.height(10.dp))
-        SmallLabel(
-            text = animationBudgetStatusLabel,
-            color = IntentColors.AccentDark
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = animationBudgetHonestyNote.ifBlank {
-                AnimationBudgetGate.settingsCopy().body
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        SmallLabel(
-            text = "Honesty gate only · no fps SLO invented · SCHEMA unchanged",
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(28.dp))
 
-        SectionTitle(QuietModeProbe.SETTINGS_SECTION_TITLE)
-        Spacer(modifier = Modifier.height(10.dp))
-        SmallLabel(
-            text = quietModeStatusLabel,
-            color = IntentColors.AccentDark
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = quietModeHonestyNote.ifBlank {
-                "INTENT cannot silence all apps. quiet_mode stays not supported — " +
-                    "no Settings silence toggle. Open system Do Not Disturb for device quiet."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        // Honesty: no silence Switch while quiet_mode is NOT_SUPPORTED (showQuietSilenceToggle=false).
-        if (showQuietSilenceToggle) {
-            Spacer(modifier = Modifier.height(8.dp))
-            SmallLabel(
-                text = "Silence toggle reserved for a future confirmed quiet adapter — not this build.",
-                color = IntentColors.Warm
-            )
-        }
-        if (showOpenDndSettings) {
-            Spacer(modifier = Modifier.height(12.dp))
-            IntentSecondaryButton(
-                text = "Open system Do Not Disturb",
-                onClick = onOpenDndSettings
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            SmallLabel(
-                text = "System DND only — INTENT does not claim silence was applied.",
-                color = IntentColors.Muted
-            )
-        }
         Spacer(modifier = Modifier.height(28.dp))
-
-        SectionTitle("Local history")
+        SectionTitle("Conversation")
         Spacer(modifier = Modifier.height(10.dp))
-        IntentSecondaryButton(
-            text = "Open History",
-            onClick = onOpenHistory
-        )
-        Spacer(modifier = Modifier.height(28.dp))
-
-        SectionTitle("Live OpenAI Discuss")
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = liveLlmHonestyNote.ifBlank {
-                "No key configured. Discuss uses labeled local heuristics."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        SmallLabel(
-            text = "Status · $liveLlmStatusLabel · key ${if (liveLlmKeyPresent) "present" else "missing"}",
-            color = IntentColors.AccentDark
-        )
-        Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Use live OpenAI",
+                text = "Use live assistant",
                 style = MaterialTheme.typography.bodyLarge,
                 color = IntentColors.Ink,
                 modifier = Modifier.weight(1f)
@@ -277,22 +166,27 @@ fun SettingsScreen(
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
-        SmallLabel(
-            text = "No network call until this is on and a key is available. " +
-                "If a key was ever pasted in chat, rotate it at OpenAI and enter the new one here " +
-                "(or via gitignored local.properties) — never paste secrets into chat again.",
+        Text(
+            text = "Optional. Your key stays on this device.",
+            style = MaterialTheme.typography.bodyMedium,
             color = IntentColors.Muted
         )
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
             value = draftKey,
             onValueChange = { draftKey = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Runtime OpenAI API key") },
-            placeholder = { Text("Paste rotated key on this device only") },
+            placeholder = { Text("Enter key (stored locally)") },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            singleLine = true
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = IntentColors.Accent,
+                unfocusedBorderColor = IntentColors.Line,
+                unfocusedContainerColor = IntentColors.Card,
+                focusedContainerColor = IntentColors.Card
+            )
         )
         Spacer(modifier = Modifier.height(10.dp))
         IntentPrimaryButton(
@@ -302,63 +196,155 @@ fun SettingsScreen(
                 draftKey = ""
             }
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        IntentSecondaryButton(
-            text = "Clear on-device key",
-            onClick = onClearRuntimeApiKey
-        )
-
-        Spacer(modifier = Modifier.height(28.dp))
-        SectionTitle("App connections")
-        Spacer(modifier = Modifier.height(10.dp))
-        IntentSecondaryButton(
-            text = "Open connections",
-            onClick = onOpenConnections
-        )
-        Spacer(modifier = Modifier.height(28.dp))
-        SectionTitle("Local snapshot")
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = SnapshotExport.HONESTY_NOTE,
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        IntentPrimaryButton(
-            text = "Export snapshot",
-            onClick = onExportSnapshot
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = SnapshotExport.IMPORT_HONESTY_NOTE,
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        IntentSecondaryButton(
-            text = "Import snapshot",
-            onClick = onImportSnapshot
-        )
-        if (!snapshotImportNote.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            SmallLabel(
-                text = snapshotImportNote,
-                color = IntentColors.Warm
+        if (liveLlmKeyPresent) {
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentSecondaryButton(
+                text = "Clear on-device key",
+                onClick = onClearRuntimeApiKey
             )
         }
+
         Spacer(modifier = Modifier.height(28.dp))
-        SectionTitle("About")
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = "INTENT v$versionName · schema $schemaVersion",
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Ink
+        IntentQuietLink(
+            text = if (showMore) "Hide advanced" else "More options",
+            onClick = { showMore = !showMore }
         )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "Data stays on this device until you export it.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
+
+        if (showMore) {
+            Spacer(modifier = Modifier.height(22.dp))
+            SectionTitle("Motion")
+            Spacer(modifier = Modifier.height(10.dp))
+            ReducedMotionPreference.entries.forEach { option ->
+                val selected = reducedMotionPreference == option
+                val label = when (option) {
+                    ReducedMotionPreference.FOLLOW_SYSTEM -> "Follow system"
+                    ReducedMotionPreference.PREFER_REDUCED -> "Prefer reduced motion"
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                if (selected) {
+                    IntentPrimaryButton(
+                        text = label,
+                        onClick = { onReducedMotionPreferenceChange(option) }
+                    )
+                } else {
+                    IntentSecondaryButton(
+                        text = label,
+                        onClick = { onReducedMotionPreferenceChange(option) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+            SectionTitle("Do Not Disturb")
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "INTENT cannot silence other apps. Open system Do Not Disturb when you need device quiet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Muted
+            )
+            if (showOpenDndSettings) {
+                Spacer(modifier = Modifier.height(12.dp))
+                IntentSecondaryButton(
+                    text = "Open system Do Not Disturb",
+                    onClick = onOpenDndSettings
+                )
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+            SectionTitle("Local history")
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentSecondaryButton(
+                text = "Open History",
+                onClick = onOpenHistory
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+            SectionTitle("App connections")
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentSecondaryButton(
+                text = "Open connections",
+                onClick = onOpenConnections
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+            SectionTitle("Local snapshot")
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = SnapshotExport.HONESTY_NOTE,
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Muted
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            IntentPrimaryButton(
+                text = "Export snapshot",
+                onClick = onExportSnapshot
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentSecondaryButton(
+                text = "Import snapshot",
+                onClick = onImportSnapshot
+            )
+            if (!snapshotImportNote.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                SmallLabel(
+                    text = snapshotImportNote,
+                    color = IntentColors.Warm
+                )
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+            SectionTitle("About")
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "INTENT v$versionName · schema $schemaVersion",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Ink
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Data stays on this device until you export it.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Muted
+            )
+            if (animationBudgetHonestyNote.isNotBlank() || animationBudgetStatusLabel.isNotBlank()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                SmallLabel(text = animationBudgetStatusLabel, color = IntentColors.Muted)
+            }
+            if (quietModeHonestyNote.isNotBlank() || quietModeStatusLabel.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SmallLabel(text = quietModeStatusLabel, color = IntentColors.Muted)
+            }
+            if (showQuietSilenceToggle) {
+                Spacer(modifier = Modifier.height(6.dp))
+                SmallLabel(
+                    text = "Silence toggle is not available in this build.",
+                    color = IntentColors.Warm
+                )
+            }
+            if (liveLlmHonestyNote.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SmallLabel(text = liveLlmStatusLabel, color = IntentColors.Muted)
+            }
+        } else {
+            Spacer(modifier = Modifier.height(22.dp))
+            Text(
+                text = "INTENT v$versionName",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Muted
+            )
+        }
     }
+}
+
+@Composable
+private fun IntentQuietLink(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge,
+        color = IntentColors.AccentDark,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp)
+    )
 }
