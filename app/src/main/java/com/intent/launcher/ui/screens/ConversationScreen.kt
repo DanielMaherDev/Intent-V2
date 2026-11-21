@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,6 +60,8 @@ import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.engine.AgentModuleProjection
 import com.intent.launcher.engine.AssistantSpeech
+import com.intent.launcher.engine.BuilderAnswerCard
+import com.intent.launcher.engine.ChoiceOptions
 import com.intent.launcher.engine.CrossIntentionRelationCard
 import com.intent.launcher.engine.GatewayStatusCard
 import com.intent.launcher.engine.IntentionHierarchy
@@ -77,6 +80,8 @@ import com.intent.launcher.ui.components.AgentRelationCard
 import com.intent.launcher.ui.components.AgentReportPreviewCard
 import com.intent.launcher.ui.components.IntentBrandMark
 import com.intent.launcher.ui.components.IntentPill
+import com.intent.launcher.ui.components.IntentPrimaryButton
+import com.intent.launcher.ui.components.NumberWheel
 import com.intent.launcher.ui.components.PillTone
 import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
@@ -129,6 +134,8 @@ fun ConversationScreen(
     onOpenReports: () -> Unit = {},
     onEditRecorded: (entryId: String?) -> Unit = {},
     onUndoRecorded: (entryId: String?) -> Unit = {},
+    /** In-chat NumberWheel confirm — value + unit label. */
+    onBuilderQuantity: (value: Int, unitLabel: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val paperWash = Brush.verticalGradient(
@@ -190,23 +197,42 @@ fun ConversationScreen(
         null
     }
 
+    val builderBlocks = turns.asSequence()
+        .flatMap { it.blocks }
+        .filter { it.active && BuilderAnswerCard.isBuilderCard(it) }
+        .toList()
+    val builderQuantity = builderBlocks
+        .mapNotNull { block ->
+            (BuilderAnswerCard.decode(block) as? BuilderAnswerCard.Decoded.Quantity)?.let {
+                block to it
+            }
+        }
+        .lastOrNull()
     val choiceBlock = turns.asSequence()
         .flatMap { it.blocks }
         .firstOrNull { it.type == ResponseBlockType.CHOICE_SET && it.active }
     val questionBlock = turns.asSequence()
         .flatMap { it.blocks }
-        .firstOrNull { it.type == ResponseBlockType.QUESTION && it.active }
-    val oneQuestion = choiceBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
-        ?: questionBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
-        ?: if (!hasTypedAgentCard && chips.isNotEmpty() && nextCard == null && proposalCard == null) {
-            AgentModuleProjection.oneQuestionFromChips(
-                chips = chips,
-                headline = conversationHeadline,
-                body = "Your answer helps me suggest the right practice."
-            )
-        } else {
-            null
+        .firstOrNull {
+            it.type == ResponseBlockType.QUESTION &&
+                it.active &&
+                BuilderAnswerCard.decode(it) !is BuilderAnswerCard.Decoded.Quantity
         }
+    val oneQuestion = if (builderQuantity != null) {
+        null
+    } else {
+        choiceBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
+            ?: questionBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
+            ?: if (!hasTypedAgentCard && chips.isNotEmpty() && nextCard == null && proposalCard == null) {
+                AgentModuleProjection.oneQuestionFromChips(
+                    chips = chips,
+                    headline = conversationHeadline,
+                    body = "Your answer helps me suggest the right practice."
+                )
+            } else {
+                null
+            }
+    }
 
     val recordedCard = turns.asSequence()
         .flatMap { it.blocks }
@@ -238,6 +264,7 @@ fun ConversationScreen(
 
     val showLegacyFraming = turns.isEmpty() &&
         oneQuestion == null &&
+        builderQuantity == null &&
         nextCard == null &&
         proposalCard == null &&
         relationCard == null &&
@@ -248,6 +275,11 @@ fun ConversationScreen(
         progressCard == null
 
     var selectedQuestionIndex by remember { mutableStateOf<Int?>(null) }
+    var awaitingOtherText by remember { mutableStateOf(false) }
+    val quantitySpec = builderQuantity?.second
+    var wheelValue by remember(quantitySpec?.promptId, quantitySpec?.defaultValue) {
+        mutableIntStateOf(quantitySpec?.defaultValue ?: BuilderAnswerCard.DEFAULT_VALUE)
+    }
 
     Column(
         modifier = modifier
@@ -326,6 +358,61 @@ fun ConversationScreen(
                 }
             }
 
+            AgentModuleMotion(visible = builderQuantity != null) {
+                val qtyPair = builderQuantity
+                if (qtyPair != null) {
+                    val qtyBlock = qtyPair.first
+                    val qty = qtyPair.second
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, IntentColors.Line, RoundedCornerShape(22.dp))
+                            .background(IntentColors.Card, RoundedCornerShape(22.dp))
+                            .padding(18.dp)
+                    ) {
+                        Text(
+                            text = "ONE QUESTION",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = IntentColors.AccentDark,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.4.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = qtyBlock.title.ifBlank { qty.promptId },
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            lineHeight = 28.sp,
+                            color = IntentColors.Ink
+                        )
+                        if (qtyBlock.body.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = qtyBlock.body,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = IntentColors.Lede,
+                                lineHeight = 19.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        NumberWheel(
+                            values = qty.values,
+                            selected = wheelValue,
+                            onSelectedChange = { wheelValue = it },
+                            unitLabel = qty.unitLabel,
+                            summaryTemplate = qty.summaryTemplate
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        IntentPrimaryButton(
+                            text = "Continue",
+                            onClick = { onBuilderQuantity(wheelValue, qty.unitLabel) }
+                        )
+                    }
+                }
+            }
+
             AgentModuleMotion(visible = oneQuestion != null) {
                 if (oneQuestion != null) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -336,8 +423,15 @@ fun ConversationScreen(
                             selectedQuestionIndex = index
                             val label = oneQuestion.options.getOrNull(index)
                                 ?: return@AgentOneQuestionCard
+                            if (ChoiceOptions.isOther(label)) {
+                                awaitingOtherText = true
+                                return@AgentOneQuestionCard
+                            }
+                            awaitingOtherText = false
                             val blockId = oneQuestion.blockId
-                            if (blockId != null && choiceBlock != null) {
+                            val isBuilderChoice = choiceBlock != null &&
+                                BuilderAnswerCard.isBuilderCard(choiceBlock)
+                            if (blockId != null && choiceBlock != null && !isBuilderChoice) {
                                 onAmbiguousChoice(blockId, index)
                             } else {
                                 onChip(label)
@@ -345,9 +439,18 @@ fun ConversationScreen(
                         },
                         onFreeTextMic = if (voiceEnabled) onMicClick else null
                     )
+                    if (awaitingOtherText) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Type your own answer in the composer below.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IntentColors.Warm
+                        )
+                    }
                 }
             }
             if (oneQuestion == null &&
+                builderQuantity == null &&
                 chips.isNotEmpty() &&
                 nextCard == null &&
                 proposalCard == null &&
@@ -464,6 +567,8 @@ fun ConversationScreen(
                     color = IntentColors.Muted
                 )
             }
+            // Keep in-chat Continue / chips clear of the fixed composer.
+            Spacer(modifier = Modifier.height(28.dp))
         }
 
         ComposerBar(

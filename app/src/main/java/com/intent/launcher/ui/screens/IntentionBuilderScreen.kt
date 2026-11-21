@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intent.launcher.domain.BuilderDraft
 import com.intent.launcher.domain.BuilderPhase
+import com.intent.launcher.engine.ChoiceOptions
 import com.intent.launcher.engine.IntentionBuilder
 import com.intent.launcher.ui.components.IntentPrimaryButton
 import com.intent.launcher.ui.components.IntentQuietButton
@@ -61,6 +62,7 @@ fun IntentionBuilderScreen(
 ) {
     var freeText by remember { mutableStateOf(draft.freeText) }
     var answerText by remember { mutableStateOf("") }
+    var showOtherField by remember { mutableStateOf(false) }
     var showShapeCorrection by remember { mutableStateOf(false) }
     val prompt = IntentionBuilder.nextPrompt(draft)
     val (step, totalSteps) = IntentionBuilder.progressStep(draft)
@@ -195,6 +197,7 @@ fun IntentionBuilderScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         val choices = prompt.quantityChoices
+                        val chipOptions = prompt.choiceOptions
                         if (choices != null && prompt.quantityUnitLabel != null) {
                             NumberWheel(
                                 values = choices,
@@ -214,6 +217,46 @@ fun IntentionBuilderScreen(
                                     )
                                 }
                             )
+                        } else if (chipOptions != null) {
+                            val display = ChoiceOptions.withOther(chipOptions)
+                            display.forEach { label ->
+                                IntentSecondaryButton(
+                                    text = label,
+                                    onClick = {
+                                        if (ChoiceOptions.isOther(label)) {
+                                            showOtherField = true
+                                        } else {
+                                            showOtherField = false
+                                            onAnswerPrompt(prompt.id, label)
+                                            answerText = ""
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            if (showOtherField) {
+                                OutlinedTextField(
+                                    value = answerText,
+                                    onValueChange = { answerText = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 2,
+                                    placeholder = { Text("Type your own answer") },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = IntentColors.Accent,
+                                        unfocusedBorderColor = IntentColors.Line
+                                    )
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                IntentPrimaryButton(
+                                    text = "Continue",
+                                    onClick = {
+                                        onAnswerPrompt(prompt.id, answerText)
+                                        answerText = ""
+                                        showOtherField = false
+                                    }
+                                )
+                            }
                         } else {
                             OutlinedTextField(
                                 value = answerText,

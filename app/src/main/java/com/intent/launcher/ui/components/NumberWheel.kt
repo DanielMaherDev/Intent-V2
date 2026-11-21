@@ -190,9 +190,14 @@ private fun StepperButton(
     }
 }
 
-/** Common minute choices for practice / training quantity prompts. */
+/**
+ * Practice / duration minute wheel — every whole integer in range (F3),
+ * not sparse presets. Steppers remain secondary controls on [NumberWheel].
+ */
 object PracticeMinuteChoices {
-    val VALUES: List<Int> = listOf(5, 10, 15, 20, 30, 45, 60)
+    const val MIN = 1
+    const val MAX = 120
     const val DEFAULT = 20
     const val UNIT = "minutes per day"
+    val VALUES: List<Int> = (MIN..MAX).toList()
 }

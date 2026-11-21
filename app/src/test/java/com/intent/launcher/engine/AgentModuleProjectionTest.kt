@@ -104,9 +104,11 @@ class AgentModuleProjectionTest {
         )
         val card = AgentModuleProjection.oneQuestionFromBlock(block)
         assertNotNull(card)
-        assertEquals(3, card!!.options.size)
+        // Discovery CHOICE_SET prefers predefined options + Other (F4).
+        assertEquals(4, card!!.options.size)
+        assertTrue(card.options.any { it.equals("Other", ignoreCase = true) })
         assertEquals("ONE QUESTION", card.provenanceChip)
-        assertEquals("Tell me in your own words", card.freeTextHint)
+        assertTrue(card.freeTextHint.contains("Other", ignoreCase = true))
     }
 
     @Test

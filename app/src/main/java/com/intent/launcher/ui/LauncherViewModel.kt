@@ -66,6 +66,7 @@ import com.intent.launcher.engine.PhysicalConstraintChange
 import com.intent.launcher.engine.TrashRow
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
+import com.intent.launcher.engine.CreateIntentionChat
 import com.intent.launcher.engine.DailyCycle
 import com.intent.launcher.engine.DeferralPreview
 import com.intent.launcher.engine.DiscussFromHome
@@ -370,6 +371,21 @@ class LauncherViewModel(
         eveningTriageNote = result.confirmation
         refresh()
         return result.ok
+    }
+
+    /**
+     * Home **Start a new intention** — opens Conversation create session (F1),
+     * not the disconnected Builder questionnaire as the primary path.
+     */
+    fun beginCreateIntentionChat(): String? {
+        val result = CreateIntentionChat.begin(
+            store = store,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        builderTriageNote = result.note
+        refresh()
+        return result.navigateTo
     }
 
     fun startBuilder(freeText: String): Boolean {
@@ -1140,6 +1156,19 @@ class LauncherViewModel(
         ConversationCoordinator.chipsForIntention(activeIntention(), capabilityRegistry)
 
     fun onConversationChip(chip: String) {
+        if (CreateIntentionChat.isCreateSession(activeIntention()) ||
+            store.snapshot().builderDraft.active
+        ) {
+            val result = CreateIntentionChat.submitChoice(
+                store = store,
+                label = chip,
+                nowEpochMs = System.currentTimeMillis(),
+                registry = capabilityRegistry
+            )
+            voicePathNote = result.honestyNote
+            refresh()
+            return
+        }
         ConversationCoordinator.submitChip(
             store = store,
             intention = activeIntention(),
@@ -1148,6 +1177,19 @@ class LauncherViewModel(
             registry = capabilityRegistry
         )
         voicePathNote = null
+        refresh()
+    }
+
+    /** In-chat NumberWheel confirm during create / builder quantity prompts. */
+    fun onBuilderQuantity(value: Int, unitLabel: String) {
+        val result = CreateIntentionChat.submitQuantity(
+            store = store,
+            value = value,
+            unitLabel = unitLabel,
+            nowEpochMs = System.currentTimeMillis(),
+            registry = capabilityRegistry
+        )
+        voicePathNote = result.honestyNote
         refresh()
     }
 
@@ -1171,19 +1213,32 @@ class LauncherViewModel(
         freeTextBusy = true
         viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    ConversationCoordinator.submitFreeText(
-                        store = store,
-                        intention = activeIntention(),
-                        text = text,
-                        nowEpochMs = System.currentTimeMillis(),
-                        registry = capabilityRegistry,
-                        access = liveLlmAccess,
-                        client = openAiDiscussClient,
-                        availableChips = conversationChips()
-                    )
+                val createActive = CreateIntentionChat.isCreateSession(activeIntention()) ||
+                    store.snapshot().builderDraft.active
+                val honesty = withContext(Dispatchers.IO) {
+                    if (createActive) {
+                        CreateIntentionChat.submitUtterance(
+                            store = store,
+                            text = text,
+                            nowEpochMs = System.currentTimeMillis(),
+                            registry = capabilityRegistry,
+                            access = liveLlmAccess,
+                            client = openAiDiscussClient
+                        ).honestyNote
+                    } else {
+                        ConversationCoordinator.submitFreeText(
+                            store = store,
+                            intention = activeIntention(),
+                            text = text,
+                            nowEpochMs = System.currentTimeMillis(),
+                            registry = capabilityRegistry,
+                            access = liveLlmAccess,
+                            client = openAiDiscussClient,
+                            availableChips = conversationChips()
+                        ).honestyNote
+                    }
                 }
-                voicePathNote = result.honestyNote
+                voicePathNote = honesty
             } finally {
                 freeTextBusy = false
                 refresh()
