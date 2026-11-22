@@ -62,6 +62,8 @@ object AdaptiveBuilderEngine {
     const val KEY_HABIT_BASELINE = "habit_baseline"
     const val KEY_USAGE_MEASUREMENT = "usage_measurement"
     const val KEY_RATING_BASELINE = "rating_baseline"
+    /** OC6 — practice mix stays distinct from the rating goal / imported metric. */
+    const val KEY_PRACTICE_PREFERENCE = "practice_preference"
     const val KEY_LEASE_DEADLINE = "lease_deadline"
     const val KEY_HOUSING_REQUIREMENTS = "housing_requirements"
     const val KEY_NOTICE_STATUS = "notice_status"
@@ -882,8 +884,8 @@ object AdaptiveBuilderEngine {
     }
 
     /**
-     * OC6 — Chess.com / connected metric: ask baseline source honesty.
-     * Never invents a live rating, games, or lesson completion.
+     * OC6 — connected partner metric: verify baseline provenance, then practice mix.
+     * Never invents a live rating, games, or lesson completion; practice ≠ rating proof.
      */
     private fun connectedMetricDecision(context: BuilderContext): BuilderDecision? {
         if (context.confirmedFacts.none { it.key == KEY_RATING_BASELINE }) {
@@ -893,24 +895,38 @@ object AdaptiveBuilderEngine {
                 questionId = "q-rating-baseline-${context.intentionId}",
                 whyItMatters =
                     "Without a provider import, use a manual baseline. Do not invent a live " +
-                        "Chess.com rating from a stale or missing connection.",
+                        "partner rating from a stale or missing connection.",
                 answerSchema = AnswerSchema.SINGLE_CHOICE,
                 purpose = KEY_RATING_BASELINE,
                 blocksWhat = "practice_routine",
-                options = listOf(
-                    "Use manual baseline (e.g. 900)",
-                    "Refresh from connected provider",
-                    "Not connected yet"
-                ),
+                options = CreatePathSeedHonesty.RATING_BASELINE_OPTIONS,
                 priority = 85
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_PRACTICE_PREFERENCE } &&
+            !hasUnresolvedPurpose(context, KEY_PRACTICE_PREFERENCE)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-practice-preference-${context.intentionId}",
+                whyItMatters =
+                    "Practice stays distinct from the rating goal — a played game is not " +
+                        "proof that the imported or manual rating improved.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_PRACTICE_PREFERENCE,
+                blocksWhat = "practice_routine",
+                options = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS,
+                priority = 80
             )
         }
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason =
-                "Baseline method recorded. Practice stays distinct from rating — no invented " +
-                    "games, lesson completion, or live rating claimed.",
+                "Baseline and practice preference recorded. Rating chart uses imported or " +
+                    "user-entered values only — no invented games, lesson completion, or " +
+                    "live rating from a stale import.",
             resumeCue = "Continue discussion"
         )
     }

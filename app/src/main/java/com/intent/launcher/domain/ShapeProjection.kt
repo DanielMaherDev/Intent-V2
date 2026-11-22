@@ -162,6 +162,7 @@ object ShapeProjection {
 
     private fun defaultFacts(shapeTag: String?): List<String> =
         when (shapeTag) {
+            "language" -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
             "marathon" -> listOf("Goal · finish a marathon", "Timeframe · build base first")
             "business" -> listOf("Goal · explore a business idea", "Timeframe · stay in discovery")
             "move" -> listOf(
@@ -187,7 +188,12 @@ object ShapeProjection {
                 "Baseline · self-reported rapid rating",
                 "Partner sync · not supported"
             )
-            else -> listOf("Goal · use Spanish at work", "Timeframe · within a year")
+            // Never reuse language Spanish defaults for unknown / other shapes.
+            else -> listOf(
+                "Goal · still taking shape",
+                "Baseline · none recorded yet",
+                "Provenance · facts come from what you confirm"
+            )
         }
 
     private fun resourceLine(

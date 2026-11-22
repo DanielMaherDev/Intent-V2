@@ -8,6 +8,10 @@ package com.intent.launcher.engine
  * measure package foreground when usage access is granted; it cannot identify
  * Shorts/Reels. Never claim exact Shorts minutes.
  *
+ * OC6 — connected partner metric (e.g. Chess.com / Lichess rating toward a
+ * target): verify baseline from a real provider import or a manual SAID entry;
+ * keep practice distinct from rating proof; never invent a live rating or games.
+ *
  * Time-limited decisions (incl. OC9 job-offer / decide-whether / N-day deadline):
  * frame decide-by-date (help decide; do not auto-accept / assume yes; deadline matters).
  * Detection is generic — not title-hardcoded to “job offer”.
@@ -17,7 +21,12 @@ package com.intent.launcher.engine
  */
 object CreatePathSeedHonesty {
 
-    enum class Kind { USAGE_APP_TIME, TIME_LIMITED_DECISION, FINITE_MOVE_PROJECT }
+    enum class Kind {
+        USAGE_APP_TIME,
+        CONNECTED_METRIC,
+        TIME_LIMITED_DECISION,
+        FINITE_MOVE_PROJECT
+    }
 
     data class Honesty(
         val kind: Kind,
@@ -30,6 +39,9 @@ object CreatePathSeedHonesty {
     )
 
     const val PROMPT_USAGE_MEASUREMENT = "usage_measurement"
+    const val PROMPT_RATING_BASELINE = AdaptiveBuilderEngine.KEY_RATING_BASELINE
+    const val PROMPT_USAGE_ACCESS = "usage_access"
+    const val PROMPT_USAGE_INTERVENTION = "usage_intervention"
 
     const val USAGE_AGENT_NOTE =
         "With Android usage access, I can measure time spent in Instagram and YouTube " +
@@ -46,6 +58,13 @@ object CreatePathSeedHonesty {
     const val USAGE_INTERVENTION_QUESTION =
         "When you approach your limit, how should I approach you?"
 
+    const val CONNECTED_METRIC_AGENT_NOTE =
+        "I'll check whether a connected rating import exists before treating a number " +
+            "in your goal as the baseline. If nothing is imported (or the feed is stale), " +
+            "use a manual baseline — I will not invent a live partner rating, games, or " +
+            "lesson completion. Practice stays distinct from rating: a played game is not " +
+            "proof that your rating improved."
+
     const val DECISION_AGENT_NOTE =
         "I'll help you make a decision by a date — not assume a particular outcome " +
             "or auto-accept. The deadline matters. When exactly is the response due, " +
@@ -53,9 +72,6 @@ object CreatePathSeedHonesty {
 
     /** @deprecated Prefer [DECISION_AGENT_NOTE]; kept for older tests/string matches. */
     const val JOB_OFFER_AGENT_NOTE = DECISION_AGENT_NOTE
-
-    const val PROMPT_USAGE_ACCESS = "usage_access"
-    const val PROMPT_USAGE_INTERVENTION = "usage_intervention"
 
     const val FINITE_MOVE_AGENT_NOTE =
         "I'll make a project proposal with connected paths: confirm lease obligations, " +
@@ -83,6 +99,19 @@ object CreatePathSeedHonesty {
         "No interruption by default"
     )
 
+    val RATING_BASELINE_OPTIONS: List<String> = listOf(
+        "Use manual baseline (e.g. 900)",
+        "Refresh from connected provider",
+        "Not connected yet"
+    )
+
+    val PRACTICE_PREFERENCE_OPTIONS: List<String> = listOf(
+        "Playing games",
+        "Reviewing games",
+        "Studying",
+        "A combination"
+    )
+
     /**
      * True when [text] already states package-vs-Shorts measurement honesty
      * (not merely naming Instagram / YouTube Shorts as products).
@@ -108,14 +137,14 @@ object CreatePathSeedHonesty {
     fun liveProseStatesJobOfferHonesty(text: String): Boolean =
         liveProseHasDecisionHonesty(text)
 
-    /** Merge live model prose with required seed honesty — never drop on casual product mentions. */
-    fun mergeLiveProseWithSeedHonesty(formatted: String, honesty: Honesty): String {
-        val already = when (honesty.kind) {
-            Kind.USAGE_APP_TIME -> liveProseStatesUsageHonesty(formatted)
-            Kind.TIME_LIMITED_DECISION -> liveProseHasDecisionHonesty(formatted)
-            Kind.FINITE_MOVE_PROJECT -> liveProseStatesFiniteMoveHonesty(formatted)
-        }
-        return if (already) formatted else "$formatted\n\n${honesty.agentNote}"
+    fun liveProseStatesConnectedMetricHonesty(text: String): Boolean {
+        val t = text.lowercase()
+        val baseline =
+            t.contains("baseline") || t.contains("manual") || t.contains("import")
+        val noInvent =
+            t.contains("invent") || t.contains("stale") ||
+                t.contains("practice stays") || t.contains("not proof")
+        return baseline && noInvent
     }
 
     fun liveProseStatesFiniteMoveHonesty(text: String): Boolean {
@@ -126,6 +155,17 @@ object CreatePathSeedHonesty {
                 t.contains("won't invent") || t.contains("will not invent") ||
                 t.contains("secured") || t.contains("assume a property")
         return waiting && noInvent
+    }
+
+    /** Merge live model prose with required seed honesty — never drop on casual product mentions. */
+    fun mergeLiveProseWithSeedHonesty(formatted: String, honesty: Honesty): String {
+        val already = when (honesty.kind) {
+            Kind.USAGE_APP_TIME -> liveProseStatesUsageHonesty(formatted)
+            Kind.CONNECTED_METRIC -> liveProseStatesConnectedMetricHonesty(formatted)
+            Kind.TIME_LIMITED_DECISION -> liveProseHasDecisionHonesty(formatted)
+            Kind.FINITE_MOVE_PROJECT -> liveProseStatesFiniteMoveHonesty(formatted)
+        }
+        return if (already) formatted else "$formatted\n\n${honesty.agentNote}"
     }
 
     fun forDescription(text: String): Honesty? {
@@ -140,6 +180,16 @@ object CreatePathSeedHonesty {
                 firstChoicePromptId = PROMPT_USAGE_MEASUREMENT,
                 firstChoiceQuestion =
                     "How should we measure Instagram / YouTube time for this intention?"
+            )
+        }
+        if (looksLikeConnectedMetricSeed(trimmed)) {
+            return Honesty(
+                kind = Kind.CONNECTED_METRIC,
+                agentNote = CONNECTED_METRIC_AGENT_NOTE,
+                firstChoiceOptions = RATING_BASELINE_OPTIONS,
+                firstChoicePromptId = PROMPT_RATING_BASELINE,
+                firstChoiceQuestion =
+                    "How should we set the rating baseline for this intention?"
             )
         }
         if (looksLikeTimeLimitedDecisionSeed(trimmed)) {
@@ -171,6 +221,30 @@ object CreatePathSeedHonesty {
                 t.contains("per day")
         // Instagram/YouTube + Shorts/Reels alone is enough (OC5 seed names Shorts).
         return mentionsCapOrAppTime || t.contains("shorts") || t.contains("reels")
+    }
+
+    /**
+     * Generic connected-metric seeds: partner rating apps, or rating/elo/score
+     * with a numeric target range — not a single intention title hardcode.
+     */
+    fun looksLikeConnectedMetricSeed(text: String): Boolean {
+        val t = text.lowercase()
+        val partner = t.contains("chess.com") || t.contains("chesscom") ||
+            t.contains("lichess") || t.contains("chess")
+        val metricWord = t.contains("rating") || t.contains("elo") ||
+            t.contains("rapid") || t.contains("blitz") || t.contains("bullet")
+        val towardTarget = t.contains(" to ") || t.contains("→") ||
+            t.contains("toward") || t.contains("towards") ||
+            t.contains("from ") || t.contains("raise") || t.contains("reach")
+        val hasNumber = Regex("""\b\d{3,4}\b""").containsMatchIn(t)
+        if (partner && (metricWord || (towardTarget && hasNumber))) return true
+        if (metricWord && towardTarget && hasNumber &&
+            (t.contains("connected") || t.contains("import") || t.contains("sync") ||
+                t.contains("provider") || partner)
+        ) {
+            return true
+        }
+        return false
     }
 
     fun looksLikeTimeLimitedDecisionSeed(text: String): Boolean =

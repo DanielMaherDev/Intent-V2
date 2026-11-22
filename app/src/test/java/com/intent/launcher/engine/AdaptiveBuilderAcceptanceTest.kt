@@ -1457,7 +1457,7 @@ class AdaptiveBuilderAcceptanceTest {
         assertTrue(store.snapshot().sessions.none { it.intentionId == id })
     }
 
-    // —— OC6 Chess — manual/provider baseline honesty, no invented ratings ——
+    // —— OC6 Chess — manual/provider baseline + practice distinct, no invented ratings ——
     @Test
     fun oc6_chess_ratingBaselineAsk_thenPause_noInventedRating() {
         val id = AdaptiveBuilderFixtures.seedOtherCase(store, "chess", now)
@@ -1487,15 +1487,48 @@ class AdaptiveBuilderAcceptanceTest {
                 timeZone = tz
             ).accepted
         )
-        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+        val practiceAsk = AdaptiveBuilderEngine.suggestNextDecision(
             AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(practiceAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE,
+            (practiceAsk as BuilderDecision.Ask).purpose
+        )
+        assertTrue(
+            practiceAsk.whyItMatters.contains("distinct", ignoreCase = true) ||
+                practiceAsk.whyItMatters.contains("not proof", ignoreCase = true)
+        )
+        AdaptiveBuilderEngine.applyDecision(store, practiceAsk, now + 2, timeZone = tz)
+        val rev2 = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 3, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = practiceAsk.questionId,
+                    intentionId = id,
+                    normalizedValue = "A combination",
+                    rawValue = "A combination",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-practice",
+                    answeredAtEpochMs = now + 3,
+                    idempotencyKey = "idem-practice",
+                    expectedRevision = rev2
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 4, tz)!!, now + 4, tz
         )
         assertTrue(pause is BuilderDecision.Pause)
         assertTrue(
             (pause as BuilderDecision.Pause).reason.contains("invented", ignoreCase = true) ||
-                pause.reason.contains("live rating", ignoreCase = true)
+                pause.reason.contains("live rating", ignoreCase = true) ||
+                pause.reason.contains("stale", ignoreCase = true)
         )
-        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 5, timeZone = tz)
         val snap = store.snapshot()
         assertTrue(snap.proposals.none { it.intentionId == id })
         assertTrue(snap.sessions.none { it.intentionId == id })
