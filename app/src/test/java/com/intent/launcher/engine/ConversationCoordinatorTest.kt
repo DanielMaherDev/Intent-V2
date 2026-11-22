@@ -257,4 +257,22 @@ class ConversationCoordinatorTest {
         )
         assertNull(ConversationCoordinator.matchChip("hello world", chips))
     }
+
+    @Test
+    fun classifyChipMatch_exactVsAmbiguous() {
+        val chips = listOf("Everyday conversations", "Spanish")
+        assertEquals(
+            ConversationCoordinator.ChipMatch.Exact("Spanish"),
+            ConversationCoordinator.classifyChipMatch("Spanish", chips)
+        )
+        val ambiguous = ConversationCoordinator.classifyChipMatch(
+            "I'd like everyday conversations please",
+            chips
+        )
+        assertTrue(ambiguous is ConversationCoordinator.ChipMatch.Ambiguous)
+        assertEquals(
+            ConversationCoordinator.ChipMatch.None,
+            ConversationCoordinator.classifyChipMatch("xyzzy", chips)
+        )
+    }
 }

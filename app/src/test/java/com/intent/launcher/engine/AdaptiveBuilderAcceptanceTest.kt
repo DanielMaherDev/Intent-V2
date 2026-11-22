@@ -298,17 +298,15 @@ class AdaptiveBuilderAcceptanceTest {
         assertEquals(tapLang.text, typedLang.text)
         assertEquals("Spanish", typedLang.text)
 
-        // Uncertain voice still confirms without writing (Gate D2) — no STT stack invented.
+        // Uncertain voice → confirm (no write); Yes → same fact as tap (Gate D2).
         val storeUnc = IntentionFlowStore(tmp.newFile("adaptive-builder-unc.json"))
         seedLanguageAsk(storeUnc, "q-lang-unc")
-        val unc = AdaptiveAnswerPath.submit(
+        val unc = AdaptiveAnswerPath.submitFromVoice(
             store = storeUnc,
             intentionId = id,
-            rawValue = "Spanish",
-            modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
+            transcript = "I'd like spanish please",
             nowEpochMs = now + 50,
             timeZone = tz,
-            voiceUncertain = true,
             expectedQuestionId = "q-lang-unc"
         )
         assertTrue(unc.needsVoiceConfirm)
@@ -316,6 +314,21 @@ class AdaptiveBuilderAcceptanceTest {
         assertTrue(
             AdaptiveBuilderEngine.activeFacts(storeUnc.snapshot(), id)
                 .none { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        )
+        val afterConfirm = AdaptiveAnswerPath.submit(
+            store = storeUnc,
+            intentionId = id,
+            rawValue = AdaptiveAnswerPath.VOICE_CONFIRM_YES,
+            modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+            nowEpochMs = now + 60,
+            timeZone = tz,
+            expectedQuestionId = "q-lang-unc"
+        )
+        assertTrue(afterConfirm.honestyNote, afterConfirm.accepted)
+        assertEquals(
+            "Spanish",
+            AdaptiveBuilderEngine.activeFacts(storeUnc.snapshot(), id)
+                .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }.text
         )
     }
 
