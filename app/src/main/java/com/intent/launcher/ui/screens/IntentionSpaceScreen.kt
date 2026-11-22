@@ -86,6 +86,7 @@ fun IntentionSpaceScreen(
     hierarchy: IntentionHierarchy.View? = null,
     onOpenRelatedIntention: ((String) -> Unit)? = null,
     onWorkThisOut: () -> Unit,
+    onOpenWhatWeKnow: (() -> Unit)? = null,
     onBack: () -> Unit,
     onMoveIntentionToTrash: (() -> Unit)? = null,
     onMoveSessionToTrash: ((String) -> Unit)? = null,
@@ -119,7 +120,6 @@ fun IntentionSpaceScreen(
         HeroTone.Accent -> IntentColors.Section
     }
     val statusWord = intention?.phase?.let { drawerStatusLabel(it) } ?: "Exploring"
-    var showAllFacts by remember { mutableStateOf(false) }
     var confirmTrash by remember { mutableStateOf(false) }
     var showAppsManage by remember { mutableStateOf(false) }
 
@@ -330,8 +330,7 @@ fun IntentionSpaceScreen(
             } else {
                 knowledgeRows
             }
-            val visible = if (showAllFacts) rows else rows.take(3)
-            visible.forEach { (source, body) ->
+            rows.take(3).forEach { (source, body) ->
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -351,21 +350,19 @@ fun IntentionSpaceScreen(
                     )
                 }
             }
-            if (rows.size > 3) {
+            if (rows.size > 3 || onOpenWhatWeKnow != null) {
                 Spacer(modifier = Modifier.height(4.dp))
-                TextButton(onClick = { showAllFacts = !showAllFacts }) {
+                TextButton(
+                    onClick = {
+                        if (onOpenWhatWeKnow != null) {
+                            onOpenWhatWeKnow()
+                        }
+                    }
+                ) {
                     Text(
-                        text = if (showAllFacts) "Show less" else "See all",
+                        text = "See all",
                         color = IntentColors.Accent,
                         fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-            sessions.forEach { s ->
-                if (onMoveSessionToTrash != null && showAllFacts) {
-                    IntentQuietButton(
-                        text = "Move session to trash",
-                        onClick = { onMoveSessionToTrash(s.id) }
                     )
                 }
             }

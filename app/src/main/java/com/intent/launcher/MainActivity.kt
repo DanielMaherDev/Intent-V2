@@ -61,6 +61,7 @@ import com.intent.launcher.ui.screens.TodayScreen
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
 import com.intent.launcher.ui.screens.TrashScreen
+import com.intent.launcher.ui.screens.WhatWeKnowScreen
 import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.HistoryTrashMenus
@@ -761,6 +762,7 @@ class MainActivity : ComponentActivity() {
                                         else -> nav.navigate("conversation")
                                     }
                                 },
+                                onOpenWhatWeKnow = { nav.navigate("know") },
                                 onBack = { nav.popBackStack() },
                                 onMoveIntentionToTrash = { vm.softDeleteActiveIntention() },
                                 onMoveSessionToTrash = { sessionId -> vm.softDeleteSession(sessionId) },
@@ -784,6 +786,22 @@ class MainActivity : ComponentActivity() {
                                 openQuestions = vm.snapshot.openQuestions.filter {
                                     it.intentionId == active?.id
                                 },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("know") {
+                            val active = vm.activeIntention()
+                            WhatWeKnowScreen(
+                                facts = vm.snapshot.facts.filter { it.intentionId == active?.id },
+                                hypotheses = vm.snapshot.hypotheses.filter {
+                                    it.intentionId == active?.id
+                                },
+                                evidence = vm.snapshot.evidence.filter {
+                                    it.intentionId == active?.id
+                                },
+                                onBack = { nav.popBackStack() },
+                                onEditFact = { nav.navigate("conversation") },
+                                onAddFact = { nav.navigate("conversation") },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
