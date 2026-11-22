@@ -96,7 +96,10 @@ class GateDOverlayInterruptTest {
         )
         assertEquals(FloatingAgentRestartPolicy.InterruptReason.OVERLAY_DENIED, d.interruptReason)
         assertFalse(d.postTakeoverNotification)
-        assertTrue(d.fallbackNote!!.contains("Overlay", ignoreCase = true))
+        // Redesign #110 scrubbed overlay essays from user-facing fallback copy —
+        // route to Companion/Discuss/Agent instead of naming the permission.
+        assertTrue(d.fallbackNote!!.contains("Companion", ignoreCase = true))
+        assertFalse(d.fallbackNote!!.contains("Overlay permission not granted", ignoreCase = true))
     }
 
     @Test
