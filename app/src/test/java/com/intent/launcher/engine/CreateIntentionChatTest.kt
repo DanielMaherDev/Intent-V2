@@ -417,6 +417,51 @@ class CreateIntentionChatTest {
     }
 
     @Test
+    fun confirm_notYet_leavesDurableApproachAsk_forSpeechInject() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store, "I want to learn Spanish", now + 10, registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, "Not yet", now + 30, registry
+        )
+        // Gate C2: motivation Ask before Confirm.
+        CreateIntentionChat.submitChoice(
+            store, "Moving or travel", now + 35, registry
+        )
+        val commit = CreateIntentionChat.submitChoice(
+            store, "Confirm intention", now + 40, registry
+        )
+        assertTrue(commit.ok)
+        assertNull(commit.pendingProposalId)
+        val id = CreateIntentionChat.SESSION_INTENTION_ID
+        val snap = store.snapshot()
+        val state = snap.adaptiveBuilderStates.first { it.intentionId == id }
+        assertEquals("q-approaches-$id", state.currentQuestionId)
+        assertTrue(
+            snap.openQuestions.any {
+                it.intentionId == id &&
+                    it.purpose == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES &&
+                    it.state == OpenQuestionState.ASKED
+            }
+        )
+        assertTrue(
+            snap.approaches.any {
+                it.intentionId == id && it.status == ApproachStatus.CANDIDATE
+            }
+        )
+        assertFalse(
+            snap.approaches.any {
+                it.intentionId == id && it.status == ApproachStatus.SELECTED
+            }
+        )
+        assertFalse(CreateIntentionChat.isCreateInProgress(store))
+    }
+
+    @Test
     fun isCreateInProgress_trueUntilAdaptiveBridgeAfterConfirm() {
         CreateIntentionChat.begin(store, now, registry)
         assertTrue(CreateIntentionChat.isCreateInProgress(store))
