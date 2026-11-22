@@ -70,6 +70,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Offline §8.2: inject fake STT transcript (honesty-labeled; not live OpenAI). -->
+            <intent-filter>
+                <action android:name="com.intent.launcher.INJECT_SPEECH_TRANSCRIPT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <!-- Static App Shortcuts → floater deep entries (Ask / Today / Capture / History). -->
             <meta-data
                 android:name="android.app.shortcuts"

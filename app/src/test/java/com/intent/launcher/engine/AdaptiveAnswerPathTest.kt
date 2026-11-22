@@ -131,7 +131,7 @@ class AdaptiveAnswerPathTest {
     }
 
     @Test
-    fun chipAndTyped_sameApproachAsk_writeEquivalentSelectedApproaches() {
+    fun chipTypedAndSpeech_sameApproachAsk_writeEquivalentSelectedApproaches() {
         fun seed(target: IntentionFlowStore, qid: String) {
             AdaptiveBuilderFixtures.seedSpanishDiscovery(target, now)
             AdaptiveBuilderEngine.applyDecision(
@@ -170,6 +170,10 @@ class AdaptiveAnswerPathTest {
                 .map { it.id }
                 .toSet()
 
+        fun approachesFact(target: IntentionFlowStore): String =
+            AdaptiveBuilderEngine.activeFacts(target.snapshot(), id)
+                .first { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }.text
+
         val value = "AI conversation practice and Learning app"
         seed(store, "q-chip")
         assertTrue(
@@ -198,14 +202,24 @@ class AdaptiveAnswerPathTest {
             ).accepted
         )
 
+        val speechStore = IntentionFlowStore(tmp.newFile("answer-path-speech.json"))
+        seed(speechStore, "q-speech")
+        assertTrue(
+            AdaptiveAnswerPath.submitFromVoice(
+                store = speechStore,
+                intentionId = id,
+                transcript = value,
+                nowEpochMs = now + 7,
+                timeZone = tz,
+                expectedQuestionId = "q-speech"
+            ).accepted
+        )
+
         val expected = setOf("approach-ai-practice", "approach-learning-app")
         assertEquals(expected, selected(store))
         assertEquals(expected, selected(typedStore))
-        assertEquals(
-            AdaptiveBuilderEngine.activeFacts(store.snapshot(), id)
-                .first { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }.text,
-            AdaptiveBuilderEngine.activeFacts(typedStore.snapshot(), id)
-                .first { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }.text
-        )
+        assertEquals(expected, selected(speechStore))
+        assertEquals(approachesFact(store), approachesFact(typedStore))
+        assertEquals(approachesFact(store), approachesFact(speechStore))
     }
 }

@@ -36,6 +36,7 @@ import com.intent.launcher.engine.DiscussOfflineHold
 import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.QuietModeProbe
+import com.intent.launcher.engine.SpeechTranscriptInject
 import com.intent.launcher.floating.FloatingAgentService
 import com.intent.launcher.platform.AndroidSpeechToTextAccess
 import com.intent.launcher.ui.LauncherViewModel
@@ -1050,6 +1051,20 @@ class MainActivity : ComponentActivity() {
             }
             FloatingAgentService.ACTION_OPEN_TODAY -> openTodayFromDrawerRequest++
             FloatingAgentService.ACTION_OPEN_HISTORY -> openHistoryFromDrawerRequest++
+            SpeechTranscriptInject.ACTION -> {
+                val transcript = SpeechTranscriptInject.transcriptFromIntent(
+                    action = intent.action,
+                    transcriptExtra = intent.getStringExtra(SpeechTranscriptInject.EXTRA_TRANSCRIPT)
+                )
+                if (transcript != null) {
+                    openConversationRequest++
+                    vm.onVoiceTranscript(transcript, injected = true)
+                } else {
+                    vm.onVoiceUnavailable(
+                        "${SpeechTranscriptInject.HONESTY_PREFIX} Empty transcript — nothing injected."
+                    )
+                }
+            }
         }
     }
 

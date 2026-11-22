@@ -47,6 +47,7 @@ import com.intent.launcher.domain.TrackerModuleDef
 import com.intent.launcher.domain.TrackerModules
 import com.intent.launcher.engine.AdaptiveAnswerPath
 import com.intent.launcher.engine.AdaptiveBuilderEngine
+import com.intent.launcher.engine.SpeechTranscriptInject
 import com.intent.launcher.engine.AmbiguousChoiceSetCard
 import com.intent.launcher.engine.AssistantSpeech
 import com.intent.launcher.engine.CrossIntentionRelationCard
@@ -1216,7 +1217,7 @@ class LauncherViewModel(
         val now = System.currentTimeMillis()
         val intention = activeIntention()
         if (intention != null &&
-            !CreateIntentionChat.isCreateSession(intention) &&
+            !CreateIntentionChat.isCreateInProgress(store) &&
             !store.snapshot().builderDraft.active &&
             hasActiveAdaptiveQuestion(intention.id)
         ) {
@@ -1420,13 +1421,16 @@ class LauncherViewModel(
     }
 
     /**
-     * After platform STT returns text — Gate D2 adaptive Ask uses
-     * [AdaptiveAnswerPath.submitFromVoice] (exact → write; fuzzy → confirm);
-     * otherwise chip match / Discuss free-text / [OpenAiDiscussClient] when
-     * live_llm is CONNECTED. While [isAssistantSpeaking], routes through
-     * [InterruptedVoice.bargeIn].
+     * After platform STT (or an honest offline inject) returns text — Gate D2
+     * adaptive Ask uses [AdaptiveAnswerPath.submitFromVoice] (exact → write;
+     * fuzzy → confirm); otherwise chip match / Discuss free-text /
+     * [OpenAiDiscussClient] when live_llm is CONNECTED. While
+     * [isAssistantSpeaking], routes through [InterruptedVoice.bargeIn].
+     *
+     * @param injected when true, honesty notes that this was not platform STT
+     *   (adb / instrumentation hook — never pretends to be live OpenAI speech).
      */
-    fun onVoiceTranscript(transcript: String) {
+    fun onVoiceTranscript(transcript: String, injected: Boolean = false) {
         if (isAssistantSpeaking) {
             bargeInWithTranscript(transcript)
             return
@@ -1439,8 +1443,10 @@ class LauncherViewModel(
                     val now = System.currentTimeMillis()
                     val intention = activeIntention()
                     when {
+                        // After Confirm the create shell keeps SESSION_INTENTION_ID but
+                        // adaptive builder state is durable — gate on isCreateInProgress.
                         intention != null &&
-                            !CreateIntentionChat.isCreateSession(intention) &&
+                            !CreateIntentionChat.isCreateInProgress(store) &&
                             !store.snapshot().builderDraft.active &&
                             hasActiveAdaptiveQuestion(intention.id) ->
                             AdaptiveAnswerPath.submitFromVoice(
@@ -1462,7 +1468,11 @@ class LauncherViewModel(
                         ).honestyNote
                     }
                 }
-                voicePathNote = honesty
+                voicePathNote = if (injected) {
+                    SpeechTranscriptInject.prependHonesty(honesty)
+                } else {
+                    honesty
+                }
             } finally {
                 freeTextBusy = false
                 refresh()
