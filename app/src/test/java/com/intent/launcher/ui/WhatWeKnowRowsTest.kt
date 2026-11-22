@@ -50,6 +50,41 @@ class WhatWeKnowRowsTest {
     }
 
     @Test
+    fun emptyStore_usesDefaultFactsWithoutEditIds() {
+        val rows = buildKnowledgeRows(
+            facts = emptyList(),
+            hypotheses = emptyList(),
+            evidence = emptyList(),
+            defaultFacts = listOf("Goal · use Spanish at work", "Timeframe · within a year")
+        )
+        assertEquals(2, rows.size)
+        assertEquals("Goal · use Spanish at work", rows[0].body)
+        assertEquals("You told us", rows[0].source)
+        assertEquals(null, rows[0].editId)
+    }
+
+    @Test
+    fun activeFacts_skipDefaultFacts() {
+        val rows = buildKnowledgeRows(
+            facts = listOf(
+                Fact(
+                    id = "f1",
+                    intentionId = "i1",
+                    text = "Just exploring",
+                    provenance = Provenance(ProvenanceKind.SAID, 1L, "user"),
+                    status = FactStatus.ACTIVE
+                )
+            ),
+            hypotheses = emptyList(),
+            evidence = emptyList(),
+            defaultFacts = listOf("Goal · use Spanish at work")
+        )
+        assertEquals(1, rows.size)
+        assertEquals("Just exploring", rows[0].body)
+        assertEquals("f1", rows[0].editId)
+    }
+
+    @Test
     fun observedEvidence_usesAppLabel() {
         val rows = buildKnowledgeRows(
             facts = emptyList(),

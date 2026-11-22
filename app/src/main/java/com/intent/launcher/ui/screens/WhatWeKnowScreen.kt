@@ -35,12 +35,14 @@ fun WhatWeKnowScreen(
     facts: List<Fact>,
     hypotheses: List<Hypothesis> = emptyList(),
     evidence: List<Evidence> = emptyList(),
+    /** Shape-projection fallbacks when the store has no ACTIVE facts yet (S-KNOW). */
+    defaultFacts: List<String> = emptyList(),
     onBack: () -> Unit,
     onEditFact: ((factId: String) -> Unit)? = null,
     onAddFact: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val rows = buildKnowledgeRows(facts, hypotheses, evidence)
+    val rows = buildKnowledgeRows(facts, hypotheses, evidence, defaultFacts)
 
     Column(
         modifier = modifier
@@ -121,7 +123,8 @@ internal data class KnowledgeRow(
 internal fun buildKnowledgeRows(
     facts: List<Fact>,
     hypotheses: List<Hypothesis>,
-    evidence: List<Evidence>
+    evidence: List<Evidence>,
+    defaultFacts: List<String> = emptyList()
 ): List<KnowledgeRow> = buildList {
     facts.filter { it.status == FactStatus.ACTIVE }.forEach { f ->
         add(KnowledgeRow(body = f.text, source = "You told us", editId = f.id))
@@ -155,4 +158,11 @@ internal fun buildKnowledgeRows(
                 )
             )
         }
+    // Match Intention Space: when the store is empty, show shape defaults (not inventing
+    // durable facts — Edit is omitted until the user confirms via conversation).
+    if (isEmpty()) {
+        defaultFacts.forEach { text ->
+            add(KnowledgeRow(body = text, source = "You told us", editId = null))
+        }
+    }
 }

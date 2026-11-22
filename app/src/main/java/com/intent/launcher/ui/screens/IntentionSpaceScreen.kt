@@ -385,9 +385,13 @@ fun IntentionSpaceScreen(
             color = IntentColors.Ink
         )
         Spacer(modifier = Modifier.height(8.dp))
+        if (onOpenConnections != null) {
+            IntentSecondaryButton(text = "All connections", onClick = onOpenConnections)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         TextButton(onClick = { showAppsManage = !showAppsManage }) {
             Text(
-                text = if (showAppsManage) "Hide manage" else "Manage",
+                text = if (showAppsManage) "Hide manage" else "Manage held apps",
                 color = IntentColors.Accent,
                 fontWeight = FontWeight.SemiBold
             )
@@ -437,10 +441,6 @@ fun IntentionSpaceScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-            }
-            if (onOpenConnections != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                IntentSecondaryButton(text = "All connections", onClick = onOpenConnections)
             }
             if (connectionUsages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))

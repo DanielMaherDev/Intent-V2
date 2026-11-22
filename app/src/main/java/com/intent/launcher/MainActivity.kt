@@ -821,6 +821,7 @@ class MainActivity : ComponentActivity() {
                                 evidence = vm.snapshot.evidence.filter {
                                     it.intentionId == active?.id
                                 },
+                                defaultFacts = intentionProjection.defaultFacts,
                                 onBack = { nav.popBackStack() },
                                 onEditFact = { nav.navigate("conversation") },
                                 onAddFact = { nav.navigate("conversation") },
