@@ -24,7 +24,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
@@ -326,14 +326,22 @@ fun ConversationScreen(
                     lineHeight = 34.sp
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = discussSourceLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = IntentColors.AccentDark,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.4.sp
-                )
-                if (discussHonestyNote != null) {
+                // S-CHAT — no “heuristics / no model calls” footer chrome.
+                val source = discussSourceLabel.trim()
+                if (source.isNotEmpty() &&
+                    !source.contains("heuristic", ignoreCase = true) &&
+                    !source.contains("no model", ignoreCase = true)
+                ) {
+                    Text(
+                        text = source,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = IntentColors.AccentDark,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                if (discussHonestyNote != null &&
+                    !discussHonestyNote.contains("heuristic", ignoreCase = true)
+                ) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = discussHonestyNote,
@@ -640,10 +648,10 @@ private fun ConversationTopBar(
     intentionTitle: String,
     onBack: () -> Unit
 ) {
+    // S-CHAT — back + intention title (bodyMedium, one line). No gear / turn count / pill.
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
@@ -653,12 +661,16 @@ private fun ConversationTopBar(
                 .size(24.dp)
                 .clickable(onClick = onBack)
         )
-        IntentBrandMark(compact = true)
-        if (intentionTitle.isNotBlank()) {
-            IntentPill(text = intentionTitle, tone = PillTone.Neutral)
-        } else {
-            Spacer(modifier = Modifier.width(24.dp))
-        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = intentionTitle.ifBlank { "Conversation" },
+            style = MaterialTheme.typography.bodyLarge,
+            color = IntentColors.Ink,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
@@ -669,13 +681,12 @@ private fun UserBubble(text: String) {
             text = text,
             modifier = Modifier
                 .widthIn(max = 320.dp)
-                .clip(RoundedCornerShape(17.dp, 17.dp, 5.dp, 17.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(IntentColors.AccentSoft)
-                .padding(horizontal = 13.dp, vertical = 11.dp),
-            fontFamily = FontFamily.Serif,
-            fontSize = 14.sp,
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            style = MaterialTheme.typography.bodyMedium,
             color = IntentColors.Ink,
-            lineHeight = 19.sp
+            lineHeight = 20.sp
         )
     }
 }
@@ -704,30 +715,18 @@ private fun AgentBubble(
         )
     }
 
+    val prose = scrubAgentProse(text)
+    // S-CHAT — no floating badge / avatar chip over the thread.
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .background(IntentColors.Accent, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "✦",
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
         Column(
             modifier = Modifier
                 .weight(1f, fill = false)
                 .widthIn(max = 320.dp)
-                .border(1.dp, IntentColors.Line, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
-                .background(IntentColors.Card, RoundedCornerShape(17.dp, 17.dp, 17.dp, 5.dp))
+                .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+                .background(IntentColors.Card, RoundedCornerShape(16.dp))
                 .padding(14.dp)
         ) {
             when {
@@ -735,11 +734,10 @@ private fun AgentBubble(
                     SmallLabel(text = gatewayModel.eyebrow)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = gatewayModel.body.ifBlank { text },
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 14.sp,
+                        text = scrubAgentProse(gatewayModel.body.ifBlank { prose }),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = IntentColors.Ink,
-                        lineHeight = 19.sp
+                        lineHeight = 20.sp
                     )
                     if (gatewayModel.actions.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -764,16 +762,17 @@ private fun AgentBubble(
                     }
                 }
                 gap != null -> {
-                    SmallLabel(text = "CAPABILITY_GAP · ${gap.title}")
+                    SmallLabel(text = gap.title.ifBlank { "Limit" })
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = gap.body.ifBlank { text },
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 14.sp,
+                        text = scrubAgentProse(gap.body.ifBlank { prose }),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = IntentColors.Ink,
-                        lineHeight = 19.sp
+                        lineHeight = 20.sp
                     )
-                    if (gap.sourceLabel.isNotBlank()) {
+                    if (gap.sourceLabel.isNotBlank() &&
+                        !gap.sourceLabel.contains("heuristic", ignoreCase = true)
+                    ) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = gap.sourceLabel,
@@ -782,13 +781,12 @@ private fun AgentBubble(
                         )
                     }
                 }
-                moduleTyped || text.isNotBlank() -> {
+                moduleTyped || prose.isNotBlank() -> {
                     Text(
-                        text = text,
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 14.sp,
+                        text = prose,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = IntentColors.Ink,
-                        lineHeight = 19.sp
+                        lineHeight = 20.sp
                     )
                 }
             }
@@ -796,6 +794,12 @@ private fun AgentBubble(
     }
 
 }
+
+/** Drop CASE- ids and similar developer prefixes from agent prose (S-CHAT). */
+internal fun scrubAgentProse(raw: String): String =
+    raw.trim()
+        .replace(Regex("""(?i)^CASE-\d+\s*[—\-–:]\s*"""), "")
+        .trim()
 
 @Composable
 private fun LegacyChoiceRow(text: String, onClick: () -> Unit) {
@@ -939,16 +943,17 @@ private fun ComposerBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .border(1.dp, IntentColors.ComposerBorder, RoundedCornerShape(22.dp))
-                    .background(Color.White, RoundedCornerShape(22.dp))
-                    .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    .height(48.dp)
+                    .border(1.dp, IntentColors.ComposerBorder, RoundedCornerShape(24.dp))
+                    .background(Color.White, RoundedCornerShape(24.dp))
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 BasicTextField(
                     value = draft,
                     onValueChange = { draft = it },
                     modifier = Modifier.weight(1f),
-                    textStyle = MaterialTheme.typography.bodySmall.copy(color = IntentColors.Ink),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = IntentColors.Ink),
                     cursorBrush = SolidColor(IntentColors.Accent),
                     singleLine = true,
                     enabled = !freeTextBusy || assistantSpeaking,
@@ -959,87 +964,87 @@ private fun ComposerBar(
                             Text(
                                 text = when {
                                     assistantSpeaking -> "Type to interrupt…"
-                                    freeTextBusy -> "Waiting for model…"
-                                    else -> "Talk to INTENT…"
+                                    freeTextBusy -> "Waiting…"
+                                    else -> "Message"
                                 },
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = IntentColors.ComposerHint
                             )
                         }
                         inner()
                     }
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                if (draft.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (!freeTextBusy || assistantSpeaking) {
-                                    IntentColors.Accent
-                                } else {
-                                    IntentColors.Muted
-                                }
-                            )
-                            .clickable(
-                                enabled = !freeTextBusy || assistantSpeaking,
-                                onClick = { send() }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.Send,
-                            contentDescription = "Send",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                if (assistantSpeaking) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(IntentColors.Ink)
-                            .clickable(onClick = onStopSpeaking),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Stop,
-                            contentDescription = "Stop speaking",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            if (draft.isNotBlank()) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(
-                            when {
-                                assistantSpeaking -> IntentColors.AccentDark
-                                voiceEnabled -> IntentColors.Accent
-                                else -> IntentColors.Muted
+                            if (!freeTextBusy || assistantSpeaking) {
+                                IntentColors.Accent
+                            } else {
+                                IntentColors.Muted
                             }
                         )
-                        .clickable(onClick = onMicClick),
+                        .clickable(
+                            enabled = !freeTextBusy || assistantSpeaking,
+                            onClick = { send() }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Mic,
-                        contentDescription = if (assistantSpeaking) {
-                            "Speak to interrupt"
-                        } else {
-                            "Speak"
-                        },
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            if (assistantSpeaking) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(IntentColors.Ink)
+                        .clickable(onClick = onStopSpeaking),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Stop,
+                        contentDescription = "Stop speaking",
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when {
+                            assistantSpeaking -> IntentColors.AccentDark
+                            voiceEnabled -> IntentColors.Accent
+                            else -> IntentColors.Muted
+                        }
+                    )
+                    .clickable(onClick = onMicClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Mic,
+                    contentDescription = if (assistantSpeaking) {
+                        "Speak to interrupt"
+                    } else {
+                        "Speak"
+                    },
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
