@@ -150,6 +150,12 @@ class IntentionBuilderTriageTest {
         assertEquals("language", IntentionBuilder.suggestShape("practice Spanish with Duolingo"))
         assertEquals("marathon", IntentionBuilder.suggestShape("build base for a marathon"))
         assertEquals("business", IntentionBuilder.suggestShape("talk to customers for my startup"))
+        assertEquals(
+            "app_use",
+            IntentionBuilder.suggestShape(
+                "Keep Instagram and YouTube Shorts under 45 minutes a day."
+            )
+        )
         assertEquals("other", IntentionBuilder.suggestShape("get better sleep"))
     }
 }

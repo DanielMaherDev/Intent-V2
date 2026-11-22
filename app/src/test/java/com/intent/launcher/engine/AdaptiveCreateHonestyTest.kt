@@ -2,6 +2,7 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.store.IntentionFlowStore
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -29,10 +30,82 @@ class AdaptiveCreateHonestyTest {
     }
 
     @Test
+    fun liveProse_casualShortsMention_stillAppendsUsageHonesty() {
+        val honesty = CreatePathSeedHonesty.forDescription(
+            "Keep Instagram and YouTube Shorts under 45 minutes a day."
+        )!!
+        val casual =
+            "Live assistant (OpenAI — not observed evidence)\n\n" +
+                "I can help with Instagram and YouTube Shorts limits. " +
+                "Want Track Your Time, Set Limits, or Content Planning?"
+        assertFalse(CreatePathSeedHonesty.liveProseStatesUsageHonesty(casual))
+        val merged = CreatePathSeedHonesty.mergeLiveProseWithSeedHonesty(casual, honesty)
+        assertTrue(merged.contains("usage access", ignoreCase = true))
+        assertTrue(
+            merged.contains("≠ Shorts", ignoreCase = true) ||
+                merged.contains("not Shorts", ignoreCase = true) ||
+                merged.contains("will not claim exact Shorts", ignoreCase = true)
+        )
+        assertTrue(merged.contains(casual.substringAfter("\n\n").take(40)))
+    }
+
+    @Test
+    fun oc5_liveCreate_casualShortsModel_appendsHonestyAndAppUseShape() {
+        val description = "Keep Instagram and YouTube Shorts under 45 minutes a day."
+        val access = FakeLiveLlmAccess(
+            keyConfigured = true,
+            optedIn = true,
+            clientEnabled = true,
+            apiKey = "sk-test-not-real"
+        )
+        val liveRegistry = LiveLlmProbe.liveRegistry(access)
+        val payload =
+            """
+            {
+              "choices": [{
+                "message": {
+                  "role": "assistant",
+                  "content": "I can help with Instagram and YouTube Shorts. Track time, set limits, or plan content?"
+                }
+              }]
+            }
+            """.trimIndent()
+        val client = OpenAiDiscussClient(
+            transporter = OpenAiHttpTransporter { _, _, _ ->
+                OpenAiHttpResponse(200, payload)
+            }
+        )
+        CreateIntentionChat.begin(store, now + 1, liveRegistry)
+        val result = CreateIntentionChat.submitUtterance(
+            store = store,
+            text = description,
+            nowEpochMs = now + 10,
+            registry = liveRegistry,
+            access = access,
+            client = client
+        )
+        assertTrue(result.ok)
+        assertTrue(result.liveCallAttempted)
+        assertEquals("app_use", store.snapshot().builderDraft.suggestedShapeTag)
+        val agentText = store.snapshot().turns
+            .filter {
+                it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID && it.role == "agent"
+            }
+            .joinToString("\n") { it.text }
+        assertTrue(agentText.contains("usage access", ignoreCase = true))
+        assertTrue(
+            agentText.contains("will not claim exact Shorts", ignoreCase = true) ||
+                agentText.contains("≠ Shorts", ignoreCase = true) ||
+                agentText.contains("not Shorts", ignoreCase = true)
+        )
+    }
+
+    @Test
     fun oc5_usageSeed_agentStatesShortsIdentityLimitAndUsageAccess() {
         // OC5 seed statement (same text as AdaptiveBuilderFixtures app_use).
         val description = "Keep Instagram and YouTube Shorts under 45 minutes a day."
         assertTrue(CreatePathSeedHonesty.looksLikeUsageAppTimeSeed(description))
+        assertEquals("app_use", IntentionBuilder.suggestShape(description))
 
         CreateIntentionChat.begin(store, now + 1, registry)
         val result = CreateIntentionChat.submitUtterance(
@@ -91,6 +164,32 @@ class AdaptiveCreateHonestyTest {
             choice!!.options.any { it.contains("package", ignoreCase = true) } ||
                 choice.options.any { it.contains("Shorts", ignoreCase = true) }
         )
+
+        // Measurement → permission card → intervention (not silent overlay).
+        CreateIntentionChat.submitChoice(
+            store, "Use both", now + 20, registry
+        )
+        val afterMeasure = store.snapshot().turns
+            .flatMap { it.blocks }
+            .mapNotNull { BuilderAnswerCard.decode(it) as? BuilderAnswerCard.Decoded.Choice }
+            .lastOrNull()
+        assertNotNull(afterMeasure)
+        assertEquals(CreatePathSeedHonesty.PROMPT_USAGE_ACCESS, afterMeasure!!.promptId)
+        assertTrue(
+            afterMeasure.options.any { it.contains("Usage access", ignoreCase = true) } ||
+                afterMeasure.options.any { it.contains("grant", ignoreCase = true) }
+        )
+        CreateIntentionChat.submitChoice(
+            store, "Open Usage access when ready", now + 30, registry
+        )
+        val afterAccess = store.snapshot().turns
+            .flatMap { it.blocks }
+            .mapNotNull { BuilderAnswerCard.decode(it) as? BuilderAnswerCard.Decoded.Choice }
+            .lastOrNull()
+        assertNotNull(afterAccess)
+        assertEquals(CreatePathSeedHonesty.PROMPT_USAGE_INTERVENTION, afterAccess!!.promptId)
+        assertTrue(afterAccess.options.any { it.contains("Quiet reminder", ignoreCase = true) })
+        assertTrue(afterAccess.options.any { it.contains("Ask me first", ignoreCase = true) })
     }
 
     @Test

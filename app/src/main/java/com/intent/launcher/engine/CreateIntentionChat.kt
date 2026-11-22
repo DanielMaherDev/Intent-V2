@@ -544,18 +544,14 @@ object CreateIntentionChat {
             ) {
                 is OpenAiDiscussClient.Outcome.Success -> {
                     // Keep seed honesty visible even if the model rewrites prose.
+                    // Casual product mentions (e.g. "YouTube Shorts") must NOT suppress
+                    // the package≠Shorts / usage-access note.
                     val formatted = OpenAiDiscussClient.formatAgentTurn(outcome.completion)
-                    prose = if (seedHonesty != null &&
-                        !formatted.contains("Shorts", ignoreCase = true) &&
-                        seedHonesty.kind == CreatePathSeedHonesty.Kind.USAGE_APP_TIME
-                    ) {
-                        "$formatted\n\n${seedHonesty.agentNote}"
-                    } else if (seedHonesty != null &&
-                        seedHonesty.kind == CreatePathSeedHonesty.Kind.JOB_OFFER_DECIDE &&
-                        !formatted.contains("auto-accept", ignoreCase = true) &&
-                        !formatted.contains("decide", ignoreCase = true)
-                    ) {
-                        "$formatted\n\n${seedHonesty.agentNote}"
+                    prose = if (seedHonesty != null) {
+                        CreatePathSeedHonesty.mergeLiveProseWithSeedHonesty(
+                            formatted,
+                            seedHonesty
+                        )
                     } else {
                         formatted
                     }
