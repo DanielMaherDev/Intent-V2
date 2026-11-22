@@ -398,6 +398,12 @@ fun IntentionSpaceScreen(
         }
         if (showAppsManage) {
             Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = HeldAppsHonesty.MANAGE_INTRO,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            Spacer(modifier = Modifier.height(12.dp))
             if (heldApps.isEmpty() && holdSuggestions.isEmpty()) {
                 EmptyNote(
                     text = "No apps held for this intention yet. Confirm a suggestion below if one fits."
@@ -430,7 +436,7 @@ fun IntentionSpaceScreen(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "Suggested · time open only · ${suggestion.packageName}",
+                        text = HeldAppsHonesty.suggestionLine(suggestion.packageName),
                         style = MaterialTheme.typography.bodySmall,
                         color = IntentColors.Muted
                     )
@@ -597,7 +603,7 @@ private fun HeldAppRow(
         )
         Spacer(modifier = Modifier.height(3.dp))
         Text(
-            text = "Held · time open only · $packageName",
+            text = HeldAppsHonesty.heldLine(packageName),
             style = MaterialTheme.typography.bodySmall,
             color = IntentColors.Muted
         )
@@ -615,4 +621,17 @@ private fun HeldAppRow(
             IntentQuietButton(text = "Release", onClick = onRelease)
         }
     }
+}
+
+/** Gate C5 — Apps you hold keeps install/hold distinct from usage and progress-read. */
+internal object HeldAppsHonesty {
+    const val MANAGE_INTRO =
+        "Confirm packages for this intention (SAID). Holding an app is install/launch affinity — " +
+            "not UsageStats ranking and not lesson progress-read."
+
+    fun heldLine(packageName: String): String =
+        "Held · SAID · launch/time-open only — not lesson progress · $packageName"
+
+    fun suggestionLine(packageName: String): String =
+        "Suggested · launch/time-open only — not lesson progress · $packageName"
 }
