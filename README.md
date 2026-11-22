@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.219** (this branch) · based on tip **v0.0.217** (#137) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.219** (this branch) · based on tip **v0.0.218** (#136) · SCHEMA **10**.
 
 ## Build
 
