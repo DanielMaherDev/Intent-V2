@@ -156,6 +156,16 @@ class IntentionBuilderTriageTest {
                 "Keep Instagram and YouTube Shorts under 45 minutes a day."
             )
         )
+        assertEquals(
+            "move",
+            IntentionBuilder.suggestShape(
+                "I need to move from Barcelona to Valencia within six weeks. I rent and haven't found a new place."
+            )
+        )
+        assertEquals(
+            "move",
+            IntentionBuilder.suggestShape("Relocate next month — lease ends, still looking for a flat")
+        )
         assertEquals("other", IntentionBuilder.suggestShape("get better sleep"))
         assertEquals(
             "decision",

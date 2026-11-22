@@ -13,6 +13,7 @@ import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.MoveScenario
 import com.intent.launcher.domain.OpenQuestionState
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.RelativeDateAnchoring
@@ -527,6 +528,9 @@ object CreateIntentionChat {
                 CreatePathSeedHonesty.Kind.TIME_LIMITED_DECISION ->
                     " Frame decide-by-date: help decide by a deadline; never auto-accept " +
                         "or assume the outcome; ask criteria that matter."
+                CreatePathSeedHonesty.Kind.FINITE_MOVE_PROJECT ->
+                    " Finite move project: propose connected paths; mark landlord/appointment " +
+                        "steps as Waiting on someone; never invent viewings or a secured place."
                 null -> ""
             }
             val pack = ContextAssembler.assemble(
@@ -766,6 +770,16 @@ object CreateIntentionChat {
         // OC2 / §8.8 — research create: eligibility facts → AdaptiveBuilder Pause.
         if (shapeTag == "research") {
             return bridgeResearchAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+        // OC7 — finite move: lease / housing / notice → waiting Pause + project board.
+        if (shapeTag == "move") {
+            return bridgeMoveAfterCommit(
                 store = store,
                 intentionId = intentionId,
                 factAnswers = factAnswers,
@@ -1127,6 +1141,90 @@ object CreateIntentionChat {
                     // Explore ideas / validation experiment card applied — stop so UI shows it.
                     return null
                 }
+                else -> Unit
+            }
+        }
+        return null
+    }
+
+    /**
+     * Map create move answers onto AdaptiveBuilder keys, seed a dependency board,
+     * then advance to waiting Pause — never invents viewings or a secured place.
+     */
+    private fun bridgeMoveAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "move", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveMoveFact(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        saveMoveFact(
+            AdaptiveBuilderEngine.KEY_LEASE_DEADLINE,
+            factAnswers[AdaptiveBuilderEngine.KEY_LEASE_DEADLINE]?.trim().orEmpty(),
+            "lease"
+        )
+        saveMoveFact(
+            AdaptiveBuilderEngine.KEY_HOUSING_REQUIREMENTS,
+            factAnswers[AdaptiveBuilderEngine.KEY_HOUSING_REQUIREMENTS]?.trim().orEmpty(),
+            "housing"
+        )
+        saveMoveFact(
+            AdaptiveBuilderEngine.KEY_NOTICE_STATUS,
+            factAnswers[AdaptiveBuilderEngine.KEY_NOTICE_STATUS]?.trim().orEmpty(),
+            "notice"
+        )
+
+        MoveScenario.seedDependencyPlan(store, t, intentionId)
+
+        repeat(8) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> return null
+                is BuilderDecision.Propose -> return null
+                is BuilderDecision.Ask -> return null
                 else -> Unit
             }
         }

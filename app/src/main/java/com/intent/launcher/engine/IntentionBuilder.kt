@@ -49,6 +49,8 @@ object IntentionBuilder {
             // Time-limited decision (decide-by date) — before business so “offer”
             // does not land as a startup exploration.
             looksLikeTimeLimitedDecision(t) -> "decision"
+            // OC7 — finite relocation / lease-bound move before language (“move to Spain”).
+            looksLikeFiniteMoveProject(t) -> "move"
             listOf("spanish", "language", "duolingo", "tutor", "french", "german")
                 .any { t.contains(it) } -> "language"
             listOf("marathon", "5k", "10k", "running", "long run", "race")
@@ -96,6 +98,30 @@ object IntentionBuilder {
             !t.contains("practice spanish")
     }
 
+    /**
+     * Finite relocation / lease-bound housing project with external waits
+     * (landlord, viewing, movers). Generic cues only — no city-pair hardcoding.
+     */
+    internal fun looksLikeFiniteMoveProject(textLower: String): Boolean {
+        val t = textLower.lowercase()
+        val relocate = listOf(
+            "move from", "move to", "moving from", "moving to",
+            "relocate", "relocation", "move house", "moving house"
+        ).any { t.contains(it) }
+        val housing = listOf(
+            "lease", "rent", "renting", "landlord", "apartment", "flat",
+            "one-bedroom", "1-bedroom", "studio", "haven't found a",
+            "have not found a", "new place", "place to live"
+        ).any { t.contains(it) }
+        val deadline = listOf(
+            "week", "weeks", "month", "months", "deadline", "by ",
+            "within", "lease ends", "lease end"
+        ).any { t.contains(it) }
+        if (relocate && (housing || deadline)) return true
+        if (t.contains("lease ends") && housing) return true
+        return false
+    }
+
     fun shapeDisplayLabel(shapeTag: String): String =
         shapeChoices().firstOrNull { it.first == shapeTag }?.second ?: "Something else"
 
@@ -113,6 +139,7 @@ object IntentionBuilder {
             "research" -> "Work legally in Spain"
             "app_use" -> "Usage target"
             "decision" -> "Make a decision by a date"
+            "move" -> "Plan a move"
             else -> "New intention"
         }
 
@@ -128,6 +155,38 @@ object IntentionBuilder {
                     id = CreatePathSeedHonesty.PROMPT_USAGE_INTERVENTION,
                     question = CreatePathSeedHonesty.USAGE_INTERVENTION_QUESTION,
                     choiceOptions = CreatePathSeedHonesty.USAGE_INTERVENTION_OPTIONS
+                )
+            )
+            "move" -> listOf(
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_LEASE_DEADLINE,
+                    question =
+                        "What's the latest date you need to leave your current place?",
+                    choiceOptions = listOf(
+                        "Lease ends in about six weeks",
+                        "Within a month",
+                        "Flexible — still deciding"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_HOUSING_REQUIREMENTS,
+                    question =
+                        "What budget and location requirements should shape the search?",
+                    choiceOptions = listOf(
+                        "One-bedroom under my rent budget",
+                        "Studio or shared — keep costs low",
+                        "Still deciding budget / area"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_NOTICE_STATUS,
+                    question =
+                        "Have you given notice, and will you move yourself or use a mover?",
+                    choiceOptions = listOf(
+                        "Notice not given yet",
+                        "Notice given",
+                        "Not sure about movers yet"
+                    )
                 )
             )
             "research" -> listOf(
@@ -432,6 +491,7 @@ object IntentionBuilder {
         "research" to "Legal research",
         "app_use" to "App usage",
         "decision" to "Time-limited decision",
+        "move" to "Move / relocation",
         "other" to "Something else"
     )
 }

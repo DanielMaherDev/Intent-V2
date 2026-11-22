@@ -63,7 +63,9 @@ object AdaptiveBuilderEngine {
     const val KEY_USAGE_MEASUREMENT = "usage_measurement"
     const val KEY_RATING_BASELINE = "rating_baseline"
     const val KEY_LEASE_DEADLINE = "lease_deadline"
+    const val KEY_HOUSING_REQUIREMENTS = "housing_requirements"
     const val KEY_NOTICE_STATUS = "notice_status"
+    const val KEY_EXTERNAL_WAIT = "external_wait"
     const val KEY_DECIDE_BY_DATE = "decide_by_date"
     /** Generic decision support — criteria / alternatives / unknowns / refresh. */
     const val KEY_DECISION_CRITERIA = "decision_criteria"
@@ -914,8 +916,10 @@ object AdaptiveBuilderEngine {
     }
 
     /**
-     * OC7 — Barcelona→Valencia move: capture lease deadline + notice, then pause with waiting.
-     * Never invents viewings or assumes a property is secured.
+     * OC7 — finite relocation / lease-bound project: capture leave date, housing
+     * requirements, and notice/mover posture, then pause with a waiting board.
+     * Never invents viewings or assumes a property is secured. City names are
+     * user facts — not shape hardcoding.
      */
     private fun finiteMoveProjectDecision(context: BuilderContext): BuilderDecision? {
         if (context.confirmedFacts.none { it.key == KEY_LEASE_DEADLINE }) {
@@ -924,12 +928,25 @@ object AdaptiveBuilderEngine {
                 expectedRevision = context.revision,
                 questionId = "q-lease-${context.intentionId}",
                 whyItMatters =
-                    "Lease end date shapes the critical path for search and notice — " +
+                    "Leave / lease end date shapes the critical path for search and notice — " +
                         "no move plan assumes a place is already secured.",
                 answerSchema = AnswerSchema.DATE_TIME,
                 purpose = KEY_LEASE_DEADLINE,
                 blocksWhat = "move_project_board",
                 priority = 90
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_HOUSING_REQUIREMENTS }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-housing-${context.intentionId}",
+                whyItMatters =
+                    "Budget and location requirements shape search without inventing a secured place.",
+                answerSchema = AnswerSchema.FREE_TEXT,
+                purpose = KEY_HOUSING_REQUIREMENTS,
+                blocksWhat = "move_project_board",
+                priority = 88
             )
         }
         if (context.confirmedFacts.none { it.key == KEY_NOTICE_STATUS }) {
@@ -955,8 +972,8 @@ object AdaptiveBuilderEngine {
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason =
-                "Lease and notice facts saved. External steps stay waiting — no invented " +
-                    "viewings or secured-property plan.",
+                "Lease, housing, and notice facts saved. Project board keeps Next user action " +
+                    "ready and Waiting on someone gated — no invented viewings or secured place.",
             resumeCue = "Continue discussion"
         )
     }

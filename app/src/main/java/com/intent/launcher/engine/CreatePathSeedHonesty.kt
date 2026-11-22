@@ -11,10 +11,13 @@ package com.intent.launcher.engine
  * Time-limited decisions (incl. OC9 job-offer / decide-whether / N-day deadline):
  * frame decide-by-date (help decide; do not auto-accept / assume yes; deadline matters).
  * Detection is generic — not title-hardcoded to “job offer”.
+ *
+ * OC7 — finite relocation / lease-bound move: project board with Next user action /
+ * Waiting on someone; never invent viewings or a secured place.
  */
 object CreatePathSeedHonesty {
 
-    enum class Kind { USAGE_APP_TIME, TIME_LIMITED_DECISION }
+    enum class Kind { USAGE_APP_TIME, TIME_LIMITED_DECISION, FINITE_MOVE_PROJECT }
 
     data class Honesty(
         val kind: Kind,
@@ -53,6 +56,14 @@ object CreatePathSeedHonesty {
 
     const val PROMPT_USAGE_ACCESS = "usage_access"
     const val PROMPT_USAGE_INTERVENTION = "usage_intervention"
+
+    const val FINITE_MOVE_AGENT_NOTE =
+        "I'll make a project proposal with connected paths: confirm lease obligations, " +
+            "search, view places, decide and sign, then arrange the move. Some steps " +
+            "depend on landlords or appointments, so I'll mark them as Waiting on someone " +
+            "rather than tasks you can complete yourself. I will not invent viewings or " +
+            "assume a property is secured. What's the latest date you need to leave, and " +
+            "what budget and location requirements should shape the search?"
 
     val USAGE_MEASUREMENT_OPTIONS: List<String> = listOf(
         "Track package time automatically",
@@ -102,8 +113,19 @@ object CreatePathSeedHonesty {
         val already = when (honesty.kind) {
             Kind.USAGE_APP_TIME -> liveProseStatesUsageHonesty(formatted)
             Kind.TIME_LIMITED_DECISION -> liveProseHasDecisionHonesty(formatted)
+            Kind.FINITE_MOVE_PROJECT -> liveProseStatesFiniteMoveHonesty(formatted)
         }
         return if (already) formatted else "$formatted\n\n${honesty.agentNote}"
+    }
+
+    fun liveProseStatesFiniteMoveHonesty(text: String): Boolean {
+        val t = text.lowercase()
+        val waiting = t.contains("waiting on someone") || t.contains("waiting on landlord")
+        val noInvent =
+            t.contains("invent") || t.contains("not invent") ||
+                t.contains("won't invent") || t.contains("will not invent") ||
+                t.contains("secured") || t.contains("assume a property")
+        return waiting && noInvent
     }
 
     fun forDescription(text: String): Honesty? {
@@ -124,6 +146,12 @@ object CreatePathSeedHonesty {
             return Honesty(
                 kind = Kind.TIME_LIMITED_DECISION,
                 agentNote = DECISION_AGENT_NOTE
+            )
+        }
+        if (IntentionBuilder.looksLikeFiniteMoveProject(trimmed.lowercase())) {
+            return Honesty(
+                kind = Kind.FINITE_MOVE_PROJECT,
+                agentNote = FINITE_MOVE_AGENT_NOTE
             )
         }
         return null

@@ -128,7 +128,7 @@ object ShapeProjection {
         when (shapeTag) {
             "marathon" -> "Your training approach"
             "business" -> "Your discovery approach"
-            "move" -> "Your move plan"
+            "move" -> "Project board"
             "decision" -> "Your decision support"
             "cessation" -> "Your first-phase support"
             "app_use" -> "Your usage approach"
@@ -165,8 +165,8 @@ object ShapeProjection {
             "marathon" -> listOf("Goal · finish a marathon", "Timeframe · build base first")
             "business" -> listOf("Goal · explore a business idea", "Timeframe · stay in discovery")
             "move" -> listOf(
-                "Goal · Barcelona → Valencia",
-                "Timeframe · about six weeks · renting · no place found"
+                "Goal · relocate by a fixed leave date",
+                "Timeframe · renting · place not secured yet"
             )
             "decision" -> listOf(
                 "Goal · decide on a job offer",
@@ -352,6 +352,7 @@ object ShapeProjection {
         if (!hasPlanSignal) return emptyList()
 
         val placeConfirmed = MoveScenario.placeIsConfirmed(facts)
+        val externalWait = MoveScenario.hasExternalWait(facts, hypotheses)
         val session = sessions.firstOrNull()
         val whenLabel = session?.let {
             "day ${it.dayOfWeek} · %02d:%02d".format(it.hour, it.minute)
@@ -361,28 +362,39 @@ object ShapeProjection {
             phase == IntentionPhase.PROPOSAL_PENDING -> "Ready now · search proposal pending approval"
             else -> "Ready now · listings do not require a landlord"
         }
+        val dueDetail = facts.firstOrNull {
+            it.key == "lease_deadline" ||
+                it.text.contains("lease", ignoreCase = true) ||
+                it.text.contains("week", ignoreCase = true)
+        }?.text ?: "Leave date from your SAID lease / deadline facts"
         return listOf(
             ApproachStep(
-                title = session?.title ?: "Search listings",
+                title = "Next user action · ${session?.title ?: "Search listings"}",
                 detail = searchDetail,
                 muted = false
             ),
             ApproachStep(
-                title = "Set rent budget & timing",
-                detail = "Ready now · stay inside the six-week window",
+                title = "Next user action · Set rent budget & timing",
+                detail = "Ready now · stay inside your leave window",
                 muted = false
             ),
             ApproachStep(
-                title = "Sign lease",
-                detail = if (placeConfirmed) {
-                    "Place confirmed · review lease with landlord"
+                title = if (externalWait) {
+                    "Waiting on someone · Viewing / landlord reply"
                 } else {
-                    "Gated · waiting on landlord / place — not invented"
+                    "Waiting on someone · Sign lease"
+                },
+                detail = when {
+                    placeConfirmed -> "Place confirmed · review lease with landlord"
+                    externalWait ->
+                        "Marked waiting — follow up, try another listing, or adjust search. " +
+                            "No viewing invented."
+                    else -> "Gated · waiting on landlord / place — not invented"
                 },
                 muted = !placeConfirmed
             ),
             ApproachStep(
-                title = "Give Barcelona notice",
+                title = "Waiting on someone · Give current-place notice",
                 detail = if (placeConfirmed) {
                     "Depends on signed lease date"
                 } else {
@@ -391,13 +403,27 @@ object ShapeProjection {
                 muted = !placeConfirmed
             ),
             ApproachStep(
-                title = "Book movers / utilities",
+                title = "Waiting on someone · Book movers / utilities",
                 detail = if (placeConfirmed) {
                     "Depends on landlord move-in date"
                 } else {
                     "Gated · depends on landlord move-in date"
                 },
                 muted = !placeConfirmed
+            ),
+            ApproachStep(
+                title = "Due soon · Leave by lease end",
+                detail = dueDetail,
+                muted = false
+            ),
+            ApproachStep(
+                title = "Reschedule · Review before calendar commitments",
+                detail = if (session != null) {
+                    "Search block approved — reschedule only after you review."
+                } else {
+                    "No search block is scheduled until you approve a plan."
+                },
+                muted = session == null
             )
         )
     }
