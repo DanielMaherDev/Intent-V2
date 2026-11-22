@@ -1028,6 +1028,7 @@ object CreateIntentionChat {
             !hasKey(AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE) &&
             RelativeDateAnchoring.looksRelative(freeText)
         ) {
+            ensureAdaptiveBuilderState(store, intentionId, shapeTag, t)
             if (!hasKey(AdaptiveBuilderEngine.KEY_MOTIVATION) &&
                 freeText.contains("mov", ignoreCase = true)
             ) {
@@ -1051,7 +1052,7 @@ object CreateIntentionChat {
                 t += 1
             }
             val movePhrase = extractRelativePhrase(freeText) ?: freeText.trim()
-            AdaptiveBuilderEngine.applyDecision(
+            var moveSave = AdaptiveBuilderEngine.applyDecision(
                 store,
                 BuilderDecision.SaveFact(
                     intentionId = intentionId,
@@ -1068,6 +1069,28 @@ object CreateIntentionChat {
                 t,
                 timeZone = timeZone
             )
+            if (!moveSave.accepted &&
+                moveSave.reason.contains("Stale revision", ignoreCase = true)
+            ) {
+                t += 1
+                moveSave = AdaptiveBuilderEngine.applyDecision(
+                    store,
+                    BuilderDecision.SaveFact(
+                        intentionId = intentionId,
+                        expectedRevision = rev(),
+                        factDraft = FactDraft(
+                            factId = "fact-create-move-$intentionId",
+                            text = movePhrase,
+                            key = AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE,
+                            rawUtterance = freeText,
+                            approximate = true
+                        ),
+                        sourceTurnId = "turn-create-bridge-move-retry-$t"
+                    ),
+                    t,
+                    timeZone = timeZone
+                )
+            }
             t += 1
         }
 
@@ -2165,7 +2188,10 @@ object CreateIntentionChat {
                 store.snapshot().adaptiveBuilderStates
                     .firstOrNull { it.intentionId == SESSION_INTENTION_ID }?.revision ?: 0L
             val movePhrase = extractRelativePhrase(freeText) ?: freeText.trim()
-            AdaptiveBuilderEngine.applyDecision(
+            // Ensure adaptive state exists so SaveFact revision matches
+            // (language create may answer motivation before bridge ensure).
+            ensureAdaptiveBuilderState(store, SESSION_INTENTION_ID, "language", nowEpochMs)
+            val saved = AdaptiveBuilderEngine.applyDecision(
                 store,
                 BuilderDecision.SaveFact(
                     intentionId = SESSION_INTENTION_ID,
@@ -2182,6 +2208,26 @@ object CreateIntentionChat {
                 nowEpochMs,
                 timeZone = timeZone
             )
+            // Stale revision: retry once with current revision (generic, not Spanish-only).
+            if (!saved.accepted && saved.reason.contains("Stale revision", ignoreCase = true)) {
+                AdaptiveBuilderEngine.applyDecision(
+                    store,
+                    BuilderDecision.SaveFact(
+                        intentionId = SESSION_INTENTION_ID,
+                        expectedRevision = rev(),
+                        factDraft = FactDraft(
+                            factId = "fact-create-move-preconfirm-$SESSION_INTENTION_ID",
+                            text = movePhrase,
+                            key = AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE,
+                            rawUtterance = freeText,
+                            approximate = true
+                        ),
+                        sourceTurnId = "turn-create-preconfirm-move-retry-$nowEpochMs"
+                    ),
+                    nowEpochMs + 1,
+                    timeZone = timeZone
+                )
+            }
             return false
         }
 

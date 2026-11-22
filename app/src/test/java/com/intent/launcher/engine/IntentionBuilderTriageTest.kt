@@ -166,6 +166,19 @@ class IntentionBuilderTriageTest {
             "move",
             IntentionBuilder.suggestShape("Relocate next month — lease ends, still looking for a flat")
         )
+        // Language-learning + incidental relocate timing → language (not housing project).
+        assertEquals(
+            "language",
+            IntentionBuilder.suggestShape(
+                "I want to speak spanish at work. Im moving to Spain in about three months"
+            )
+        )
+        assertEquals(
+            "language",
+            IntentionBuilder.suggestShape(
+                "I want to speak spanish. Im moving to Paris in about three months"
+            )
+        )
         assertEquals(
             "chess",
             IntentionBuilder.suggestShape(

@@ -53,7 +53,11 @@ object IntentionBuilder {
             // Time-limited decision (decide-by date) — before business so “offer”
             // does not land as a startup exploration.
             looksLikeTimeLimitedDecision(t) -> "decision"
-            // OC7 — finite relocation / lease-bound move before language (“move to Spain”).
+            // Language-learning intent beats incidental relocate phrasing
+            // (“speak spanish… moving in three months” → language + move_estimate,
+            // not a lease/housing project). Pure relocation stays move (OC7).
+            looksLikeLanguageLearning(t) -> "language"
+            // OC7 — finite relocation / lease-bound move before other shapes.
             looksLikeFiniteMoveProject(t) -> "move"
             listOf("spanish", "language", "duolingo", "tutor", "french", "german")
                 .any { t.contains(it) } -> "language"
@@ -103,11 +107,31 @@ object IntentionBuilder {
     }
 
     /**
+     * Learn / practise a language (generic cues). Used so relocate timing in the
+     * same sentence does not steal the create path into a housing project.
+     */
+    internal fun looksLikeLanguageLearning(textLower: String): Boolean {
+        val t = textLower.lowercase()
+        val language = listOf(
+            "spanish", "language", "duolingo", "tutor", "french", "german",
+            "italian", "portuguese", "japanese", "mandarin", "chinese", "korean"
+        ).any { t.contains(it) }
+        if (!language) return false
+        val learning = listOf(
+            "speak", "learn", "practise", "practice", "study", "fluent",
+            "vocabulary", "grammar", "conversational"
+        ).any { t.contains(it) }
+        return learning
+    }
+
+    /**
      * Finite relocation / lease-bound housing project with external waits
      * (landlord, viewing, movers). Generic cues only — no city-pair hardcoding.
      */
     internal fun looksLikeFiniteMoveProject(textLower: String): Boolean {
         val t = textLower.lowercase()
+        // Language create with incidental move timing is not a housing project.
+        if (looksLikeLanguageLearning(t)) return false
         val relocate = listOf(
             "move from", "move to", "moving from", "moving to",
             "relocate", "relocation", "move house", "moving house"
