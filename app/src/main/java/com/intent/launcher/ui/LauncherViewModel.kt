@@ -74,6 +74,7 @@ import com.intent.launcher.engine.AgentTurnLifecycle
 import com.intent.launcher.engine.CreateIntentionChat
 import com.intent.launcher.engine.DailyCycle
 import com.intent.launcher.engine.DeferralPreview
+import com.intent.launcher.engine.DiscussFreeTextRouter
 import com.intent.launcher.engine.DiscussFromHome
 import com.intent.launcher.engine.DiscussOfflineHold
 import com.intent.launcher.engine.ErrandCapture
@@ -1345,8 +1346,19 @@ class LauncherViewModel(
                     ) {
                         return@withContext "Refreshed the next useful question — answer the card above."
                     }
-                    when {
-                        createActive -> CreateIntentionChat.submitUtterance(
+                    // IV-263: timed activity SaveFact/CorrectFact before pending Ask
+                    // and before live Discuss (Message composer).
+                    when (
+                        DiscussFreeTextRouter.route(
+                            createActive = createActive,
+                            intentionId = intention?.id,
+                            text = text,
+                            store = store,
+                            hasActiveAdaptiveQuestion = intention != null &&
+                                hasActiveAdaptiveQuestion(intention.id)
+                        )
+                    ) {
+                        DiscussFreeTextRouter.Route.CREATE -> CreateIntentionChat.submitUtterance(
                             store = store,
                             text = text,
                             nowEpochMs = now,
@@ -1354,51 +1366,16 @@ class LauncherViewModel(
                             access = liveLlmAccess,
                             client = openAiDiscussClient
                         ).honestyNote
-                        intention != null && hasActiveAdaptiveQuestion(intention.id) ->
-                            AdaptiveAnswerPath.submit(
-                                store = store,
-                                intentionId = intention.id,
-                                rawValue = text,
-                                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
-                                nowEpochMs = now,
-                                expectedQuestionId = currentAdaptiveQuestionId(intention.id)
-                            ).honestyNote
-                        // §8.5 offline — relative date free-text corrects move estimate.
-                        intention != null &&
-                            com.intent.launcher.domain.RelativeDateAnchoring.looksRelative(text) &&
-                            store.snapshot().facts.any {
-                                it.intentionId == intention.id &&
-                                    it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
-                                    it.status == com.intent.launcher.domain.FactStatus.ACTIVE
-                            } -> {
-                            val result = AdaptiveBuilderEngine.correctMoveEstimate(
-                                store = store,
-                                intentionId = intention.id,
-                                newUtterance = text,
-                                nowEpochMs = now
-                            )
-                            if (result.accepted) {
-                                "Move estimate updated — prior estimate stays on record as corrected."
-                            } else {
-                                result.reason
-                            }
-                        }
-                        // Dated physical / practice — record timed activity or CorrectFact
-                        // (e.g. “I ran 20 minutes” → “Actually, 25 minutes”), not live prose.
-                        intention != null &&
-                            AdaptiveBuilderEngine.shouldHandleActivityReport(
-                                store = store,
-                                intentionId = intention.id,
-                                utterance = text
-                            ) -> {
+                        DiscussFreeTextRouter.Route.ACTIVITY_REPORT -> {
+                            val intentionId = intention!!.id
                             val hadActive = store.snapshot().facts.any {
-                                it.intentionId == intention.id &&
+                                it.intentionId == intentionId &&
                                     it.key == AdaptiveBuilderEngine.KEY_ACTIVITY_REPORT &&
                                     it.status == com.intent.launcher.domain.FactStatus.ACTIVE
                             }
                             val result = AdaptiveBuilderEngine.recordOrCorrectActivityReport(
                                 store = store,
-                                intentionId = intention.id,
+                                intentionId = intentionId,
                                 utterance = text,
                                 nowEpochMs = now
                             )
@@ -1412,7 +1389,29 @@ class LauncherViewModel(
                                 result.reason
                             }
                         }
-                        else -> ConversationCoordinator.submitFreeText(
+                        DiscussFreeTextRouter.Route.ADAPTIVE_ASK ->
+                            AdaptiveAnswerPath.submit(
+                                store = store,
+                                intentionId = intention!!.id,
+                                rawValue = text,
+                                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                                nowEpochMs = now,
+                                expectedQuestionId = currentAdaptiveQuestionId(intention.id)
+                            ).honestyNote
+                        DiscussFreeTextRouter.Route.MOVE_ESTIMATE_CORRECT -> {
+                            val result = AdaptiveBuilderEngine.correctMoveEstimate(
+                                store = store,
+                                intentionId = intention!!.id,
+                                newUtterance = text,
+                                nowEpochMs = now
+                            )
+                            if (result.accepted) {
+                                "Move estimate updated — prior estimate stays on record as corrected."
+                            } else {
+                                result.reason
+                            }
+                        }
+                        DiscussFreeTextRouter.Route.DISCUSS -> ConversationCoordinator.submitFreeText(
                             store = store,
                             intention = intention,
                             text = text,
