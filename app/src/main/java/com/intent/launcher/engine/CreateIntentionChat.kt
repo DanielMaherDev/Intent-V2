@@ -447,7 +447,7 @@ object CreateIntentionChat {
                 }
             }
         } else if (sourceLabel == LiveLlmProbe.LOCAL_HEURISTIC_LABEL) {
-            prose = "$prose (Local heuristics — not a live model.)"
+            prose = "$prose (On-device reply — not a live model.)"
         }
 
         postAgent(store, nowEpochMs + 3, prose)

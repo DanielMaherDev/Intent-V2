@@ -243,6 +243,14 @@ class MainActivity : ComponentActivity() {
                                 when (action) {
                                     FloaterDrawerAction.ASK -> openAskFromDrawerRequest++
                                     FloaterDrawerAction.TODAY -> openTodayFromDrawerRequest++
+                                    FloaterDrawerAction.CHECK_IN -> {
+                                        vm.confirmDailyCheckIn()
+                                    }
+                                    FloaterDrawerAction.CHECK_OUT -> {
+                                        pendingCheckOutDefer = false
+                                        pendingWhatHappened = ""
+                                        showCheckOutWhatHappened = true
+                                    }
                                     FloaterDrawerAction.CAPTURE -> {
                                         thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
                                         showThoughtCapture = true

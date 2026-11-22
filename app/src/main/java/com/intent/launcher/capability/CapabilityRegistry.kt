@@ -370,7 +370,7 @@ class CapabilityRegistry(
                 title = "Voice conversation input",
                 status = CapabilityStatus.PERMISSION_NEEDED,
                 limitNote = "Requires microphone permission and platform speech recognition. " +
-                    "Use conversation chips without it — same command path, no live LLM."
+                    "Use conversation chips without it — same command path."
             ),
             CapabilityEntry(
                 id = ID_NOTIFICATION_LISTENER,
@@ -468,20 +468,20 @@ class CapabilityRegistry(
                 id = ID_CAPTURE_THOUGHT,
                 title = "Capture thought",
                 status = CapabilityStatus.AVAILABLE,
-                limitNote = "Stores raw text with SAID provenance before classification."
+                limitNote = "Stores raw text with the time before classification."
             ),
             CapabilityEntry(
                 id = ID_BUILD_INTENTION,
                 title = "Guided intention builder",
                 status = CapabilityStatus.AVAILABLE,
-                limitNote = "Heuristic shape + missing-fact prompts — no live LLM. " +
-                    "Facts are SAID only after you confirm; no auto-commit of INFERRED."
+                limitNote = "On-device prompts for missing facts. " +
+                    "Facts are stored only after you confirm."
             ),
             CapabilityEntry(
                 id = ID_TRIAGE_THOUGHTS,
                 title = "Multi-thought triage",
                 status = CapabilityStatus.AVAILABLE,
-                limitNote = "Heuristic split into proposed intentions — no live LLM. " +
+                limitNote = "On-device split into proposed intentions. " +
                     "Confirm creates an intention; reject leaves the thought as evidence only."
             ),
             CapabilityEntry(
@@ -509,9 +509,8 @@ class CapabilityRegistry(
                 id = ID_LIVE_LLM,
                 title = "Live LLM Discuss",
                 status = CapabilityStatus.NOT_SUPPORTED,
-                limitNote = "No LLM API key configured. Discuss uses labeled local heuristics " +
-                    "(scripted chips / templates) — not a live model. Never writes OBSERVED " +
-                    "from model output; never auto-Completes sessions."
+                limitNote = "No assistant key configured. Discuss uses on-device replies " +
+                    "(scripted chips / templates) — not a live model."
             ),
             CapabilityEntry(
                 id = ID_QUICK_TODO,

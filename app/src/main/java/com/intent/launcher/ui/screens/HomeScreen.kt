@@ -488,15 +488,9 @@ fun HomeScreen(
                         null
                     },
                     onClearCheckoutNote = onClearCheckoutNote,
-                    overlayNote = overlayNote,
-                    showGrantOverlay = showGrantOverlay,
-                    onGrantOverlay = onGrantOverlay,
                     homeRoleNote = homeRoleNote,
                     showSetAsHome = showSetAsHome,
                     onSetAsHome = onSetAsHome,
-                    floatingCompanionLabel = floatingCompanionLabel,
-                    floatingManualRouteNote = floatingManualRouteNote,
-                    floatingInterventionProvenance = interventionPrompt?.provenanceLabel,
                     floaterTodayNote = floaterTodayNote,
                     onOpenFloaterDrawer = onOpenFloaterDrawer,
                     onCaptureThought = onCaptureThought,
@@ -563,7 +557,7 @@ fun HomeScreen(
             if (onAddQuickTodo != null) {
                 LineRow(
                     title = "Add a quick to-do",
-                    subtitle = "Small errand with a reminder",
+                    subtitle = null,
                     onClick = onAddQuickTodo,
                     glyphIcon = Icons.Outlined.AddTask,
                     glyphTone = GlyphTone.Accent
@@ -1839,16 +1833,9 @@ private fun QuietGrantStrip(
     usageNote: String?,
     checkoutObservationNote: String?,
     onClearCheckoutNote: () -> Unit,
-    overlayNote: String?,
-    showGrantOverlay: Boolean,
-    onGrantOverlay: () -> Unit,
     homeRoleNote: String?,
     showSetAsHome: Boolean,
     onSetAsHome: () -> Unit,
-    floatingCompanionLabel: String?,
-    floatingManualRouteNote: String?,
-    /** OBSERVED | INFERRED when floater attention is an intervention (Gate D2). */
-    floatingInterventionProvenance: String? = null,
     floaterTodayNote: String?,
     onOpenFloaterDrawer: () -> Unit,
     onCaptureThought: () -> Unit,
@@ -1900,21 +1887,8 @@ private fun QuietGrantStrip(
             onClick = onGrantUsageAccess
         )
     }
-    if (overlayNote != null) {
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = overlayNote,
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.Muted
-        )
-        if (showGrantOverlay) {
-            Spacer(modifier = Modifier.height(4.dp))
-            IntentQuietButton(
-                text = "Grant overlay permission",
-                onClick = onGrantOverlay
-            )
-        }
-    }
+    // S-COMPANION / S-SYS — no overlay essay or grant sentence on Home.
+    // Companion sheet + Capture stay as quiet actions; bubble lives in the overlay service.
     if (floaterTodayNote != null) {
         Spacer(modifier = Modifier.height(10.dp))
         Text(
@@ -1923,37 +1897,14 @@ private fun QuietGrantStrip(
             color = IntentColors.Warm
         )
     }
-    if (floatingCompanionLabel != null) {
-        Spacer(modifier = Modifier.height(10.dp))
-        val provenanceNote = floatingInterventionProvenance
-            ?.let { " Provenance $it — never silent mix." }
-            .orEmpty()
-        Text(
-            text = "Floating companion: $floatingCompanionLabel — same agent as Conversation." +
-                provenanceNote +
-                " Tap to Ask · long-press for Ask / Today / Capture.",
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.Muted
-        )
-    } else if (floatingManualRouteNote != null && overlayNote == null) {
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = floatingManualRouteNote,
-            modifier = Modifier.semantics {
-                contentDescription = floatingManualRouteNote
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = IntentColors.Muted
-        )
-    }
     Spacer(modifier = Modifier.height(10.dp))
     IntentQuietButton(
-        text = "Companion menu",
+        text = "Companion",
         onClick = onOpenFloaterDrawer
     )
     Spacer(modifier = Modifier.height(6.dp))
     IntentQuietButton(
-        text = "Capture thought",
+        text = "Capture a thought",
         onClick = onCaptureThought
     )
     if (thoughtCaptureNote != null) {

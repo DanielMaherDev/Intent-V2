@@ -5,12 +5,17 @@ import com.intent.launcher.domain.NextAction
 import com.intent.launcher.store.IntentionFlowStore
 
 /**
- * Floater long-press drawer — Ask / Today / Capture / History.
- * Same agent as Conversation; not a second bot. No LLM unless live_llm LIVE.
+ * Companion sheet — Ask agent / Today / Check in / Check out / Capture a thought.
+ * Same agent as Conversation; not a second bot. No model unless live_llm LIVE.
+ *
+ * [HISTORY] stays for notification deep-links; it is not a companion sheet row
+ * (History lives under Settings per S-SETTINGS).
  */
 enum class FloaterDrawerAction {
     ASK,
     TODAY,
+    CHECK_IN,
+    CHECK_OUT,
     CAPTURE,
     HISTORY
 }
@@ -39,26 +44,32 @@ object FloaterActionDrawer {
         val focusNote: String
     )
 
+    /** S-COMPANION sheet rows, in order. */
     val items: List<Item> = listOf(
         Item(
             action = FloaterDrawerAction.ASK,
-            label = "Ask",
-            detail = "Open Conversation — same agent, chips path (no live LLM unless available)."
+            label = "Ask agent",
+            detail = "Open Conversation — same agent as Home."
         ),
         Item(
             action = FloaterDrawerAction.TODAY,
             label = "Today",
-            detail = "Open Today — planned, completed, and deferred from the day cycle."
+            detail = "Planned, completed, and deferred from your day."
+        ),
+        Item(
+            action = FloaterDrawerAction.CHECK_IN,
+            label = "Check in",
+            detail = "Confirm today’s focus."
+        ),
+        Item(
+            action = FloaterDrawerAction.CHECK_OUT,
+            label = "Check out",
+            detail = "Say what happened, then keep or adjust the schedule."
         ),
         Item(
             action = FloaterDrawerAction.CAPTURE,
-            label = "Capture",
-            detail = "Save a raw thought (SAID) — no summary."
-        ),
-        Item(
-            action = FloaterDrawerAction.HISTORY,
-            label = "History",
-            detail = "Open local transaction History — same undo model; not a cloud sync."
+            label = "Capture a thought",
+            detail = "Save the raw text or audio with the time."
         )
     )
 
@@ -93,7 +104,7 @@ object FloaterActionDrawer {
         val label = nextAction.label.trim().ifEmpty { "next action" }
         return OpenTodayResult(
             navigateTo = TODAY_ROUTE,
-            focusNote = "Today — focus: $label. Planned · completed · deferred from your day cycle — not chat prose."
+            focusNote = "Today — focus: $label. Planned · completed · deferred from your day cycle."
         )
     }
 

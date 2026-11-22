@@ -55,7 +55,7 @@ class ConversationCoordinatorFreeTextTest {
         assertEquals(0, httpCalls)
         assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, result.sourceLabel)
         val agent = store.snapshot().turns.last { it.role == "agent" }
-        assertTrue(agent.text.contains("local heuristics", ignoreCase = true))
+        assertTrue(agent.text.contains("on-device", ignoreCase = true))
         assertFalse(agent.text.contains("Live assistant"))
     }
 

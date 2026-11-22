@@ -409,7 +409,7 @@ data class TriageItem(
     val suggestedNextAction: String,
     val sourceThoughtIds: List<String>,
     val status: TriageItemStatus = TriageItemStatus.PENDING,
-    val honestyNote: String = "Heuristic split — no live LLM."
+    val honestyNote: String = "On-device split — not a live model."
 )
 
 data class TriageState(
