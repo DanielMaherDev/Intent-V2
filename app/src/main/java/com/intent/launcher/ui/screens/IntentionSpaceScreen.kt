@@ -39,15 +39,12 @@ import androidx.compose.ui.unit.dp
 import com.intent.launcher.domain.Approach
 import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
-import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
-import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.OpenQuestion
-import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
@@ -301,35 +298,34 @@ fun IntentionSpaceScreen(
         Spacer(modifier = Modifier.height(26.dp))
         SectionTitle("What we know")
         Spacer(modifier = Modifier.height(9.dp))
-        val activeFacts = facts.filter { it.status == FactStatus.ACTIVE }
-        val correctedFacts = facts.filter { it.status == FactStatus.CORRECTED }
+        // Prefer stored rows; fall back to shape defaultFacts (same as S-KNOW See all).
+        // Sessions stay Intention-Space-only and suppress the defaultFacts fallback when present.
+        val storedKnowledge = buildKnowledgeRows(
+            facts = facts,
+            hypotheses = hypotheses,
+            evidence = evidence,
+            defaultFacts = emptyList()
+        )
         val knowledgeRows = buildList {
-            activeFacts.forEach { add("You told us" to it.text) }
-            correctedFacts.forEach { add("Corrected" to it.text) }
-            hypotheses.forEach { add("Inferred · not confirmed" to it.text) }
-            evidence
-                .filter {
-                    it.accuracy == EvidenceAccuracy.ACTIVE &&
-                        it.provenance.kind == ProvenanceKind.OBSERVED
-                }
-                .forEach { add("Observed" to it.summaryText) }
+            storedKnowledge.forEach { add(it.source to it.body) }
             sessions.forEach { s ->
                 val whenLabel = "dow ${s.dayOfWeek} %02d:%02d".format(s.hour, s.minute)
                 add("Scheduled" to "${s.title} · $whenLabel")
             }
         }
-        if (knowledgeRows.isEmpty() && projection.defaultFacts.isEmpty()) {
+        val rows = when {
+            knowledgeRows.isNotEmpty() -> knowledgeRows
+            projection.defaultFacts.isNotEmpty() ->
+                projection.defaultFacts.map { "You told us" to it }
+            else -> emptyList()
+        }
+        if (rows.isEmpty()) {
             Text(
                 text = "Nothing confirmed yet.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = IntentColors.Muted
             )
         } else {
-            val rows = if (knowledgeRows.isEmpty()) {
-                projection.defaultFacts.map { "You told us" to it }
-            } else {
-                knowledgeRows
-            }
             rows.take(3).forEach { (source, body) ->
                 Column(
                     modifier = Modifier

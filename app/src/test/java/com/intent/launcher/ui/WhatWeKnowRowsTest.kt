@@ -72,4 +72,55 @@ class WhatWeKnowRowsTest {
         assertEquals(1, rows.size)
         assertEquals("Observed · Duolingo", rows[0].source)
     }
+
+    @Test
+    fun emptyStore_fallsBackToDefaultFacts_notEmptyState() {
+        val defaults = listOf(
+            "Goal · finish a marathon",
+            "Timeframe · build base first"
+        )
+        val rows = buildKnowledgeRows(
+            facts = emptyList(),
+            hypotheses = emptyList(),
+            evidence = emptyList(),
+            defaultFacts = defaults
+        )
+        assertEquals(2, rows.size)
+        assertEquals("Goal · finish a marathon", rows[0].body)
+        assertEquals("You told us", rows[0].source)
+        assertEquals(null, rows[0].editId)
+        assertEquals("Timeframe · build base first", rows[1].body)
+    }
+
+    @Test
+    fun storedFacts_preferOverDefaultFacts() {
+        val rows = buildKnowledgeRows(
+            facts = listOf(
+                Fact(
+                    id = "f1",
+                    intentionId = "i1",
+                    text = "six months",
+                    provenance = Provenance(ProvenanceKind.SAID, 1L, "user"),
+                    status = FactStatus.ACTIVE
+                )
+            ),
+            hypotheses = emptyList(),
+            evidence = emptyList(),
+            defaultFacts = listOf("Goal · finish a marathon")
+        )
+        assertEquals(1, rows.size)
+        assertEquals("six months", rows[0].body)
+        assertEquals("f1", rows[0].editId)
+    }
+
+    @Test
+    fun emptyStoreAndNoDefaults_returnsEmpty() {
+        val rows = buildKnowledgeRows(
+            facts = emptyList(),
+            hypotheses = emptyList(),
+            evidence = emptyList(),
+            defaultFacts = emptyList()
+        )
+        assertTrue(rows.isEmpty())
+    }
 }

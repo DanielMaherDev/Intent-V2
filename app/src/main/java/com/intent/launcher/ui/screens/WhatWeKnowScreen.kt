@@ -35,12 +35,13 @@ fun WhatWeKnowScreen(
     facts: List<Fact>,
     hypotheses: List<Hypothesis> = emptyList(),
     evidence: List<Evidence> = emptyList(),
+    defaultFacts: List<String> = emptyList(),
     onBack: () -> Unit,
     onEditFact: ((factId: String) -> Unit)? = null,
     onAddFact: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val rows = buildKnowledgeRows(facts, hypotheses, evidence)
+    val rows = buildKnowledgeRows(facts, hypotheses, evidence, defaultFacts)
 
     Column(
         modifier = modifier
@@ -118,41 +119,54 @@ internal data class KnowledgeRow(
     val editId: String? = null
 )
 
+/**
+ * S-KNOW / Intention Space row builder.
+ * When no stored facts / hypotheses / observed evidence exist, falls back to
+ * shape `defaultFacts` so See all matches the Intention Space preview
+ * (create/confirm shape defaults) instead of “Nothing confirmed yet.”
+ */
 internal fun buildKnowledgeRows(
     facts: List<Fact>,
     hypotheses: List<Hypothesis>,
-    evidence: List<Evidence>
-): List<KnowledgeRow> = buildList {
-    facts.filter { it.status == FactStatus.ACTIVE }.forEach { f ->
-        add(KnowledgeRow(body = f.text, source = "You told us", editId = f.id))
-    }
-    facts.filter { it.status == FactStatus.CORRECTED }.forEach { f ->
-        add(KnowledgeRow(body = f.text, source = "Corrected", editId = f.id))
-    }
-    hypotheses.forEach { h ->
-        add(
-            KnowledgeRow(
-                body = h.text,
-                source = "Inferred · not confirmed",
-                editId = null
-            )
-        )
-    }
-    evidence
-        .filter {
-            it.accuracy == EvidenceAccuracy.ACTIVE &&
-                it.provenance.kind == ProvenanceKind.OBSERVED
+    evidence: List<Evidence>,
+    defaultFacts: List<String> = emptyList()
+): List<KnowledgeRow> {
+    val rows = buildList {
+        facts.filter { it.status == FactStatus.ACTIVE }.forEach { f ->
+            add(KnowledgeRow(body = f.text, source = "You told us", editId = f.id))
         }
-        .forEach { e ->
-            val app = e.appLabel?.trim().orEmpty()
-                .ifBlank { e.packageName?.trim().orEmpty() }
-                .ifBlank { "app" }
+        facts.filter { it.status == FactStatus.CORRECTED }.forEach { f ->
+            add(KnowledgeRow(body = f.text, source = "Corrected", editId = f.id))
+        }
+        hypotheses.forEach { h ->
             add(
                 KnowledgeRow(
-                    body = e.summaryText,
-                    source = "Observed · $app",
+                    body = h.text,
+                    source = "Inferred · not confirmed",
                     editId = null
                 )
             )
         }
+        evidence
+            .filter {
+                it.accuracy == EvidenceAccuracy.ACTIVE &&
+                    it.provenance.kind == ProvenanceKind.OBSERVED
+            }
+            .forEach { e ->
+                val app = e.appLabel?.trim().orEmpty()
+                    .ifBlank { e.packageName?.trim().orEmpty() }
+                    .ifBlank { "app" }
+                add(
+                    KnowledgeRow(
+                        body = e.summaryText,
+                        source = "Observed · $app",
+                        editId = null
+                    )
+                )
+            }
+    }
+    if (rows.isNotEmpty()) return rows
+    return defaultFacts.map { text ->
+        KnowledgeRow(body = text, source = "You told us", editId = null)
+    }
 }

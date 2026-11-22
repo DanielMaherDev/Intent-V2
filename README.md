@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.167** (this branch) · based on tip **v0.0.166** (#111) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.173** (this branch) · stacked on redesign **v0.0.167** (#110) · tip **v0.0.166** (#111) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.167** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk` → publish as `artifacts/INTENT-v0.0.167.apk`
+APK: parent redesign ships `artifacts/INTENT-v0.0.167.apk`; **0.0.173** is JVM-only (no new sideload APK).
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.173:** S-KNOW empty-list fix — What we know / See all falls back to intention `defaultFacts` (same as Intention Space) instead of “Nothing confirmed yet” when create/confirm shape defaults exist and no stored rows yet. JVM: `WhatWeKnowRowsTest`.
 - **v0.0.167:** DESIGN_SPEC redesign slice — empty Home (S-HOME-EMPTY), brand tokens `#5C4DFF` / paper `#F6F4F0`, diamond wordmark; Discuss **Cancel** while waiting for the model (§8.9 surface). Spec at `docs/design/intent-redesign-2026-11/`. Rebased onto tip **0.0.166** (#111 SessionMetaGrid); does not touch ProposalReview 4-cell grid.
 - **v0.0.163:** Adaptive builder Gates D–E + AVD defect fixes (#108).
 - **v0.0.161:** Adaptive builder Gates B–C domain core + Gate F JVM harness — typed source-linked Fact / OpenQuestion / Approach / AdaptiveBuilderState; BuilderDecision + validator; RelativeDateAnchoring; Conversation-callable AdaptiveBuilderEngine hooks; §8 scenarios 1/4/5/6/7/9 green. Does **not** change chat-first create UX (IV-189 / 0.0.160). SCHEMA 10 stamp-compatible. Based on tip **0.0.159** (#105).

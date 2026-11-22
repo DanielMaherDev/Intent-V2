@@ -813,14 +813,33 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("know") {
                             val active = vm.activeIntention()
+                            val knowFacts = vm.snapshot.facts.filter { it.intentionId == active?.id }
+                            val knowHypotheses = vm.snapshot.hypotheses.filter {
+                                it.intentionId == active?.id
+                            }
+                            val knowEvidence = vm.snapshot.evidence.filter {
+                                it.intentionId == active?.id
+                            }
+                            val knowSessions = vm.snapshot.sessions.filter {
+                                it.intentionId == active?.id
+                            }
+                            val knowProjection = ShapeProjection.project(
+                                intention = active,
+                                facts = knowFacts,
+                                hypotheses = knowHypotheses,
+                                sessions = knowSessions,
+                                approaches = vm.snapshot.approaches.filter {
+                                    it.intentionId == active?.id
+                                },
+                                openQuestions = vm.snapshot.openQuestions.filter {
+                                    it.intentionId == active?.id
+                                }
+                            )
                             WhatWeKnowScreen(
-                                facts = vm.snapshot.facts.filter { it.intentionId == active?.id },
-                                hypotheses = vm.snapshot.hypotheses.filter {
-                                    it.intentionId == active?.id
-                                },
-                                evidence = vm.snapshot.evidence.filter {
-                                    it.intentionId == active?.id
-                                },
+                                facts = knowFacts,
+                                hypotheses = knowHypotheses,
+                                evidence = knowEvidence,
+                                defaultFacts = knowProjection.defaultFacts,
                                 onBack = { nav.popBackStack() },
                                 onEditFact = { nav.navigate("conversation") },
                                 onAddFact = { nav.navigate("conversation") },
