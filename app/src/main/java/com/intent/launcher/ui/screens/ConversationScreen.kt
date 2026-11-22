@@ -619,6 +619,7 @@ private fun ThinkingCancelBanner(onCancel: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
             .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
             .background(IntentColors.Card, RoundedCornerShape(16.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),

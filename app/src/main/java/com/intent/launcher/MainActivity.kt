@@ -32,6 +32,7 @@ import com.intent.launcher.domain.ShapeProjection
 import com.intent.launcher.domain.TrackerEntryStatus
 import com.intent.launcher.engine.AnimationBudgetGate
 import com.intent.launcher.engine.CaptureThought
+import com.intent.launcher.engine.DiscussOfflineHold
 import com.intent.launcher.engine.FloaterDrawerAction
 import com.intent.launcher.engine.OverlayPermissionProbe
 import com.intent.launcher.engine.QuietModeProbe
@@ -168,6 +169,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // §8.9 AVD: optional engineering hold so Cancel is tappable without live OpenAI.
+        DiscussOfflineHold.applyFromIntentExtra(
+            intent.getLongExtra(DiscussOfflineHold.EXTRA_HOLD_MS, -1L)
+        )
         consumeCompanionIntent(intent)
         setContent {
             IntentTheme(
