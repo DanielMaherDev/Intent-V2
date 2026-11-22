@@ -59,6 +59,32 @@ object AdaptiveBuilderEngine {
     const val KEY_NOTICE_STATUS = "notice_status"
     const val KEY_DECIDE_BY_DATE = "decide_by_date"
 
+    /** Unformed ambition / exploration — explore before execute (OTHER §8). */
+    const val KEY_SKILLS_OR_INTERESTS = "skills_or_interests"
+    const val KEY_WEEKLY_TIME_BUDGET = "weekly_time_budget"
+    const val KEY_EXPLORATION_MODE = "exploration_mode"
+    const val KEY_SELECTED_IDEA = "selected_idea"
+    const val KEY_VALIDATION_APPROACH = "validation_approach"
+
+    val EXPLORATION_MODE_OPTIONS: List<String> = listOf(
+        "Brainstorm first",
+        "Examine problems people pay to solve",
+        "Test one idea quickly"
+    )
+
+    val WEEKLY_TIME_OPTIONS: List<String> = listOf(
+        "About five hours a week",
+        "A few hours a week",
+        "More than five hours",
+        "Not sure yet"
+    )
+
+    val VALIDATION_APPROACH_OPTIONS: List<String> = listOf(
+        "Validate with a few potential customers",
+        "Keep exploring",
+        "Drop it"
+    )
+
     /** Chips for motivation Ask (Other appended by [BuilderAnswerCard]). */
     val MOTIVATION_OPTIONS: List<String> = listOf(
         "Moving or travel",
@@ -170,21 +196,21 @@ object AdaptiveBuilderEngine {
                 )
             )
         }
+        // Unformed ambition / bare exploration — explore before execute (never launch ops).
         if (context.typeFacets.any { it == "ambition" || it == "exploration" } &&
-            context.confirmedFacts.isEmpty() &&
-            !hasUnresolvedPurpose(context, "skills_or_interests")
+            context.typeFacets.none {
+                it == "language_learning" ||
+                    it == "physical_training" ||
+                    it == "habit_change" ||
+                    it == "usage_goal" ||
+                    it == "decision" ||
+                    it == "connected_metric" ||
+                    it == "conditional_process" ||
+                    it == "dated_outcome" ||
+                    it == "one_off_action"
+            }
         ) {
-            // Broad ambition: one discovery question, never a fictional launch checklist.
-            return BuilderDecision.Ask(
-                intentionId = context.intentionId,
-                expectedRevision = context.revision,
-                questionId = "q-explore-skills-${context.intentionId}",
-                whyItMatters = "Without an idea chosen, a launch checklist would be premature.",
-                answerSchema = AnswerSchema.FREE_TEXT,
-                purpose = "skills_or_interests",
-                blocksWhat = "validation_experiment",
-                priority = 10
-            )
+            ambitionExplorationDecision(context)?.let { return it }
         }
 
         // —— OC2 / §8.8: eligibility → research pause (research shape; not dated move projects) ——
@@ -369,6 +395,188 @@ object AdaptiveBuilderEngine {
         context.openQuestions.any {
             it.purpose == purpose && it.state != OpenQuestionState.ANSWERED
         }
+
+    /**
+     * OTHER §8 — unformed ambition: skills → time budget → exploration mode →
+     * Explore ideas / Choose an idea to validate / small experiment.
+     * Never invents launch checklists, sales forecasts, or business ops.
+     */
+    private fun ambitionExplorationDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_SKILLS_OR_INTERESTS } &&
+            !hasUnresolvedPurpose(context, KEY_SKILLS_OR_INTERESTS)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-explore-skills-${context.intentionId}",
+                whyItMatters =
+                    "Without an idea chosen, a launch checklist would be premature. " +
+                        "Skills and interests shape what is worth exploring.",
+                answerSchema = AnswerSchema.FREE_TEXT,
+                purpose = KEY_SKILLS_OR_INTERESTS,
+                blocksWhat = "exploration_mode",
+                priority = 95
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_WEEKLY_TIME_BUDGET } &&
+            !hasUnresolvedPurpose(context, KEY_WEEKLY_TIME_BUDGET)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-weekly-time-${context.intentionId}",
+                whyItMatters =
+                    "A weekly time budget keeps exploration honest — " +
+                        "five hours a week is a constraint, not a launch plan.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_WEEKLY_TIME_BUDGET,
+                blocksWhat = "exploration_mode",
+                options = WEEKLY_TIME_OPTIONS,
+                priority = 90
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_EXPLORATION_MODE } &&
+            !hasUnresolvedPurpose(context, KEY_EXPLORATION_MODE)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-exploration-mode-${context.intentionId}",
+                whyItMatters =
+                    "Brainstorm, examine paid problems, or test quickly — " +
+                        "choosing how to explore comes before any execution plan.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_EXPLORATION_MODE,
+                blocksWhat = "ideas_board_or_validation",
+                options = EXPLORATION_MODE_OPTIONS,
+                priority = 85
+            )
+        }
+
+        val modeText = context.confirmedFacts
+            .firstOrNull { it.key == KEY_EXPLORATION_MODE }
+            ?.let { it.normalizedValue ?: it.text }
+            .orEmpty()
+        val wantsValidate = looksLikeValidateMode(modeText) ||
+            context.confirmedFacts.any { it.key == KEY_SELECTED_IDEA }
+
+        if (wantsValidate) {
+            if (context.confirmedFacts.none { it.key == KEY_SELECTED_IDEA } &&
+                !hasUnresolvedPurpose(context, KEY_SELECTED_IDEA)
+            ) {
+                return BuilderDecision.Ask(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    questionId = "q-selected-idea-${context.intentionId}",
+                    whyItMatters =
+                        "Validation needs one idea chosen — do not assume an idea " +
+                            "was picked during brainstorming.",
+                    answerSchema = AnswerSchema.FREE_TEXT,
+                    purpose = KEY_SELECTED_IDEA,
+                    blocksWhat = "validation_experiment",
+                    priority = 80
+                )
+            }
+            if (context.confirmedFacts.none { it.key == KEY_VALIDATION_APPROACH } &&
+                !hasUnresolvedPurpose(context, KEY_VALIDATION_APPROACH)
+            ) {
+                return BuilderDecision.Ask(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    questionId = "q-validation-approach-${context.intentionId}",
+                    whyItMatters =
+                        "Choose whether to validate with potential customers, " +
+                            "keep exploring, or drop the idea.",
+                    answerSchema = AnswerSchema.SINGLE_CHOICE,
+                    purpose = KEY_VALIDATION_APPROACH,
+                    blocksWhat = "validation_experiment",
+                    options = VALIDATION_APPROACH_OPTIONS,
+                    priority = 75
+                )
+            }
+            val approachText = context.confirmedFacts
+                .firstOrNull { it.key == KEY_VALIDATION_APPROACH }
+                ?.let { it.normalizedValue ?: it.text }
+                .orEmpty()
+                .lowercase()
+            if (approachText.contains("keep exploring") || approachText.contains("drop")) {
+                return BuilderDecision.Pause(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    reason =
+                        "Staying in exploration — no business operations, sales forecasts, " +
+                            "or revenue tracker invented.",
+                    resumeCue = "Choose an idea to validate"
+                )
+            }
+            if (!hasOfferedAction(context, "validation_experiment") &&
+                !hasOfferedAction(context, "Small validation experiment")
+            ) {
+                return BuilderDecision.OfferAction(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    actionDraft = ActionDraft(
+                        actionId = "validation-experiment-${context.intentionId}",
+                        title = "Small validation experiment",
+                        summary =
+                            "A small experiment for this week plus a check-in to review " +
+                                "what you learn — not a launch checklist or revenue forecast.",
+                        kind = "validation_experiment"
+                    )
+                )
+            }
+            return BuilderDecision.Pause(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                reason =
+                    "Validation experiment is proposed. Nothing is scheduled until you " +
+                        "approve a check-in — no ops plan invented.",
+                resumeCue = "Review experiment"
+            )
+        }
+
+        // Brainstorm / examine problems — Explore ideas session, then pause.
+        if (!hasOfferedAction(context, "explore_ideas") &&
+            !hasOfferedAction(context, "Explore ideas")
+        ) {
+            return BuilderDecision.OfferAction(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                actionDraft = ActionDraft(
+                    actionId = "explore-ideas-${context.intentionId}",
+                    title = "Explore ideas",
+                    summary =
+                        "Guided Explore ideas session with a small ideas board under your " +
+                            "weekly time budget. Later you can Choose an idea to validate — " +
+                            "no launch checklist.",
+                    kind = "explore_ideas"
+                )
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Exploration stays open on the ideas board. Choosing one idea to validate " +
+                    "comes next — no business operations or forecasts invented.",
+            resumeCue = "Choose an idea to validate"
+        )
+    }
+
+    private fun looksLikeValidateMode(modeText: String): Boolean {
+        val t = modeText.lowercase()
+        return t.contains("test") || t.contains("validate") || t.contains("quickly")
+    }
+
+    private fun hasOfferedAction(context: BuilderContext, needle: String): Boolean {
+        val n = needle.lowercase()
+        return context.recentTurns.any { turn ->
+            turn.blocks.any {
+                it.title.lowercase().contains(n) ||
+                    it.body.lowercase().contains(n)
+            } || turn.text.lowercase().contains(n)
+        }
+    }
 
     /**
      * OC2 / §8.8 — ask eligibility, then pause for sourced research.
@@ -803,11 +1011,43 @@ object AdaptiveBuilderEngine {
                                     title = decision.actionDraft.title,
                                     body = decision.actionDraft.summary,
                                     sourceLabel = "adaptive-builder",
-                                    linkedObjectIds = listOf(decision.actionDraft.actionId)
+                                    linkedObjectIds = listOf(decision.actionDraft.actionId),
+                                    actions = when (decision.actionDraft.kind) {
+                                        "explore_ideas" -> listOf(
+                                            "Start Explore ideas",
+                                            "Choose an idea to validate",
+                                            "Keep exploring"
+                                        )
+                                        "validation_experiment" -> listOf(
+                                            "Show experiment plan",
+                                            "Keep exploring",
+                                            "Not now"
+                                        )
+                                        else -> emptyList()
+                                    }
                                 )
                             )
                         )
                     )
+                    // Ideas board shell — empty hypotheses, not invented ideas.
+                    if (decision.actionDraft.kind == "explore_ideas") {
+                        val already = store.snapshot().hypotheses.any {
+                            it.intentionId == decision.intentionId &&
+                                it.text.contains("ideas board", ignoreCase = true)
+                        }
+                        if (!already) {
+                            store.apply(
+                                FlowCommand.AddHypothesis(
+                                    hypothesisId = "hyp-ideas-board-${decision.intentionId}",
+                                    intentionId = decision.intentionId,
+                                    text =
+                                        "Ideas board open — capture sourced ideas here; " +
+                                            "none chosen yet.",
+                                    nowEpochMs = nowEpochMs
+                                )
+                            )
+                        }
+                    }
                 }
                 bumpState(store, decision.intentionId, nowEpochMs) { it }
             }

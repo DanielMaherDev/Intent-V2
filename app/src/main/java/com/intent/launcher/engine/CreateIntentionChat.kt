@@ -773,6 +773,17 @@ object CreateIntentionChat {
             )
         }
 
+        // OTHER §8 — business / unformed ambition: explore before execute.
+        if (shapeTag == "business") {
+            return bridgeBusinessAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+
         val minutes = factAnswers["practice_minutes"]?.trim()?.takeIf { it.isNotEmpty() }
         val method = factAnswers["existing_method"]?.trim()?.takeIf { it.isNotEmpty() }
         // Practice-shaped creates (language minutes wheel + method chips). Other
@@ -1009,6 +1020,93 @@ object CreateIntentionChat {
         return store.snapshot().proposals.firstOrNull {
             it.intentionId == intentionId && it.status == ProposalStatus.PENDING
         }?.id
+    }
+
+    /**
+     * OTHER §8 — map create exploration answers onto AdaptiveBuilder keys, then
+     * advance to Explore ideas OfferAction / Pause. Never invents a launch
+     * checklist, revenue tracker, or business-ops Propose.
+     */
+    private fun bridgeBusinessAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "business", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveExplore(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        saveExplore(
+            AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS,
+            factAnswers[AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS]?.trim().orEmpty(),
+            "skills"
+        )
+        saveExplore(
+            AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET,
+            factAnswers[AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET]?.trim().orEmpty(),
+            "weekly-time"
+        )
+        saveExplore(
+            AdaptiveBuilderEngine.KEY_EXPLORATION_MODE,
+            factAnswers[AdaptiveBuilderEngine.KEY_EXPLORATION_MODE]?.trim().orEmpty(),
+            "explore-mode"
+        )
+
+        repeat(8) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> return null
+                is BuilderDecision.Propose -> return null // honesty: no launch Propose
+                is BuilderDecision.Ask -> return null
+                is BuilderDecision.OfferAction -> {
+                    // Explore ideas / validation experiment card applied — stop so UI shows it.
+                    return null
+                }
+                else -> Unit
+            }
+        }
+        return null
     }
 
     /**

@@ -183,23 +183,22 @@ object IntentionBuilder {
             )
             "business" -> listOf(
                 Prompt(
-                    id = "learn_next",
-                    question = "What would help you learn what to do next?",
-                    choiceOptions = listOf(
-                        "Talk to a customer",
-                        "Write a one-pager",
-                        "Research competitors",
-                        "Not sure yet"
-                    )
+                    id = AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS,
+                    question =
+                        "What skills, interests, or problems do you already know well? " +
+                            "Without an idea chosen, a launch checklist would be premature."
                 ),
                 Prompt(
-                    id = "existing_method",
-                    question = "Do you already talk with customers or mentors?",
-                    choiceOptions = listOf(
-                        "Yes — regularly",
-                        "A little",
-                        "Not yet"
-                    )
+                    id = AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET,
+                    question = "How much time can you put in each week?",
+                    choiceOptions = AdaptiveBuilderEngine.WEEKLY_TIME_OPTIONS
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_EXPLORATION_MODE,
+                    question =
+                        "Would you rather brainstorm opportunities, examine problems " +
+                            "people already pay to solve, or test one idea quickly?",
+                    choiceOptions = AdaptiveBuilderEngine.EXPLORATION_MODE_OPTIONS
                 )
             )
             else -> listOf(

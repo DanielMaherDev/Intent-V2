@@ -277,7 +277,8 @@ class GateC2RankingPolicyTest {
         assertTrue(errand is BuilderDecision.OfferAction)
         assertEquals(0, errandCtx.openQuestions.size)
 
-        // Ambition: one exploration Ask, then Pause — not a fixed N-question script.
+        // Ambition: consequence-driven explore Asks (skills → time → mode), then
+        // Explore ideas OfferAction / Pause — not a fixed N-question script or launch plan.
         storeFile = tmp.newFile("gate-c2-ambition.json")
         store = IntentionFlowStore(storeFile)
         AdaptiveBuilderFixtures.seedBusinessDiscovery(store, now)
@@ -288,8 +289,10 @@ class GateC2RankingPolicyTest {
             tz
         )
         assertTrue(bizAsk is BuilderDecision.Ask)
-        assertEquals("skills_or_interests", (bizAsk as BuilderDecision.Ask).purpose)
-        assertEquals(10, bizAsk.priority)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS,
+            (bizAsk as BuilderDecision.Ask).purpose
+        )
         assertTrue(
             AdaptiveBuilderEngine.applyDecision(store, bizAsk, now, timeZone = tz).accepted
         )
@@ -310,22 +313,109 @@ class GateC2RankingPolicyTest {
                     idempotencyKey = "idem-c2-biz",
                     expectedRevision = afterBizAsk.revision
                 ),
-                factKey = "skills_or_interests",
+                factKey = AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS,
                 timeZone = tz
             ).accepted
         )
+        // Next consequential Ask is weekly time — not a fictional launch checklist.
         val afterBizFact = AdaptiveBuilderEngine.projectContext(
             store.snapshot(), bizId, now + 3, tz
         )!!
         val bizNext = AdaptiveBuilderEngine.suggestNextDecision(afterBizFact, now + 3, tz)
         assertTrue(
-            "ambition must stop after one discovery Ask, got $bizNext",
-            bizNext is BuilderDecision.Pause
+            "ambition should Ask weekly time after skills, got $bizNext",
+            bizNext is BuilderDecision.Ask &&
+                (bizNext as BuilderDecision.Ask).purpose ==
+                AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, bizNext, now + 3, timeZone = tz).accepted
+        )
+        val afterTimeAsk = AdaptiveBuilderEngine.projectContext(
+            store.snapshot(), bizId, now + 4, tz
+        )!!
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = (bizNext as BuilderDecision.Ask).questionId,
+                    intentionId = bizId,
+                    normalizedValue = "About five hours a week",
+                    rawValue = "About five hours a week",
+                    modality = "CHIP",
+                    sourceTurnId = "turn-c2-biz-time",
+                    answeredAtEpochMs = now + 5,
+                    idempotencyKey = "idem-c2-biz-time",
+                    expectedRevision = afterTimeAsk.revision
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET,
+                timeZone = tz
+            ).accepted
+        )
+        val modeAsk = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), bizId, now + 6, tz)!!,
+            now + 6,
+            tz
+        )
+        assertTrue(modeAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_EXPLORATION_MODE,
+            (modeAsk as BuilderDecision.Ask).purpose
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, modeAsk, now + 6, timeZone = tz).accepted
+        )
+        val afterModeAsk = AdaptiveBuilderEngine.projectContext(
+            store.snapshot(), bizId, now + 7, tz
+        )!!
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = modeAsk.questionId,
+                    intentionId = bizId,
+                    normalizedValue = "Brainstorm first",
+                    rawValue = "Brainstorm first",
+                    modality = "CHIP",
+                    sourceTurnId = "turn-c2-biz-mode",
+                    answeredAtEpochMs = now + 8,
+                    idempotencyKey = "idem-c2-biz-mode",
+                    expectedRevision = afterModeAsk.revision
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_EXPLORATION_MODE,
+                timeZone = tz
+            ).accepted
+        )
+        val exploreOffer = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), bizId, now + 9, tz)!!,
+            now + 9,
+            tz
+        )
+        assertTrue(
+            "ambition should Offer Explore ideas after brainstorm, got $exploreOffer",
+            exploreOffer is BuilderDecision.OfferAction &&
+                (exploreOffer as BuilderDecision.OfferAction).actionDraft.kind == "explore_ideas"
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, exploreOffer, now + 9, timeZone = tz).accepted
+        )
+        val afterExplore = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), bizId, now + 10, tz)!!,
+            now + 10,
+            tz
+        )
+        assertTrue(
+            "ambition must Pause after Explore ideas (not invent ops), got $afterExplore",
+            afterExplore is BuilderDecision.Pause
+        )
+        assertTrue(
+            (afterExplore as BuilderDecision.Pause).resumeCue
+                ?.contains("validate", ignoreCase = true) == true
         )
         val bizAskCount = store.snapshot().openQuestions.count {
             it.intentionId == bizId && it.state != OpenQuestionState.OPEN
         }
-        assertEquals(1, bizAskCount)
+        assertEquals(3, bizAskCount)
 
         // Spanish: length is consequence-driven (Ask → … → OfferApproaches), not a fixed N.
         storeFile = tmp.newFile("gate-c2-spanish-len.json")
@@ -415,7 +505,7 @@ class GateC2RankingPolicyTest {
                 it.intentionId == id && it.status == ApproachStatus.SELECTED
             }
         )
-        // Cross-facet proof: errand 0 Asks, ambition 1 Ask, Spanish ≥3 — lengths differ.
+        // Cross-facet proof: errand 0 Asks, ambition consequence-driven (≠ fixed N), Spanish ≥3.
         assertTrue(spanishAskPurposes.size != 0)
         assertTrue(spanishAskPurposes.size != 1)
     }
