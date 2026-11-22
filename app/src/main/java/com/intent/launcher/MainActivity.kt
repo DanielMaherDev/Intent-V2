@@ -642,6 +642,20 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 },
+                                screenTimeBarVisible = vm.screenTimeBarPrefVisible,
+                                onScreenTimeBarVisibleChange = { visible ->
+                                    vm.setScreenTimeBarVisible(visible)
+                                },
+                                usageAccessGranted =
+                                    vm.screenTimeBarObservation?.permissionGranted == true ||
+                                        vm.usageObservation?.permissionGranted == true,
+                                onAllowUsageAccess = {
+                                    startActivity(
+                                        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                },
                                 onBack = {
                                     vm.clearConnectionUnlinkNote()
                                     nav.popBackStack()
