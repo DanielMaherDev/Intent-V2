@@ -1,8 +1,8 @@
-# Redesign + §8 leftovers — 0.0.165
+# Redesign + §8 leftovers — 0.0.167
 
-**Branch:** `cursor/redesign-and-s8-gaps-4552` · **Version:** 0.0.165 / 165  
+**Branch:** `cursor/redesign-and-s8-gaps-4552` · **Version:** 0.0.167 / 167  
 **Authority:** uploaded `INTENT_Design_With_Screenshots` → `docs/design/intent-redesign-2026-11/DESIGN_SPEC.md`  
-**Version lock:** 0.0.164 = Propose-path (IV-197); **this slice = 0.0.165**
+**Version lock:** tip **0.0.166** (#111 SessionMetaGrid); **this slice = 0.0.167** (was claimed as 165; rebased past 166)
 
 ## Shipped
 
@@ -15,17 +15,20 @@
 | §8.9 Cancel | `cancelDiscussThinking()` + **Cancel** banner while `freeTextBusy`; late replies ignored; `CommandGateway.cancelTurn` marker |
 | Spec in repo | `docs/design/intent-redesign-2026-11/{DESIGN_SPEC,README,tokens}.json/md` |
 | Icons | `res/drawable/logo_diamond.png` (+ nav/action PNGs staged) |
-| APK | `artifacts/INTENT-v0.0.165.apk` |
+| APK | `artifacts/INTENT-v0.0.167.apk` |
+
+## Non-regression
+
+- Does **not** modify `ProposalReviewScreen` / `SessionMetaGrid` 4-cell fix from **0.0.166** (#111).
 
 ## Out of scope / follow-ons
 
 - Full screen-by-screen redesign (Settings, Intention Space, Builder copy bans, nav icon swap) — iterate after empty-home land
-- §8.4 Review AVD — owned by Propose-path **0.0.164** / fork
-- Remaining §8 AVD (freshness month skew, multimodal STT, research, date correction, cross-surface after approve) — continue after this PR installs
+- Remaining §8 AVD (freshness month skew, multimodal STT, research, date correction) — continue after this PR
 
 ## Evidence
 
 - Store media: `media/redesign-165/00-home-empty.png`
 - Adaptive pack: `media/adaptive-builder/de-slice/15-redesign-home-empty-165.png`
 
-Updated: 2026-11-21
+Updated: 2026-11-22

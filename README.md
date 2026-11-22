@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.165** (this branch) · based on tip **v0.0.163** (#108) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.167** (this branch) · based on tip **v0.0.166** (#111) · SCHEMA **10**.
 
 ## Build
 
@@ -8,13 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.165** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk` → publish as `artifacts/INTENT-v0.0.165.apk`
+APK: `app/build/outputs/apk/debug/app-debug.apk` → publish as `artifacts/INTENT-v0.0.167.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
-- **v0.0.165:** DESIGN_SPEC redesign slice — empty Home (S-HOME-EMPTY), brand tokens `#5C4DFF` / paper `#F6F4F0`, diamond wordmark; Discuss **Cancel** while waiting for the model (§8.9 surface). Spec at `docs/design/intent-redesign-2026-11/`. Based on tip **0.0.163** (#108); stacks after claimed **0.0.164** Propose-path.
+- **v0.0.167:** DESIGN_SPEC redesign slice — empty Home (S-HOME-EMPTY), brand tokens `#5C4DFF` / paper `#F6F4F0`, diamond wordmark; Discuss **Cancel** while waiting for the model (§8.9 surface). Spec at `docs/design/intent-redesign-2026-11/`. Rebased onto tip **0.0.166** (#111 SessionMetaGrid); does not touch ProposalReview 4-cell grid.
 - **v0.0.163:** Adaptive builder Gates D–E + AVD defect fixes (#108).
 - **v0.0.161:** Adaptive builder Gates B–C domain core + Gate F JVM harness — typed source-linked Fact / OpenQuestion / Approach / AdaptiveBuilderState; BuilderDecision + validator; RelativeDateAnchoring; Conversation-callable AdaptiveBuilderEngine hooks; §8 scenarios 1/4/5/6/7/9 green. Does **not** change chat-first create UX (IV-189 / 0.0.160). SCHEMA 10 stamp-compatible. Based on tip **0.0.159** (#105).
 - **v0.0.159:** INTENT UI redesign package — strip user-visible heuristics/SAID/CASE jargon from Home/Builder/Settings; agent auto-classifies intention shape (no forced Language/Marathon/Business pick); empty Home focuses on Start a new intention; NumberWheel for practice/quantity prompts (and FE-C3 duration/numeric tracker fields); Settings Appearance + Use live assistant primary; floater top clearance raised; SCHEMA 10 stamp-only. Based on tip **0.0.158** (#104).
