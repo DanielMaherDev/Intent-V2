@@ -170,7 +170,9 @@ object ConversationCoordinator {
         registry: CapabilityRegistry = CapabilityRegistry.default,
         access: LiveLlmAccess = FakeLiveLlmAccess(),
         client: OpenAiDiscussClient? = null,
-        availableChips: List<String> = emptyList()
+        availableChips: List<String> = emptyList(),
+        /** §8.9 — when set, late replies after [CommandGateway.cancelTurn] write nothing. */
+        thinkingTurnId: String? = null
     ): SubmitResult {
         val sourceLabel = LiveLlmProbe.discussSourceLabel(registry)
         val trimmed = text.trim()
@@ -181,6 +183,18 @@ object ConversationCoordinator {
                 storedTranscript = null,
                 honestyNote = "Empty message — type something or choose a chip.",
                 sourceLabel = sourceLabel
+            )
+        }
+        if (thinkingTurnId != null &&
+            AgentTurnLifecycle.isCancelled(store.snapshot(), thinkingTurnId)
+        ) {
+            return SubmitResult(
+                channel = Channel.FREE_TEXT,
+                appliedChip = null,
+                storedTranscript = null,
+                honestyNote = "Cancelled — late model reply ignored; earlier answers stay as they were.",
+                sourceLabel = sourceLabel,
+                liveCallAttempted = false
             )
         }
 
@@ -258,9 +272,12 @@ object ConversationCoordinator {
             )
         )
 
+        refusedIfThinkingCancelled(store, thinkingTurnId, sourceLabel)?.let { return it }
+
         val live = registry.canUseLiveLlm()
         val apiKey = access.resolveApiKey()
         if (!live || client == null || apiKey.isNullOrBlank()) {
+            refusedIfThinkingCancelled(store, thinkingTurnId, sourceLabel)?.let { return it }
             val reason = when {
                 !access.hasApiKeyConfigured() ->
                     "No assistant key configured — on-device replies only."
@@ -307,13 +324,15 @@ object ConversationCoordinator {
             nowEpochMs = nowEpochMs
         )
 
-        return when (
-            val outcome = client.complete(
-                apiKey = apiKey,
-                userMessage = trimmed,
-                contextPack = contextPack
-            )
-        ) {
+        val outcome = client.complete(
+            apiKey = apiKey,
+            userMessage = trimmed,
+            contextPack = contextPack
+        )
+        // §8.9 — cancel during / after the network call must not land a late reply.
+        refusedIfThinkingCancelled(store, thinkingTurnId, sourceLabel)?.let { return it }
+
+        return when (outcome) {
             is OpenAiDiscussClient.Outcome.Success -> {
                 val agentText = OpenAiDiscussClient.formatAgentTurn(outcome.completion)
                 store.apply(
@@ -356,6 +375,24 @@ object ConversationCoordinator {
                 )
             }
         }
+    }
+
+    /** §8.9 helper — late Discuss work after Cancel must not write an agent turn. */
+    private fun refusedIfThinkingCancelled(
+        store: IntentionFlowStore,
+        thinkingTurnId: String?,
+        sourceLabel: String
+    ): SubmitResult? {
+        if (thinkingTurnId == null) return null
+        if (!AgentTurnLifecycle.isCancelled(store.snapshot(), thinkingTurnId)) return null
+        return SubmitResult(
+            channel = Channel.FREE_TEXT,
+            appliedChip = null,
+            storedTranscript = null,
+            honestyNote = "Cancelled — late model reply ignored; earlier answers stay as they were.",
+            sourceLabel = sourceLabel,
+            liveCallAttempted = false
+        )
     }
 
     /**

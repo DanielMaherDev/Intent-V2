@@ -69,10 +69,12 @@ import com.intent.launcher.engine.PhysicalConstraintChange
 import com.intent.launcher.engine.TrashRow
 import com.intent.launcher.engine.CommandReversibility
 import com.intent.launcher.engine.ConversationCoordinator
+import com.intent.launcher.engine.AgentTurnLifecycle
 import com.intent.launcher.engine.CreateIntentionChat
 import com.intent.launcher.engine.DailyCycle
 import com.intent.launcher.engine.DeferralPreview
 import com.intent.launcher.engine.DiscussFromHome
+import com.intent.launcher.engine.DiscussOfflineHold
 import com.intent.launcher.engine.ErrandCapture
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.FloatingAgentState
@@ -92,6 +94,8 @@ import com.intent.launcher.engine.OpenAiDiscussClient
 import com.intent.launcher.engine.NextActionEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.intent.launcher.engine.NotificationListenerAccess
@@ -1249,7 +1253,7 @@ class LauncherViewModel(
             .firstOrNull { it.intentionId == intentionId }
             ?.currentQuestionId
 
-    /** True while a live OpenAI Discuss call is in flight. */
+    /** True while a Discuss / create model wait is in flight (incl. engineering hold). */
     var freeTextBusy by mutableStateOf(false)
         private set
 
@@ -1262,6 +1266,9 @@ class LauncherViewModel(
      * Discuss free-text composer. Network only when live_llm is CONNECTED
      * (key + opt-in + client); otherwise labeled local heuristics — never invents.
      * While speaking, typed send is barge-in (cancels the in-flight reply turn).
+     *
+     * When [DiscussOfflineHold] is armed, waits a cancellable delay first so AVD can
+     * prove §8.9 Cancel without a live OpenAI RTT (401 still too fast otherwise).
      */
     fun onDiscussFreeText(text: String) {
         if (isAssistantSpeaking) {
@@ -1274,12 +1281,21 @@ class LauncherViewModel(
         discussThinkingTurnId = thinkingTurnId
         discussJob = viewModelScope.launch {
             try {
+                val holdMs = DiscussOfflineHold.currentHoldMs()
+                if (holdMs > 0L) {
+                    delay(holdMs)
+                }
+                ensureActive()
+                if (discussThinkingTurnId != thinkingTurnId) return@launch
+                if (AgentTurnLifecycle.isCancelled(store.snapshot(), thinkingTurnId)) return@launch
+
                 // After Confirm, adaptive builder state exists on the create shell —
                 // Discuss / CorrectFact must not route back into CreateIntentionChat.
                 val createActive = CreateIntentionChat.isCreateInProgress(store)
                 val honesty = withContext(Dispatchers.IO) {
-                    // Bail if the user cancelled while we were queued for IO.
-                    if (discussThinkingTurnId != thinkingTurnId) {
+                    if (discussThinkingTurnId != thinkingTurnId ||
+                        AgentTurnLifecycle.isCancelled(store.snapshot(), thinkingTurnId)
+                    ) {
                         return@withContext "Cancelled — waiting for the model stopped."
                     }
                     val now = System.currentTimeMillis()
@@ -1344,7 +1360,8 @@ class LauncherViewModel(
                             registry = capabilityRegistry,
                             access = liveLlmAccess,
                             client = openAiDiscussClient,
-                            availableChips = conversationChips()
+                            availableChips = conversationChips(),
+                            thinkingTurnId = thinkingTurnId
                         ).honestyNote
                     }
                 }

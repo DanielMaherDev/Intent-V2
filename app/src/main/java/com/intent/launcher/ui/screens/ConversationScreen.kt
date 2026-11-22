@@ -644,6 +644,36 @@ private fun ThinkingCancelBanner(onCancel: () -> Unit) {
 }
 
 @Composable
+private fun ThinkingCancelBanner(onCancel: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+            .background(IntentColors.Card, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "Waiting for the model…",
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Ink,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "Cancel",
+            style = MaterialTheme.typography.labelLarge,
+            color = IntentColors.Accent,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clickable(onClick = onCancel)
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+        )
+    }
+}
+
+@Composable
 private fun ConversationTopBar(
     intentionTitle: String,
     onBack: () -> Unit
