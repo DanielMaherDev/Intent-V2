@@ -45,10 +45,49 @@ object AdaptiveBuilderEngine {
     /** Approach multiselect Ask — chip/tap, typed, and speech share this purpose. */
     const val KEY_SELECTED_APPROACHES = "selected_approaches"
 
-    /** OC2 / §8.8 conditional process eligibility. */
+    /** OC2 / §8.8 conditional process eligibility + resume. */
     const val KEY_CITIZENSHIP = "citizenship"
     const val KEY_EMPLOYMENT_ARRANGEMENT = "employment_arrangement"
     const val KEY_RESIDENCE_DURATION = "residence_duration"
+    /** Post-Pause: who is handling registration / payroll paperwork. */
+    const val KEY_EMPLOYER_HANDLING = "employer_handling"
+    /** Honest research-job status — never invents verified legal requirements. */
+    const val KEY_RESEARCH_STATUS = "research_status"
+    /** Per-item applicability on a conditional checklist (Applies / Already done / Not sure). */
+    const val KEY_CHECKLIST_APPLICABILITY = "checklist_applicability"
+    const val KEY_RESEARCH_RESUME = "research_resume"
+
+    const val CHIP_CONTINUE_AFTER_RESEARCH = "Continue after research"
+    const val CHIP_BUILD_SOURCED_CHECKLIST = "Build a sourced research checklist"
+    const val CHIP_KEEP_CLARIFYING = "Keep clarifying — no checklist yet"
+
+    /**
+     * Generic conditional research questions — verify on authoritative sources;
+     * never treat as statutes or unconditional obligations.
+     */
+    val CONDITIONAL_RESEARCH_QUESTIONS: List<String> = listOf(
+        "Confirm whether registration / residence steps apply — verify on official portals; " +
+            "record source URL + retrieval date.",
+        "Confirm social-security / affiliation steps for the employment arrangement — " +
+            "verify on official portals; record source URL + retrieval date.",
+        "Confirm tax identification steps if still needed — verify on official portals; " +
+            "record source URL + retrieval date.",
+        "Confirm any employer-side notifications that may apply — verify on official portals; " +
+            "do not invent obligations."
+    )
+
+    val EMPLOYER_HANDLING_OPTIONS: List<String> = listOf(
+        "Yes — payroll or registration is set up",
+        "Employer handling some paperwork",
+        "No — I am handling it myself",
+        "Not sure"
+    )
+
+    val CHECKLIST_APPLICABILITY_OPTIONS: List<String> = listOf(
+        "Applies",
+        "Already done",
+        "Not sure"
+    )
 
     /** OC3 / OC4 / OC5 / OC6 / OC7 / OC9 honesty keys. */
     const val KEY_RACE_STATUS = "race_status"
@@ -603,8 +642,10 @@ object AdaptiveBuilderEngine {
     }
 
     /**
-     * OC2 / §8.8 — ask eligibility, then pause for sourced research.
+     * OC2 / §8.8 — eligibility → research Pause → resume → employer Ask →
+     * researching status → conditional checklist Propose (Review plan).
      * Never invents legal requirements or an unconditional checklist.
+     * Generic for any `conditional_process` facet (not one jurisdiction title).
      */
     private fun conditionalProcessDecision(context: BuilderContext): BuilderDecision? {
         if (context.confirmedFacts.none { it.key == KEY_CITIZENSHIP }) {
@@ -649,15 +690,254 @@ object AdaptiveBuilderEngine {
                 priority = 85
             )
         }
-        // Eligibility known — pause for research; do not invent statutes or a plan.
+
+        val lifecycle = context.lifecycleState.lowercase()
+        val resumed = lifecycle == "researching" ||
+            lifecycle == "reviewing" ||
+            context.confirmedFacts.any { it.key == KEY_RESEARCH_RESUME }
+
+        // Conv1: eligibility known — Pause until the user resumes (do not invent a plan).
+        if (!resumed) {
+            if (lifecycle != "paused" && !hasUnresolvedPurpose(context, KEY_RESEARCH_RESUME)) {
+                return BuilderDecision.Pause(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    reason =
+                        "Eligibility facts are recorded. Requirements stay unverified until " +
+                            "sourced research completes — no legal checklist invented.",
+                    resumeCue = CHIP_CONTINUE_AFTER_RESEARCH
+                )
+            }
+            // After Pause: surface an explicit resume Ask so Discuss uses AdaptiveAnswerPath
+            // (not a parallel fixture scenario).
+            if (!hasUnresolvedPurpose(context, KEY_RESEARCH_RESUME)) {
+                return BuilderDecision.Ask(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    questionId = "q-research-resume-${context.intentionId}",
+                    whyItMatters =
+                        "Eligibility is saved. Resume when you want a sourced checklist — " +
+                            "nothing is scheduled until you review a plan.",
+                    answerSchema = AnswerSchema.SINGLE_CHOICE,
+                    purpose = KEY_RESEARCH_RESUME,
+                    blocksWhat = "sourced_checklist_review",
+                    options = listOf(
+                        CHIP_CONTINUE_AFTER_RESEARCH,
+                        CHIP_BUILD_SOURCED_CHECKLIST
+                    ),
+                    priority = 88
+                )
+            }
+            return null
+        }
+
+        if (context.confirmedFacts.none { it.key == KEY_EMPLOYER_HANDLING }) {
+            if (hasUnresolvedPurpose(context, KEY_EMPLOYER_HANDLING)) return null
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-employer-handling-${context.intentionId}",
+                whyItMatters =
+                    "Whether an employer already handles registration or payroll changes " +
+                        "which steps still need your action.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_EMPLOYER_HANDLING,
+                blocksWhat = "sourced_checklist_review",
+                options = EMPLOYER_HANDLING_OPTIONS,
+                priority = 86
+            )
+        }
+
+        if (context.confirmedFacts.none { it.key == KEY_RESEARCH_STATUS }) {
+            if (hasUnresolvedPurpose(context, KEY_RESEARCH_STATUS)) return null
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-research-status-${context.intentionId}",
+                whyItMatters =
+                    "Researching current requirements — status is in progress until each " +
+                        "item is checked against an authoritative source. No statutes invented.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_RESEARCH_STATUS,
+                blocksWhat = "sourced_checklist_review",
+                options = listOf(
+                    "Researching current requirements",
+                    "Sources still unverified"
+                ),
+                priority = 84
+            )
+        }
+
+        if (context.confirmedFacts.none { it.key == KEY_CHECKLIST_APPLICABILITY }) {
+            if (hasUnresolvedPurpose(context, KEY_CHECKLIST_APPLICABILITY)) return null
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-checklist-applicability-${context.intentionId}",
+                whyItMatters =
+                    "Mark each research item Applies, Already done, or Not sure — " +
+                        "confirmed steps stay separate from ones still to verify.",
+                answerSchema = AnswerSchema.MULTI_CHOICE,
+                purpose = KEY_CHECKLIST_APPLICABILITY,
+                blocksWhat = "sourced_checklist_review",
+                options = CHECKLIST_APPLICABILITY_OPTIONS,
+                priority = 82
+            )
+        }
+
+        if (context.pendingProposals.isEmpty()) {
+            val basedOn = context.confirmedFacts
+                .filter {
+                    it.key in setOf(
+                        KEY_CITIZENSHIP,
+                        KEY_EMPLOYMENT_ARRANGEMENT,
+                        KEY_RESIDENCE_DURATION,
+                        KEY_EMPLOYER_HANDLING,
+                        KEY_RESEARCH_STATUS,
+                        KEY_CHECKLIST_APPLICABILITY
+                    )
+                }
+                .map { it.id }
+            val questions = CONDITIONAL_RESEARCH_QUESTIONS.joinToString("\n") { "• $it" }
+            return BuilderDecision.Propose(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                proposalId = "proposal-conditional-checklist-${context.intentionId}",
+                title = "Review plan — conditional sourced checklist",
+                summary =
+                    "Sourced checklist (research questions only — not legal advice). " +
+                        "Items you marked Applies / Already done / Not sure stay labelled. " +
+                        "Prerequisites and external appointments are waits, not self-complete tasks. " +
+                        "Nothing dated is scheduled until you approve Review plan.\n$questions",
+                dayOfWeek = 1,
+                hour = 10,
+                minute = 0,
+                basedOnFactIds = basedOn,
+                rationale =
+                    "Conditional on your eligibility and employer-handling facts; " +
+                        "official sources must answer each item.",
+                effects = listOf(
+                    "No dated tasks until Review plan is approved",
+                    "No invented statutes or unconditional EU-citizen checklist"
+                ),
+                capabilityHonesty =
+                    "Live web research may be unavailable — verify on official portals; " +
+                        "record source URL + retrieval date per item.",
+                homeImpactNote = "Home stays quiet until you approve the reviewed plan."
+            )
+        }
+
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason =
-                "Eligibility facts are recorded. Requirements stay unverified until " +
-                    "sourced research completes — no legal checklist invented.",
-            resumeCue = "Continue after research"
+                "Conditional checklist is ready for Review plan — " +
+                    "dated tasks stay off until you approve.",
+            resumeCue = "Review plan"
         )
+    }
+
+    /** Discuss chips for conditional research on the active intention (not a fixture id). */
+    fun conditionalResearchChips(context: BuilderContext?): List<String> {
+        if (context == null) return emptyList()
+        if (!context.typeFacets.contains("conditional_process")) return emptyList()
+        if (context.typeFacets.contains("dated_outcome")) return emptyList()
+        val hasEligibility =
+            context.confirmedFacts.any { it.key == KEY_CITIZENSHIP } &&
+                context.confirmedFacts.any { it.key == KEY_EMPLOYMENT_ARRANGEMENT } &&
+                context.confirmedFacts.any { it.key == KEY_RESIDENCE_DURATION }
+        if (!hasEligibility) return emptyList()
+        val resumed = context.lifecycleState.equals("researching", ignoreCase = true) ||
+            context.lifecycleState.equals("reviewing", ignoreCase = true) ||
+            context.confirmedFacts.any { it.key == KEY_RESEARCH_RESUME }
+        return if (!resumed) {
+            listOf(
+                CHIP_CONTINUE_AFTER_RESEARCH,
+                CHIP_BUILD_SOURCED_CHECKLIST,
+                CHIP_KEEP_CLARIFYING
+            )
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * Handle resume chips for conditional research on [intentionId].
+     * @return true when the chip was consumed.
+     */
+    fun handleConditionalResearchChip(
+        store: IntentionFlowStore,
+        intentionId: String,
+        chip: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Boolean {
+        val trimmed = chip.trim()
+        val isResume =
+            trimmed.equals(CHIP_CONTINUE_AFTER_RESEARCH, ignoreCase = true) ||
+                trimmed.contains("sourced research checklist", ignoreCase = true) ||
+                trimmed.equals(CHIP_BUILD_SOURCED_CHECKLIST, ignoreCase = true)
+        val isClarify =
+            trimmed.contains("Keep clarifying", ignoreCase = true) ||
+                trimmed.contains("no checklist", ignoreCase = true)
+        if (!isResume && !isClarify) return false
+
+        val ctx = projectContext(store.snapshot(), intentionId, nowEpochMs, timeZone) ?: return false
+        if (!ctx.typeFacets.contains("conditional_process")) return false
+
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-cond-user-$nowEpochMs",
+                intentionId = intentionId,
+                role = "user",
+                text = trimmed,
+                nowEpochMs = nowEpochMs,
+                modality = "TEXT_CHIP"
+            )
+        )
+
+        if (isClarify) {
+            store.apply(
+                FlowCommand.AddConversationTurn(
+                    turnId = "turn-cond-clarify-$nowEpochMs",
+                    intentionId = intentionId,
+                    role = "agent",
+                    text =
+                        "Fine — no checklist invented. Eligibility facts stay as recorded. " +
+                            "Resume with Continue after research when you want a sourced plan.",
+                    nowEpochMs = nowEpochMs + 1
+                )
+            )
+            return true
+        }
+
+        // Mark resume + advance policy (employer Ask → research status → Review plan).
+        val rev = ctx.revision
+        if (ctx.confirmedFacts.none { it.key == KEY_RESEARCH_RESUME }) {
+            applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev,
+                    factDraft = FactDraft(
+                        factId = "fact-research-resume-$intentionId",
+                        text = CHIP_CONTINUE_AFTER_RESEARCH,
+                        key = KEY_RESEARCH_RESUME,
+                        rawUtterance = trimmed,
+                        normalizedValue = "resumed"
+                    ),
+                    sourceTurnId = "turn-cond-resume-$nowEpochMs"
+                ),
+                nowEpochMs + 1,
+                timeZone = timeZone
+            )
+        }
+        bumpState(store, intentionId, nowEpochMs + 2) { state ->
+            state.copy(lifecycleHint = "researching", currentQuestionId = null)
+        }
+        // Project next Ask (employer handling) onto the active intention.
+        projectPendingAsk(store, intentionId, nowEpochMs + 3, timeZone)
+        return true
     }
 
     /** OC3 — first useful phase only; never fabricate an 8-month workout plan. */
@@ -1058,12 +1338,17 @@ object AdaptiveBuilderEngine {
                         confirmation = draft.confirmation
                     )
                 )
+                val hint = when (draft.key) {
+                    KEY_RESEARCH_RESUME -> "researching"
+                    KEY_RESEARCH_STATUS, KEY_CHECKLIST_APPLICABILITY -> "reviewing"
+                    else -> "discovery"
+                }
                 bumpState(store, decision.intentionId, nowEpochMs) { state ->
                     state.copy(
                         lastAnsweredTurnId = decision.sourceTurnId ?: state.lastAnsweredTurnId,
                         conversationCursorTurnId = decision.sourceTurnId
                             ?: state.conversationCursorTurnId,
-                        lifecycleHint = "discovery"
+                        lifecycleHint = hint
                     )
                 }
             }
@@ -1249,12 +1534,26 @@ object AdaptiveBuilderEngine {
                     )
                 )
                 // In-chat review card — nothing active until Approve via gateway.
+                val isConditionalChecklist =
+                    decision.title.contains("Review plan", ignoreCase = true) ||
+                        decision.title.contains("checklist", ignoreCase = true)
+                val reviewText = if (isConditionalChecklist) {
+                    "Here is a sourced checklist with applicability marked separately. " +
+                        "Shall we Review plan together? Dated tasks stay off until you approve."
+                } else {
+                    "Ready to begin? Review your routine before activating it."
+                }
+                val reviewActions = if (isConditionalChecklist) {
+                    listOf("Review plan", "Edit checklist", "Keep researching")
+                } else {
+                    listOf("Start this routine", "Edit plan", "Keep discussing")
+                }
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-propose-${decision.proposalId}-$nowEpochMs",
                         intentionId = decision.intentionId,
                         role = "agent",
-                        text = "Ready to begin? Review your routine before activating it.",
+                        text = reviewText,
                         nowEpochMs = nowEpochMs,
                         blocks = listOf(
                             ResponseBlock(
@@ -1264,11 +1563,7 @@ object AdaptiveBuilderEngine {
                                 body = summary,
                                 sourceLabel = "adaptive_builder|review",
                                 linkedObjectIds = listOf(decision.proposalId),
-                                actions = listOf(
-                                    "Start this routine",
-                                    "Edit plan",
-                                    "Keep discussing"
-                                ),
+                                actions = reviewActions,
                                 active = true
                             )
                         )
@@ -1277,7 +1572,7 @@ object AdaptiveBuilderEngine {
                 bumpState(store, decision.intentionId, nowEpochMs) { state ->
                     state.copy(
                         pendingProposalId = decision.proposalId,
-                        lifecycleHint = "proposing",
+                        lifecycleHint = if (isConditionalChecklist) "reviewing" else "proposing",
                         currentQuestionId = null
                     )
                 }
@@ -1601,11 +1896,17 @@ object AdaptiveBuilderEngine {
                 confirmation = enriched.confirmation
             )
         )
+        val answerHint = when (factKey) {
+            KEY_RESEARCH_RESUME -> "researching"
+            KEY_RESEARCH_STATUS, KEY_CHECKLIST_APPLICABILITY -> "reviewing"
+            else -> null
+        }
         bumpState(store, answer.intentionId, answer.answeredAtEpochMs) { state ->
             state.copy(
                 currentQuestionId = null,
                 lastAnsweredTurnId = answer.sourceTurnId,
-                conversationCursorTurnId = answer.sourceTurnId
+                conversationCursorTurnId = answer.sourceTurnId,
+                lifecycleHint = answerHint ?: state.lifecycleHint
             )
         }
         appendDecisionEvent(

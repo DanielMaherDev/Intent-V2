@@ -1241,6 +1241,141 @@ class AdaptiveBuilderAcceptanceTest {
         )
     }
 
+    @Test
+    fun oc2_conditionalProcess_resumeAfterPause_reviewPlan_noInventedLaw() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "eu_work", now)
+        var t = now
+
+        fun next(): BuilderDecision =
+            AdaptiveBuilderEngine.suggestNextDecision(
+                AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+            )
+
+        fun answerAsk(ask: BuilderDecision.Ask, text: String, key: String, suffix: String) {
+            val applied = AdaptiveBuilderEngine.applyDecision(store, ask, t, timeZone = tz)
+            assertTrue(applied.reason, applied.accepted)
+            t += 1
+            val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+            val ans = AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = text,
+                    rawValue = text,
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-$suffix",
+                    answeredAtEpochMs = t,
+                    idempotencyKey = "idem-$suffix",
+                    expectedRevision = rev
+                ),
+                factKey = key,
+                timeZone = tz
+            )
+            assertTrue(ans.reason, ans.accepted)
+            t += 5
+        }
+
+        answerAsk(next() as BuilderDecision.Ask, "Irish", AdaptiveBuilderEngine.KEY_CITIZENSHIP, "c")
+        answerAsk(
+            next() as BuilderDecision.Ask,
+            "Employed",
+            AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT,
+            "e"
+        )
+        answerAsk(
+            next() as BuilderDecision.Ask,
+            "About a month",
+            AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION,
+            "r"
+        )
+        val pause = next() as BuilderDecision.Pause
+        assertTrue(AdaptiveBuilderEngine.applyDecision(store, pause, t, timeZone = tz).accepted)
+        t += 5
+
+        // Resume via AdaptiveBuilder chip on the active intention (not a fixture id).
+        assertTrue(
+            AdaptiveBuilderEngine.handleConditionalResearchChip(
+                store,
+                id,
+                AdaptiveBuilderEngine.CHIP_CONTINUE_AFTER_RESEARCH,
+                t
+            )
+        )
+        t += 20
+
+        val employerOpen = store.snapshot().openQuestions.firstOrNull {
+            it.intentionId == id &&
+                it.purpose == AdaptiveBuilderEngine.KEY_EMPLOYER_HANDLING &&
+                it.state != OpenQuestionState.ANSWERED
+        }
+        assertNotNull("expected projected employer Ask after resume", employerOpen)
+        val revEmp = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = employerOpen!!.id,
+                    intentionId = id,
+                    normalizedValue = "Yes — payroll or registration is set up",
+                    rawValue = "Yes — payroll or registration is set up",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-employer",
+                    answeredAtEpochMs = t,
+                    idempotencyKey = "idem-employer",
+                    expectedRevision = revEmp
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_EMPLOYER_HANDLING,
+                timeZone = tz
+            ).accepted
+        )
+        t += 5
+
+        val status = next() as BuilderDecision.Ask
+        assertEquals(AdaptiveBuilderEngine.KEY_RESEARCH_STATUS, status.purpose)
+        assertTrue(status.whyItMatters.contains("Researching", ignoreCase = true))
+        answerAsk(
+            status,
+            "Researching current requirements",
+            AdaptiveBuilderEngine.KEY_RESEARCH_STATUS,
+            "status"
+        )
+
+        val applicability = next() as BuilderDecision.Ask
+        assertEquals(AdaptiveBuilderEngine.KEY_CHECKLIST_APPLICABILITY, applicability.purpose)
+        assertTrue(
+            applicability.options.any { it.equals("Applies", ignoreCase = true) } &&
+                applicability.options.any { it.contains("Already done", ignoreCase = true) } &&
+                applicability.options.any { it.contains("Not sure", ignoreCase = true) }
+        )
+        answerAsk(
+            applicability,
+            "Not sure",
+            AdaptiveBuilderEngine.KEY_CHECKLIST_APPLICABILITY,
+            "appl"
+        )
+
+        val propose = next()
+        assertTrue("expected Review plan Propose, got $propose", propose is BuilderDecision.Propose)
+        val prop = propose as BuilderDecision.Propose
+        assertTrue(prop.title.contains("Review plan", ignoreCase = true))
+        assertTrue(prop.summary.contains("Applies", ignoreCase = true))
+        assertFalse(prop.summary.contains("you must register", ignoreCase = true))
+        assertFalse(prop.summary.contains("NIE required", ignoreCase = true))
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, prop, t, timeZone = tz).accepted
+        )
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.any { it.intentionId == id && it.status == ProposalStatus.PENDING })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertTrue(
+            snap.turns.any {
+                it.text.contains("Review plan", ignoreCase = true) &&
+                    it.intentionId == id
+            }
+        )
+    }
+
     // —— OC3 Marathon — first phase ask, no invented 8-month plan ——
     @Test
     fun oc3_marathon_firstPhaseAsk_thenPause_noInventedPlan() {

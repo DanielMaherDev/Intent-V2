@@ -651,7 +651,7 @@ object ShapeProjection {
                 "decision" -> "A conversation about your offer"
                 "cessation" -> "A conversation about quitting smoking"
                 "app_use" -> "A conversation about your usage target"
-                "research" -> "A conversation about working legally in Spain"
+                "research" -> "A conversation about a conditional process"
                 "chess" -> "A conversation about your chess rating"
                 else -> "A conversation about your goal"
             }
@@ -673,6 +673,7 @@ object ShapeProjection {
             IntentionPhase.PROPOSAL_PENDING -> "What's changed?"
             else -> when (shapeTag) {
                 "decision" -> "Compare — I will not choose for you."
+                "research" -> "Map requirements — no checklist invented yet."
                 else -> "Let's find a way that fits."
             }
         }
