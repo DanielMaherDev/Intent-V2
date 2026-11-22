@@ -134,4 +134,55 @@ class ErrandCaptureTest {
         assertFalse(result.ok)
         assertTrue(store.snapshot().errandTodos.isEmpty())
     }
+
+    @Test
+    fun parse_multiItemErrand_splitsChecklistLabels_generic() {
+        val milkEggs = ErrandCapture.parse("Buy milk and eggs tonight")
+        assertEquals(ErrandCapture.Kind.QUICK_TODO, milkEggs.kind)
+        assertEquals("Buy milk and eggs", milkEggs.firstAction)
+        assertEquals("Tonight", milkEggs.reminderNote)
+        assertEquals(listOf("milk", "eggs"), milkEggs.checklistLabels)
+
+        val dryClean = ErrandCapture.parse("Pick up dry cleaning tomorrow")
+        assertEquals(ErrandCapture.Kind.QUICK_TODO, dryClean.kind)
+        assertEquals(listOf("Pick up dry cleaning"), dryClean.checklistLabels)
+
+        val commaList = ErrandCapture.parse("Get bread, butter, and jam today")
+        assertEquals(listOf("bread", "butter", "jam"), commaList.checklistLabels)
+    }
+
+    @Test
+    fun capture_checklistMode_savesChildrenWithoutIntention() {
+        val before = store.snapshot().intentions.size
+        val result = ErrandCapture.capture(
+            store = store,
+            text = "Buy milk and eggs tonight",
+            nowEpochMs = now,
+            todoId = "errand-multi-1",
+            mode = ErrandCapture.CaptureMode.CHECKLIST
+        )
+        assertTrue(result.ok)
+        assertEquals(before, store.snapshot().intentions.size)
+        val todo = result.todo!!
+        assertEquals(2, todo.checklistItems.size)
+        assertEquals("milk", todo.checklistItems[0].label)
+        assertEquals("eggs", todo.checklistItems[1].label)
+        assertFalse(todo.reminderEnabled)
+        assertEquals("Tonight", todo.reminderNote)
+        assertTrue(result.confirmation.contains("milk", ignoreCase = true))
+        assertTrue(result.confirmation.contains("eggs", ignoreCase = true))
+    }
+
+    @Test
+    fun toggleChecklistItem_flipsDone() {
+        ErrandCapture.capture(
+            store, "Buy milk and eggs tonight", now, "errand-toggle-1",
+            mode = ErrandCapture.CaptureMode.CHECKLIST
+        )
+        val itemId = store.snapshot().errandTodos.first().checklistItems.first().id
+        assertTrue(ErrandCapture.toggleChecklistItem(store, "errand-toggle-1", itemId, now + 1))
+        assertTrue(store.snapshot().errandTodos.first().checklistItems.first().done)
+        assertTrue(ErrandCapture.toggleChecklistItem(store, "errand-toggle-1", itemId, now + 2))
+        assertFalse(store.snapshot().errandTodos.first().checklistItems.first().done)
+    }
 }

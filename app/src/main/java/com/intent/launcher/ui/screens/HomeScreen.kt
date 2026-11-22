@@ -207,6 +207,10 @@ fun HomeScreen(
     errandNote: String? = null,
     onAddQuickTodo: (() -> Unit)? = null,
     onToggleErrand: (ErrandTodo) -> Unit = {},
+    onToggleErrandItem: (ErrandTodo, String) -> Unit = { _, _ -> },
+    onOpenErrandList: (ErrandTodo) -> Unit = {},
+    onEditErrand: (ErrandTodo) -> Unit = {},
+    expandedErrandId: String? = null,
     /** OS-143 — History / Trash via overflow, not a primary tab. */
     overflowItems: List<OverflowMenuItem> = emptyList(),
     modifier: Modifier = Modifier
@@ -523,6 +527,31 @@ fun HomeScreen(
                         color = IntentColors.Success
                     )
                 }
+                // Errands must remain visible on empty Home (no intentions yet).
+                if (openErrands.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(26.dp))
+                    SectionTitle("Errands")
+                    Spacer(modifier = Modifier.height(9.dp))
+                    openErrands.forEach { errand ->
+                        CompactErrandChecklist(
+                            errand = errand,
+                            expanded = expandedErrandId == errand.id,
+                            onToggleErrand = { onToggleErrand(errand) },
+                            onToggleItem = { itemId -> onToggleErrandItem(errand, itemId) },
+                            onOpenList = { onOpenErrandList(errand) },
+                            onEdit = { onEditErrand(errand) },
+                            onUndo = onUndo
+                        )
+                    }
+                    if (errandNote != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errandNote,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = IntentColors.Muted
+                        )
+                    }
+                }
             }
 
             if (!emptyHome &&
@@ -564,27 +593,14 @@ fun HomeScreen(
                 )
             }
             openErrands.forEach { errand ->
-                val subtitle = buildString {
-                    append(errand.firstAction)
-                    if (!errand.reminderNote.isNullOrBlank()) {
-                        append(" · ")
-                        append(errand.reminderNote)
-                    }
-                }
-                LineRow(
-                    title = errand.title,
-                    subtitle = subtitle,
-                    onClick = { onToggleErrand(errand) },
-                    glyphIcon = if (errand.status == ErrandStatus.DONE) {
-                        Icons.Outlined.CheckCircle
-                    } else {
-                        Icons.Outlined.RadioButtonUnchecked
-                    },
-                    glyphTone = if (errand.status == ErrandStatus.DONE) {
-                        GlyphTone.Success
-                    } else {
-                        GlyphTone.Accent
-                    }
+                CompactErrandChecklist(
+                    errand = errand,
+                    expanded = expandedErrandId == errand.id,
+                    onToggleErrand = { onToggleErrand(errand) },
+                    onToggleItem = { itemId -> onToggleErrandItem(errand, itemId) },
+                    onOpenList = { onOpenErrandList(errand) },
+                    onEdit = { onEditErrand(errand) },
+                    onUndo = onUndo
                 )
             }
             if (errandNote != null) {
@@ -739,6 +755,79 @@ fun HomeScreen(
             onIntentions = onOpenIntentionDrawer,
             onAgent = onDiscuss
         )
+    }
+}
+
+/**
+ * Compact errand checklist — Open list / Edit / Undo; children when expanded.
+ * OTHER §1 visible controls (generic for all lightweight errands).
+ */
+@Composable
+private fun CompactErrandChecklist(
+    errand: ErrandTodo,
+    expanded: Boolean,
+    onToggleErrand: () -> Unit,
+    onToggleItem: (String) -> Unit,
+    onOpenList: () -> Unit,
+    onEdit: () -> Unit,
+    onUndo: (() -> Unit)?
+) {
+    val dueBit = errand.reminderNote?.let { due ->
+        if (errand.reminderEnabled) "Reminder · $due" else "Due · $due"
+    }
+    val subtitle = buildString {
+        if (errand.checklistItems.size >= 2) {
+            append(errand.checklistItems.joinToString(", ") { it.label })
+        } else {
+            append(errand.firstAction)
+        }
+        if (!dueBit.isNullOrBlank()) {
+            append(" · ")
+            append(dueBit)
+        }
+    }
+    LineRow(
+        title = errand.firstAction,
+        subtitle = subtitle,
+        onClick = onToggleErrand,
+        glyphIcon = if (errand.status == ErrandStatus.DONE) {
+            Icons.Outlined.CheckCircle
+        } else {
+            Icons.Outlined.RadioButtonUnchecked
+        },
+        glyphTone = if (errand.status == ErrandStatus.DONE) {
+            GlyphTone.Success
+        } else {
+            GlyphTone.Accent
+        }
+    )
+    if (expanded && errand.checklistItems.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(6.dp))
+        errand.checklistItems.forEach { item ->
+            LineRow(
+                title = item.label,
+                subtitle = if (item.done) "Done" else "Open",
+                onClick = { onToggleItem(item.id) },
+                glyphIcon = if (item.done) {
+                    Icons.Outlined.CheckCircle
+                } else {
+                    Icons.Outlined.RadioButtonUnchecked
+                },
+                glyphTone = if (item.done) GlyphTone.Success else GlyphTone.Neutral
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    // Stack controls vertically so Open list / Edit / Undo stay on-screen
+    // (a horizontal Row clipped Edit+Undo on empty-home narrow width).
+    Column(modifier = Modifier.fillMaxWidth()) {
+        IntentQuietButton(text = "Open list", onClick = onOpenList)
+        Spacer(modifier = Modifier.height(4.dp))
+        IntentQuietButton(text = "Edit", onClick = onEdit)
+        if (onUndo != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            IntentQuietButton(text = "Undo", onClick = onUndo)
+        }
     }
 }
 

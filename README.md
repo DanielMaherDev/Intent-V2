@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.217** (this branch) · based on tip **v0.0.216** (#138) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.219** (this branch) · based on tip **v0.0.218** (#136) · SCHEMA **10**.
 
 ## Build
 
@@ -8,14 +8,17 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.217** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.217.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.219.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.219.apk`
 
 ## Scope
 
+- **v0.0.219:** Lightweight errand / quick to-do path (OTHER §1) — create-chat diverts small errands off intention interview; reminder vs checklist chips; multi-item checklist children; Home empty-state shows errands with **Open list** / **Edit** / **Undo**. Generic for all errands (not milk-specific). JVM `ErrandCaptureTest` + `CreateIntentionChatTest.smallErrand_*`. Auto-merge when CI green.
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
 - **v0.0.217:** Adaptive create-path habit/check-in honesty — OC4 seeds classify as `cessation` (not “something else”); agent states count/craving self-report limits (checked task ≠ cessation; unreported ≠ zero); Count wheel + craving include + evening check-in; bridge → AdaptiveBuilder Pause. JVM `AdaptiveCreateHonestyTest` OC4. SCHEMA 10 stamp-compatible. Based on tip **0.0.216** (#138). Auto-merge.
 - **v0.0.212:** OC6 connected-metric / provenance — Chess.com (and generic partner rating) create routes to `chess` + baseline honesty chips; practice preference kept distinct from rating; `other` Intention Space no longer shows Spanish default facts. JVM `AdaptiveCreateHonestyTest` + acceptance. Hold merge.
+- **v0.0.213:** Lightweight errand / quick to-do path (OTHER §1) — create-chat diverts small errands off intention interview; reminder vs checklist chips; multi-item checklist children; Home empty-state shows errands with **Open list** / **Edit** / **Undo**. Generic for all errands (not milk-specific). JVM `ErrandCaptureTest` + `CreateIntentionChatTest.smallErrand_*`. Hold merge.
 - **v0.0.186:** Adaptive create-path seed honesty — OC5 Instagram/YouTube Shorts agent states UsageStats package≠Shorts identity + usage-access + measurement choices; OC9 job-offer agent frames decide-by-date (help decide, not auto-accept). JVM `AdaptiveCreateHonestyTest`. SCHEMA 10 stamp-compatible. Rebased onto tip **0.0.176** (#122); rebump from invalid 0.0.175. Hold merge.
 - **v0.0.167:** DESIGN_SPEC redesign slice — empty Home (S-HOME-EMPTY), brand tokens `#5C4DFF` / paper `#F6F4F0`, diamond wordmark; Discuss **Cancel** while waiting for the model (§8.9 surface). Spec at `docs/design/intent-redesign-2026-11/`. Rebased onto tip **0.0.166** (#111 SessionMetaGrid); does not touch ProposalReview 4-cell grid.
 - **v0.0.163:** Adaptive builder Gates D–E + AVD defect fixes (#108).
@@ -241,7 +244,7 @@ At evening check-out (after what-happened), RAW SAID thoughts are walked one at 
 
 ## Sideload packaging (v0.0.123–v0.0.124)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.124.apk` on this branch (main tip: `INTENT-v0.0.123.apk`).
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.219.apk` on this branch (main tip: `INTENT-v0.0.216.apk`).
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
@@ -277,6 +280,6 @@ Overlay revoke or process death while the floating companion was active stops th
 
 ## Download
 
-Sideload APK (v0.0.158, release): [INTENT-v0.0.158.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/fe-c3-date-range-field-types-4116/artifacts/INTENT-v0.0.158.apk)
+Sideload APK (v0.0.158, release): [INTENT-v0.0.219.apk](https://github.com/DanielMaherDev/Intent-V2/raw/cursor/fe-c3-date-range-field-types-4116/artifacts/INTENT-v0.0.219.apk)
 
-(Tip parent: [INTENT-v0.0.157.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.157.apk) on #103.)
+(Tip parent: [INTENT-v0.0.219.apk](https://github.com/DanielMaherDev/Intent-V2/raw/main/artifacts/INTENT-v0.0.219.apk) on #103.)

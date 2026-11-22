@@ -332,6 +332,9 @@ class LauncherViewModel(
 
     /** Confirmation / honesty note after capturing or completing an errand. */
     var errandNote by mutableStateOf<String?>(null)
+
+    /** Which errand checklist is expanded via Open list (Home). */
+    var expandedErrandId by mutableStateOf<String?>(null)
         private set
 
     init {
@@ -2410,15 +2413,23 @@ class LauncherViewModel(
 
     /**
      * Capture a lightweight errand. Never seeds an Intention.
+     * Defaults to checklist mode (OTHER §1 compact list).
      */
-    fun captureQuickTodo(text: String): Boolean {
+    fun captureQuickTodo(
+        text: String,
+        mode: ErrandCapture.CaptureMode = ErrandCapture.CaptureMode.CHECKLIST
+    ): Boolean {
         val result = ErrandCapture.capture(
             store = store,
             text = text,
             nowEpochMs = System.currentTimeMillis(),
-            registry = capabilityRegistry
+            registry = capabilityRegistry,
+            mode = mode
         )
         errandNote = result.confirmation
+        if (result.ok) {
+            expandedErrandId = result.todo?.id
+        }
         refresh()
         return result.ok
     }
@@ -2436,6 +2447,23 @@ class LauncherViewModel(
             else -> "Reopened — “${todo.firstAction}”."
         }
         refresh()
+    }
+
+    fun toggleErrandChecklistItem(todo: ErrandTodo, itemId: String) {
+        val ok = ErrandCapture.toggleChecklistItem(
+            store = store,
+            todoId = todo.id,
+            itemId = itemId,
+            nowEpochMs = System.currentTimeMillis()
+        )
+        if (!ok) {
+            errandNote = "Could not update that checklist item."
+        }
+        refresh()
+    }
+
+    fun openErrandList(todo: ErrandTodo) {
+        expandedErrandId = if (expandedErrandId == todo.id) null else todo.id
     }
 
     fun clearErrandNote() {

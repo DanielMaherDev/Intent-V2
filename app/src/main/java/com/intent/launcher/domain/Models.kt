@@ -442,6 +442,16 @@ enum class ErrandStatus {
 }
 
 /**
+ * One checkable child on a lightweight errand list (OTHER §1).
+ * Not an Intention task — local checklist only.
+ */
+data class ErrandChecklistItem(
+    val id: String,
+    val label: String,
+    val done: Boolean = false
+)
+
+/**
  * Separate inbox item for small errands (e.g. “Buy milk tonight”).
  * Lives beside the intention model; never seeds EXPLORING.
  */
@@ -455,7 +465,11 @@ data class ErrandTodo(
     val status: ErrandStatus,
     val createdAtEpochMs: Long,
     val completedAtEpochMs: Long? = null,
-    val provenance: Provenance
+    val provenance: Provenance,
+    /** Compact checklist children when the user chose checklist mode. */
+    val checklistItems: List<ErrandChecklistItem> = emptyList(),
+    /** True when the user asked for a reminder (not checklist-only). */
+    val reminderEnabled: Boolean = false
 )
 
 /**
@@ -1010,7 +1024,9 @@ sealed class FlowCommand {
         val title: String,
         val firstAction: String,
         val reminderNote: String?,
-        val nowEpochMs: Long
+        val nowEpochMs: Long,
+        val checklistItems: List<ErrandChecklistItem> = emptyList(),
+        val reminderEnabled: Boolean = false
     ) : FlowCommand()
 
     data class CompleteErrand(
@@ -1021,6 +1037,24 @@ sealed class FlowCommand {
     /** Reversible completion (OS-075 light) — tap again / undo Done. */
     data class ReopenErrand(
         val todoId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Toggle one checklist child on an errand (does not complete the parent). */
+    data class ToggleErrandChecklistItem(
+        val todoId: String,
+        val itemId: String,
+        val nowEpochMs: Long
+    ) : FlowCommand()
+
+    /** Replace checklist labels / due hint after Edit (still not an Intention). */
+    data class UpdateErrand(
+        val todoId: String,
+        val title: String,
+        val firstAction: String,
+        val reminderNote: String?,
+        val checklistItems: List<ErrandChecklistItem>,
+        val reminderEnabled: Boolean,
         val nowEpochMs: Long
     ) : FlowCommand()
 
