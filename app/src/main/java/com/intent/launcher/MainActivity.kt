@@ -355,12 +355,18 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("home") {
                             var showErrandDialog by remember { mutableStateOf(false) }
+                            var editingErrandText by remember { mutableStateOf<String?>(null) }
                             if (showErrandDialog) {
                                 ErrandTodoDialog(
-                                    onDismiss = { showErrandDialog = false },
-                                    onSave = { text ->
-                                        vm.captureQuickTodo(text)
+                                    onDismiss = {
                                         showErrandDialog = false
+                                        editingErrandText = null
+                                    },
+                                    initialText = editingErrandText.orEmpty(),
+                                    onSave = { text, mode ->
+                                        vm.captureQuickTodo(text, mode)
+                                        showErrandDialog = false
+                                        editingErrandText = null
                                     }
                                 )
                             }
@@ -550,11 +556,23 @@ class MainActivity : ComponentActivity() {
                                 openErrands = vm.openErrands(),
                                 errandNote = vm.errandNote,
                                 onAddQuickTodo = if (vm.canAddQuickTodo()) {
-                                    { showErrandDialog = true }
+                                    {
+                                        editingErrandText = null
+                                        showErrandDialog = true
+                                    }
                                 } else {
                                     null
                                 },
                                 onToggleErrand = { vm.toggleErrand(it) },
+                                onToggleErrandItem = { todo, itemId ->
+                                    vm.toggleErrandChecklistItem(todo, itemId)
+                                },
+                                onOpenErrandList = { vm.openErrandList(it) },
+                                onEditErrand = { todo ->
+                                    editingErrandText = todo.title
+                                    showErrandDialog = true
+                                },
+                                expandedErrandId = vm.expandedErrandId,
                                 onSettings = { nav.navigate("settings") },
                                 overflowItems = listOf(
                                     OverflowMenuItem("Settings") {

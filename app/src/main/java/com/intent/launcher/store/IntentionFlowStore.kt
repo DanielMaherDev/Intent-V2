@@ -1042,7 +1042,9 @@ class IntentionFlowStore(
                         kind = ProvenanceKind.SAID,
                         learnedAtEpochMs = command.nowEpochMs,
                         sourceLabel = "user"
-                    )
+                    ),
+                    checklistItems = command.checklistItems,
+                    reminderEnabled = command.reminderEnabled
                 )
                 migrated.copy(
                     errandTodos = migrated.errandTodos.filterNot { it.id == todo.id } + todo
@@ -1071,6 +1073,44 @@ class IntentionFlowStore(
                                 completedAtEpochMs = null
                             )
                         } else it
+                    }
+                )
+            }
+
+            is FlowCommand.ToggleErrandChecklistItem -> {
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.map { todo ->
+                        if (todo.id != command.todoId) {
+                            todo
+                        } else {
+                            todo.copy(
+                                checklistItems = todo.checklistItems.map { item ->
+                                    if (item.id == command.itemId) {
+                                        item.copy(done = !item.done)
+                                    } else {
+                                        item
+                                    }
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+
+            is FlowCommand.UpdateErrand -> {
+                migrated.copy(
+                    errandTodos = migrated.errandTodos.map { todo ->
+                        if (todo.id != command.todoId) {
+                            todo
+                        } else {
+                            todo.copy(
+                                title = command.title,
+                                firstAction = command.firstAction,
+                                reminderNote = command.reminderNote,
+                                checklistItems = command.checklistItems,
+                                reminderEnabled = command.reminderEnabled
+                            )
+                        }
                     }
                 )
             }
@@ -1831,6 +1871,8 @@ class IntentionFlowStore(
                     is FlowCommand.CaptureErrand -> command.nowEpochMs
                     is FlowCommand.CompleteErrand -> command.nowEpochMs
                     is FlowCommand.ReopenErrand -> command.nowEpochMs
+                    is FlowCommand.ToggleErrandChecklistItem -> command.nowEpochMs
+                    is FlowCommand.UpdateErrand -> command.nowEpochMs
                     is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
                     is FlowCommand.DismissEvidence -> command.nowEpochMs
                     is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
@@ -1901,6 +1943,8 @@ class IntentionFlowStore(
             is FlowCommand.CaptureErrand -> command.nowEpochMs
             is FlowCommand.CompleteErrand -> command.nowEpochMs
             is FlowCommand.ReopenErrand -> command.nowEpochMs
+            is FlowCommand.ToggleErrandChecklistItem -> command.nowEpochMs
+            is FlowCommand.UpdateErrand -> command.nowEpochMs
             is FlowCommand.RecordObservedEvidence -> command.nowEpochMs
             is FlowCommand.DismissEvidence -> command.nowEpochMs
             is FlowCommand.ConfirmDailyCheckIn -> command.nowEpochMs
@@ -3233,6 +3277,22 @@ class IntentionFlowStore(
     }
 
 
+    data class WireErrandChecklistItem(
+        val id: String = "",
+        val label: String = "",
+        val done: Boolean = false
+    ) {
+        fun toDomain() = com.intent.launcher.domain.ErrandChecklistItem(
+            id = id,
+            label = label,
+            done = done
+        )
+        companion object {
+            fun from(i: com.intent.launcher.domain.ErrandChecklistItem) =
+                WireErrandChecklistItem(id = i.id, label = i.label, done = i.done)
+        }
+    }
+
     data class WireErrandTodo(
         val id: String = "",
         val title: String = "",
@@ -3241,7 +3301,9 @@ class IntentionFlowStore(
         val status: String = ErrandStatus.OPEN.name,
         val createdAtEpochMs: Long = 0L,
         val completedAtEpochMs: Long? = null,
-        val provenance: WireProvenance = WireProvenance()
+        val provenance: WireProvenance = WireProvenance(),
+        val checklistItems: List<WireErrandChecklistItem> = emptyList(),
+        val reminderEnabled: Boolean = false
     ) {
         fun toDomain() = ErrandTodo(
             id = id,
@@ -3251,7 +3313,9 @@ class IntentionFlowStore(
             status = ErrandStatus.valueOf(status),
             createdAtEpochMs = createdAtEpochMs,
             completedAtEpochMs = completedAtEpochMs,
-            provenance = provenance.toDomain()
+            provenance = provenance.toDomain(),
+            checklistItems = checklistItems.map { it.toDomain() },
+            reminderEnabled = reminderEnabled
         )
         companion object {
             fun from(t: ErrandTodo) = WireErrandTodo(
@@ -3262,7 +3326,9 @@ class IntentionFlowStore(
                 status = t.status.name,
                 createdAtEpochMs = t.createdAtEpochMs,
                 completedAtEpochMs = t.completedAtEpochMs,
-                provenance = WireProvenance.from(t.provenance)
+                provenance = WireProvenance.from(t.provenance),
+                checklistItems = t.checklistItems.map(WireErrandChecklistItem::from),
+                reminderEnabled = t.reminderEnabled
             )
         }
     }

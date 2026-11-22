@@ -18,6 +18,7 @@ import com.intent.launcher.domain.OpenQuestionState
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.RelativeDateAnchoring
 import com.intent.launcher.domain.ResponseBlock
+import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.store.IntentionFlowStore
 import java.util.TimeZone
 
@@ -313,6 +314,22 @@ object CreateIntentionChat {
                         )
                 }
             }
+            draft.phase == BuilderPhase.PICK_SHAPE -> {
+                val errandCard = latestActiveBuilderCard(store)?.let { BuilderAnswerCard.decode(it) }
+                    as? BuilderAnswerCard.Decoded.Choice
+                if (errandCard?.promptId == ErrandCapture.MODE_PROMPT_ID) {
+                    return resolveLightweightErrandChoice(
+                        store = store,
+                        label = trimmed,
+                        nowEpochMs = nowEpochMs,
+                        registry = registry,
+                        sourceLabel = sourceLabel
+                    )
+                }
+                return startFromDescription(
+                    store, trimmed, nowEpochMs, registry, access, client, sourceLabel
+                )
+            }
             draft.phase == BuilderPhase.CONFIRM -> {
                 if (pendingMotivationAsk(store) != null) {
                     if (looksLikeConfirm(trimmed) || looksLikeKeepDiscussing(trimmed)) {
@@ -403,6 +420,18 @@ object CreateIntentionChat {
                 modality = ConversationCoordinator.Channel.TEXT_CHIP.name
             )
         )
+
+        val activeErrandCard = latestActiveBuilderCard(store)?.let { BuilderAnswerCard.decode(it) }
+            as? BuilderAnswerCard.Decoded.Choice
+        if (activeErrandCard?.promptId == ErrandCapture.MODE_PROMPT_ID) {
+            return resolveLightweightErrandChoice(
+                store = store,
+                label = trimmed,
+                nowEpochMs = nowEpochMs,
+                registry = registry,
+                sourceLabel = sourceLabel
+            )
+        }
 
         if (draft.phase == BuilderPhase.CONFIRM) {
             if (pendingMotivationAsk(store) != null) {
@@ -523,6 +552,19 @@ object CreateIntentionChat {
         client: OpenAiDiscussClient?,
         sourceLabel: String
     ): SubmitResult {
+        // OTHER §1 / OS-073 — small errands never enter intention discovery.
+        if (ErrandCapture.classify(description) == ErrandCapture.Kind.QUICK_TODO &&
+            registry.canCaptureQuickTodo()
+        ) {
+            return offerLightweightErrand(
+                store = store,
+                description = description,
+                nowEpochMs = nowEpochMs,
+                registry = registry,
+                sourceLabel = sourceLabel
+            )
+        }
+
         val start = IntentionBuilder.start(store, description, nowEpochMs + 1, registry)
         if (!start.ok) {
             postAgent(store, nowEpochMs + 1, start.note)
@@ -2382,6 +2424,186 @@ object CreateIntentionChat {
             .filter { it.intentionId == SESSION_INTENTION_ID }
             .flatMap { it.blocks.asReversed() }
             .firstOrNull { BuilderAnswerCard.decode(it) != null }
+
+    /**
+     * Divert small errands off the intention interview: ask reminder vs checklist,
+     * then [resolveLightweightErrandChoice] captures a to-do and soft-deletes the
+     * create shell so Home never shows an exploring intention for groceries/errands.
+     */
+    private fun offerLightweightErrand(
+        store: IntentionFlowStore,
+        description: String,
+        nowEpochMs: Long,
+        registry: CapabilityRegistry,
+        sourceLabel: String
+    ): SubmitResult {
+        val parsed = ErrandCapture.parse(description)
+        if (store.snapshot().builderDraft.active) {
+            IntentionBuilder.cancel(store, nowEpochMs + 1)
+        }
+        // Keep a draft so chips/free-text can resolve the mode — stay on PICK_SHAPE
+        // (autoApplyShape=false) so IntentionBuilder never asks discovery prompts.
+        store.apply(
+            FlowCommand.StartBuilderDraft(
+                freeText = description.trim(),
+                suggestedShapeTag = "other",
+                title = parsed.firstAction,
+                statement = description.trim(),
+                nowEpochMs = nowEpochMs + 2,
+                honestyNote = parsed.honestyLabel,
+                autoApplyShape = false
+            )
+        )
+        // Keep create-shell title honest — not a durable exploring intention claim.
+        store.apply(
+            FlowCommand.SeedExploring(
+                intentionId = SESSION_INTENTION_ID,
+                title = parsed.firstAction.ifBlank { "Quick to-do" },
+                statement = description.trim(),
+                shapeTag = "other",
+                nowEpochMs = nowEpochMs + 3
+            )
+        )
+        postAgent(store, nowEpochMs + 4, ErrandCapture.offerBody(parsed))
+        deactivatePriorBuilderCards(store, nowEpochMs + 5)
+        val body = buildString {
+            append(parsed.firstAction)
+            if (parsed.checklistLabels.size >= 2) {
+                append(" · ")
+                append(parsed.checklistLabels.joinToString(", "))
+            }
+            parsed.reminderNote?.let { append(" · Due $it") }
+        }
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-errand-mode-$nowEpochMs",
+                intentionId = SESSION_INTENTION_ID,
+                role = "agent",
+                text = body,
+                nowEpochMs = nowEpochMs + 6,
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                blocks = listOf(
+                    BuilderAnswerCard.choiceBlock(
+                        blockId = "block-errand-mode-$nowEpochMs",
+                        title = "Quick to-do",
+                        body = ErrandCapture.offerBody(parsed),
+                        spec = BuilderAnswerCard.ChoiceSpec(
+                            promptId = ErrandCapture.MODE_PROMPT_ID,
+                            options = listOf(
+                                ErrandCapture.CHIP_CHECKLIST,
+                                ErrandCapture.CHIP_REMINDER
+                            ),
+                            includeDeferral = false
+                        )
+                    )
+                )
+            )
+        )
+        return SubmitResult(
+            ok = true,
+            honestyNote = parsed.honestyLabel,
+            sourceLabel = sourceLabel,
+            liveCallAttempted = false
+        )
+    }
+
+    private fun resolveLightweightErrandChoice(
+        store: IntentionFlowStore,
+        label: String,
+        nowEpochMs: Long,
+        registry: CapabilityRegistry,
+        sourceLabel: String
+    ): SubmitResult {
+        if (ChoiceOptions.isOther(label)) {
+            postAgent(
+                store,
+                nowEpochMs + 1,
+                "Type “Just the checklist” or “Add a reminder” — or cancel and use Start a new intention for a bigger goal."
+            )
+            return SubmitResult(true, "Other — awaiting errand mode.", sourceLabel)
+        }
+        val mode = ErrandCapture.modeFromChip(label)
+        if (mode == null) {
+            postAgent(
+                store,
+                nowEpochMs + 1,
+                "Choose Just the checklist or Add a reminder — this stays a quick to-do, not an intention."
+            )
+            return SubmitResult(false, "Need checklist or reminder choice.", sourceLabel)
+        }
+        val raw = store.snapshot().builderDraft.freeText.ifBlank {
+            store.snapshot().turns
+                .asReversed()
+                .firstOrNull {
+                    it.intentionId == SESSION_INTENTION_ID && it.role == "user"
+                }?.text.orEmpty()
+        }
+        if (raw.isBlank()) {
+            return SubmitResult(false, "Missing errand text.", sourceLabel)
+        }
+        val beforeIntentions = store.snapshot().intentions.size
+        val result = ErrandCapture.capture(
+            store = store,
+            text = raw,
+            nowEpochMs = nowEpochMs + 2,
+            registry = registry,
+            mode = mode
+        )
+        IntentionBuilder.cancel(store, nowEpochMs + 3)
+        deactivatePriorBuilderCards(store, nowEpochMs + 4)
+        // Soft-delete the create shell so Home / Intentions never keep an exploring card.
+        if (store.snapshot().intentions.any { it.id == SESSION_INTENTION_ID }) {
+            store.apply(
+                FlowCommand.SoftDeleteIntention(
+                    trashId = "trash-errand-divert-$nowEpochMs",
+                    intentionId = SESSION_INTENTION_ID,
+                    nowEpochMs = nowEpochMs + 5
+                )
+            )
+        }
+        val items = result.todo?.checklistItems.orEmpty()
+        val receipt = buildString {
+            append(result.confirmation)
+            if (items.size >= 2) {
+                append(" You can check off each item or change the list.")
+            }
+        }
+        val actions = listOf("Open list", "Edit", "Undo")
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-errand-receipt-$nowEpochMs",
+                intentionId = result.todo?.id ?: "errand-receipt",
+                role = "agent",
+                text = receipt,
+                nowEpochMs = nowEpochMs + 6,
+                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                blocks = listOf(
+                    ResponseBlock(
+                        blockId = "block-errand-receipt-$nowEpochMs",
+                        type = ResponseBlockType.RECORDED_ENTRY,
+                        title = result.todo?.firstAction ?: "Quick to-do",
+                        body = if (items.isEmpty()) {
+                            receipt
+                        } else {
+                            items.joinToString("\n") { "• ${it.label}" }
+                        },
+                        sourceLabel = "quick-todo",
+                        linkedObjectIds = listOfNotNull(result.todo?.id),
+                        actions = actions,
+                        active = true
+                    )
+                )
+            )
+        )
+        val intentionsUnchangedOrReduced =
+            store.snapshot().intentions.size <= beforeIntentions
+        return SubmitResult(
+            ok = result.ok && intentionsUnchangedOrReduced,
+            honestyNote = receipt,
+            sourceLabel = sourceLabel,
+            liveCallAttempted = false
+        )
+    }
 
     private fun ensureSession(store: IntentionFlowStore, nowEpochMs: Long) {
         if (store.snapshot().intentions.none { it.id == SESSION_INTENTION_ID }) {

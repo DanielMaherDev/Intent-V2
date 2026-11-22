@@ -808,4 +808,60 @@ class CreateIntentionChatTest {
             }
         )
     }
+
+    @Test
+    fun smallErrand_offersChecklistNotIntentionInterview() {
+        CreateIntentionChat.begin(store, now, registry)
+        val offer = CreateIntentionChat.submitUtterance(
+            store = store,
+            text = "Buy milk and eggs tonight",
+            nowEpochMs = now + 10,
+            registry = registry
+        )
+        assertTrue(offer.ok)
+        assertEquals(BuilderPhase.PICK_SHAPE, store.snapshot().builderDraft.phase)
+        assertTrue(
+            store.snapshot().turns.any {
+                it.role == "agent" &&
+                    it.text.contains("checklist", ignoreCase = true)
+            }
+        )
+        val modeCard = store.snapshot().turns
+            .flatMap { it.blocks }
+            .mapNotNull { BuilderAnswerCard.decode(it) as? BuilderAnswerCard.Decoded.Choice }
+            .lastOrNull { it.promptId == ErrandCapture.MODE_PROMPT_ID }
+        assertNotNull(modeCard)
+        assertTrue(modeCard!!.options.any { it.contains("checklist", ignoreCase = true) })
+        // Must not project the generic “Where are you starting from” interview.
+        assertFalse(
+            store.snapshot().turns.any {
+                it.text.contains("Where are you starting from", ignoreCase = true)
+            }
+        )
+
+        val saved = CreateIntentionChat.submitChoice(
+            store = store,
+            label = ErrandCapture.CHIP_CHECKLIST,
+            nowEpochMs = now + 50,
+            registry = registry
+        )
+        assertTrue(saved.ok)
+        assertFalse(store.snapshot().builderDraft.active)
+        assertTrue(
+            "Create shell must not remain as an exploring intention",
+            store.snapshot().intentions.none { it.id == CreateIntentionChat.SESSION_INTENTION_ID }
+        )
+        assertEquals(1, store.snapshot().errandTodos.size)
+        val todo = store.snapshot().errandTodos.first()
+        assertEquals(2, todo.checklistItems.size)
+        assertEquals(listOf("milk", "eggs"), todo.checklistItems.map { it.label })
+        assertFalse(todo.reminderEnabled)
+        assertTrue(
+            store.snapshot().turns.any { turn ->
+                turn.blocks.any { block ->
+                    block.actions.containsAll(listOf("Open list", "Edit", "Undo"))
+                }
+            }
+        )
+    }
 }

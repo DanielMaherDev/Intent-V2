@@ -1441,13 +1441,23 @@ object AdaptiveBuilderEngine {
             }
             is BuilderDecision.OfferAction -> {
                 if (decision.actionDraft.kind == "errand") {
+                    val parsed = ErrandCapture.parse(
+                        decision.actionDraft.summary.ifBlank { decision.actionDraft.title }
+                    )
+                    val todoId = decision.actionDraft.actionId
                     store.apply(
                         FlowCommand.CaptureErrand(
-                            todoId = decision.actionDraft.actionId,
+                            todoId = todoId,
                             title = decision.actionDraft.title,
-                            firstAction = decision.actionDraft.summary,
-                            reminderNote = decision.actionDraft.reminderNote,
-                            nowEpochMs = nowEpochMs
+                            firstAction = parsed.firstAction,
+                            reminderNote = decision.actionDraft.reminderNote
+                                ?: parsed.reminderNote,
+                            nowEpochMs = nowEpochMs,
+                            checklistItems = ErrandCapture.checklistItemsFrom(
+                                parsed.checklistLabels,
+                                todoId
+                            ),
+                            reminderEnabled = false
                         )
                     )
                 } else {

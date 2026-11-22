@@ -85,6 +85,10 @@ object CommandReversibility {
                 Reversibility(true, "Completed errand ${command.todoId}")
             is FlowCommand.ReopenErrand ->
                 Reversibility(true, "Reopened errand ${command.todoId}")
+            is FlowCommand.ToggleErrandChecklistItem ->
+                Reversibility(true, "Toggled checklist item ${command.itemId}")
+            is FlowCommand.UpdateErrand ->
+                Reversibility(true, "Updated errand ${command.todoId}")
             is FlowCommand.RecordObservedEvidence ->
                 Reversibility(true, "Recorded observed evidence ${command.evidenceId}")
             is FlowCommand.DismissEvidence ->
