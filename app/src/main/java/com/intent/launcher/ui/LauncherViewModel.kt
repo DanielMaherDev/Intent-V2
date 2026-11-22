@@ -1577,31 +1577,8 @@ class LauncherViewModel(
                 "Routine activated. Undo is available for this reversible change."
             else -> result.message
         }
-        if (result.status == GatewayStatus.APPLIED) {
-            store.apply(
-                FlowCommand.AddConversationTurn(
-                    turnId = "turn-approve-receipt-$now",
-                    intentionId = pending.intentionId,
-                    role = "agent",
-                    text = "Activated: ${pending.title}. First session is on your schedule — " +
-                        "it can appear on Home when relevant. Undo available.",
-                    nowEpochMs = now + 10,
-                    blocks = listOf(
-                        com.intent.launcher.domain.ResponseBlock(
-                            blockId = "block-receipt-$now",
-                            type = com.intent.launcher.domain.ResponseBlockType.RECORDED_ENTRY,
-                            title = "Activated",
-                            body = pending.title,
-                            sourceLabel = "adaptive_builder|receipt",
-                            linkedObjectIds = listOf(pending.id, sessionId),
-                            actions = listOf("Undo"),
-                            active = true
-                        )
-                    )
-                )
-            )
-            // Gateway already projected Active schedule; keep receipt for Undo chrome.
-        }
+        // Gate E3 — receipt is written atomically inside ApproveProposal reduce
+        // (ApproveReceipt); do not add a second reversible turn that would steal Undo.
         refresh()
     }
 
