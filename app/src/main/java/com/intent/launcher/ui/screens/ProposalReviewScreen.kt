@@ -135,66 +135,60 @@ fun ProposalReviewScreen(
                 )
                 Spacer(modifier = Modifier.height(26.dp))
 
+                // SessionMetaGrid requires exactly 4 cells — keep primary review fields here;
+                // timezone / check-ins / extra methods detail sit in LineRows below.
                 SessionSummaryCard(
                     title = proposal.title,
                     headerIcon = Icons.Outlined.School,
-                    cells = buildList {
-                        if (proposal.methodsSummary.isNotBlank()) {
-                            add(
-                                SessionMetaCell(
-                                    icon = Icons.Outlined.MenuBook,
-                                    label = "Methods",
-                                    value = proposal.methodsSummary
-                                )
-                            )
-                        }
-                        add(
-                            SessionMetaCell(
-                                icon = Icons.Outlined.CalendarMonth,
-                                label = "Practice",
-                                value = "$dayLabel · $durationLabel · $timeLabel"
-                            )
+                    cells = listOf(
+                        SessionMetaCell(
+                            icon = Icons.Outlined.MenuBook,
+                            label = "Methods",
+                            value = proposal.methodsSummary.ifBlank { "Practice path" }
+                        ),
+                        SessionMetaCell(
+                            icon = Icons.Outlined.CalendarMonth,
+                            label = "Practice",
+                            value = "$dayLabel · $durationLabel · $timeLabel"
+                        ),
+                        SessionMetaCell(
+                            icon = Icons.Outlined.PhoneAndroid,
+                            label = "App access",
+                            value = proposal.capabilityHonesty.ifBlank {
+                                "Can open linked apps; progress inside apps needs your check-in."
+                            }
+                        ),
+                        SessionMetaCell(
+                            icon = Icons.Outlined.TrackChanges,
+                            label = "Home",
+                            value = proposal.homeImpactNote.ifBlank {
+                                "Appears on Home when relevant — only after approval succeeds."
+                            }
                         )
-                        add(
-                            SessionMetaCell(
-                                icon = Icons.Outlined.PhoneAndroid,
-                                label = "App access",
-                                value = proposal.capabilityHonesty.ifBlank {
-                                    "Can open linked apps; progress inside apps needs your check-in."
-                                }
-                            )
-                        )
-                        add(
-                            SessionMetaCell(
-                                icon = Icons.Outlined.TrackChanges,
-                                label = "Home",
-                                value = proposal.homeImpactNote.ifBlank {
-                                    "Appears on Home when relevant — only after approval succeeds."
-                                }
-                            )
-                        )
-                        add(
-                            SessionMetaCell(
-                                icon = Icons.Outlined.HourglassBottom,
-                                label = "Timezone",
-                                value = proposal.timeZoneId.ifBlank { "Device local" }
-                            )
-                        )
-                        add(
-                            SessionMetaCell(
-                                icon = Icons.Outlined.AccessTime,
-                                label = "Check-ins",
-                                value = buildString {
-                                    append("Morning: ")
-                                    append(if (proposal.includeMorningCheckIn) "on" else "off")
-                                    append(" · Evening: ")
-                                    append(if (proposal.includeEveningReview) "on" else "off")
-                                    append(" (independent)")
-                                }
-                            )
-                        )
-                    }
+                    )
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                SoftCard {
+                    LineRow(
+                        title = "Timezone",
+                        subtitle = proposal.timeZoneId.ifBlank { "Device local" },
+                        showArrow = false,
+                        glyphIcon = Icons.Outlined.HourglassBottom
+                    )
+                    LineRow(
+                        title = "Check-ins",
+                        subtitle = buildString {
+                            append("Morning: ")
+                            append(if (proposal.includeMorningCheckIn) "on" else "off")
+                            append(" · Evening: ")
+                            append(if (proposal.includeEveningReview) "on" else "off")
+                            append(" (independent — off until you choose them)")
+                        },
+                        showArrow = false,
+                        glyphIcon = Icons.Outlined.AccessTime
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Callout(
