@@ -291,6 +291,39 @@ class CreateIntentionChatTest {
                     it.state == OpenQuestionState.ASKED
             }
         )
+
+        // §8.5 — free-text relative correction via reconfirm path (offline).
+        val qid = ask!!.id
+        // Mark current question on adaptive state for AdaptiveAnswerPath.
+        val st = store.snapshot().adaptiveBuilderStates.first { it.intentionId == id }
+        store.apply(
+            com.intent.launcher.domain.FlowCommand.SetAdaptiveBuilderState(
+                state = st.copy(currentQuestionId = qid),
+                nowEpochMs = later + 1
+            )
+        )
+        val corrected = AdaptiveAnswerPath.submit(
+            store = store,
+            intentionId = id,
+            rawValue = "in about six months",
+            modality = "FREE_TEXT",
+            nowEpochMs = later + 2
+        )
+        assertTrue(corrected.honestyNote, corrected.accepted)
+        val history = AdaptiveBuilderEngine.correctionHistory(
+            store.snapshot(),
+            AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE,
+            id
+        )
+        assertEquals(2, history.size)
+        assertEquals(FactStatus.CORRECTED, history.first { it.id == move.id }.status)
+        assertEquals(
+            FactStatus.ACTIVE,
+            history.first { it.status == FactStatus.ACTIVE }.status
+        )
+        assertTrue(
+            history.first { it.status == FactStatus.ACTIVE }.text.contains("six", ignoreCase = true)
+        )
     }
 
     @Test
@@ -351,6 +384,70 @@ class CreateIntentionChatTest {
                 turn.intentionId == id &&
                     turn.blocks.any { it.type == ResponseBlockType.PROPOSAL && it.active }
             }
+        )
+    }
+
+    @Test
+    fun isCreateInProgress_trueUntilAdaptiveBridgeAfterConfirm() {
+        CreateIntentionChat.begin(store, now, registry)
+        assertTrue(CreateIntentionChat.isCreateInProgress(store))
+        CreateIntentionChat.submitUtterance(
+            store,
+            "I want to speak spanish. Im moving to Paris in about three months",
+            now + 10,
+            registry
+        )
+        assertTrue(CreateIntentionChat.isCreateInProgress(store))
+        CreateIntentionChat.submitQuantity(
+            store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(store, "Not yet", now + 30, registry)
+        CreateIntentionChat.submitChoice(store, "Confirm intention", now + 40, registry)
+        assertFalse(
+            "After Confirm, adaptive state exists — Discuss/CorrectFact owns the shell",
+            CreateIntentionChat.isCreateInProgress(store)
+        )
+        assertTrue(CreateIntentionChat.isCreateSessionActive(store))
+    }
+
+    @Test
+    fun correctMoveEstimate_afterConfirm_updatesActiveHorizonOffline() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store,
+            "I want to speak spanish. Im moving to Paris in about three months",
+            now + 10,
+            registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(store, "Not yet", now + 30, registry)
+        CreateIntentionChat.submitChoice(store, "Confirm intention", now + 40, registry)
+        val id = CreateIntentionChat.SESSION_INTENTION_ID
+        val prior = store.snapshot().facts.first {
+            it.intentionId == id &&
+                it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                it.status == FactStatus.ACTIVE
+        }
+        assertTrue(prior.text.contains("three", ignoreCase = true))
+        val result = AdaptiveBuilderEngine.correctMoveEstimate(
+            store = store,
+            intentionId = id,
+            newUtterance = "actually six months",
+            nowEpochMs = now + 50
+        )
+        assertTrue(result.reason, result.accepted)
+        val active = store.snapshot().facts.first {
+            it.intentionId == id &&
+                it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                it.status == FactStatus.ACTIVE
+        }
+        assertTrue(active.text.contains("six", ignoreCase = true))
+        assertFalse(active.text.contains("three", ignoreCase = true))
+        assertEquals(
+            FactStatus.CORRECTED,
+            store.snapshot().facts.first { it.id == prior.id }.status
         )
     }
 

@@ -560,6 +560,52 @@ object AdaptiveBuilderEngine {
         return ApplyResult(true, "ok", validation.decisionKind, store.snapshot())
     }
 
+    /**
+     * §8.5 — replace an ACTIVE [KEY_MOVE_ESTIMATE] with a new relative/absolute
+     * utterance via [BuilderDecision.CorrectFact]. Prior fact stays CORRECTED.
+     */
+    fun correctMoveEstimate(
+        store: IntentionFlowStore,
+        intentionId: String,
+        newUtterance: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        sourceTurnId: String? = null
+    ): ApplyResult {
+        val prior = store.snapshot().facts.firstOrNull {
+            it.intentionId == intentionId &&
+                it.key == KEY_MOVE_ESTIMATE &&
+                it.status == FactStatus.ACTIVE
+        } ?: return ApplyResult(
+            false,
+            "No active move estimate to correct.",
+            "CorrectFact",
+            store.snapshot()
+        )
+        val rev = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+        val phrase = CreateIntentionChat.extractRelativePhrase(newUtterance)
+            ?: newUtterance.trim()
+        return applyDecision(
+            store,
+            BuilderDecision.CorrectFact(
+                intentionId = intentionId,
+                expectedRevision = rev,
+                existingFactId = prior.id,
+                replacement = FactDraft(
+                    factId = "fact-move-corrected-$intentionId-$nowEpochMs",
+                    text = phrase,
+                    key = KEY_MOVE_ESTIMATE,
+                    rawUtterance = newUtterance.trim(),
+                    approximate = RelativeDateAnchoring.looksRelative(newUtterance)
+                ),
+                sourceTurnId = sourceTurnId ?: "turn-correct-move-$nowEpochMs"
+            ),
+            nowEpochMs,
+            timeZone = timeZone
+        )
+    }
+
     fun answerQuestion(
         store: IntentionFlowStore,
         answer: AnswerQuestion,

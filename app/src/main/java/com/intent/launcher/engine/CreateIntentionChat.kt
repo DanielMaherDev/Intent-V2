@@ -55,6 +55,26 @@ object CreateIntentionChat {
     fun isCreateSession(intention: Intention?): Boolean =
         intention?.id == SESSION_INTENTION_ID
 
+    /**
+     * True while chat-first create is still collecting answers.
+     * After Confirm, [bridgeAdaptiveBuilderAfterCommit] attaches an adaptive
+     * builder state to [SESSION_INTENTION_ID] — that shell is then durable Discuss.
+     */
+    fun isCreateInProgress(store: IntentionFlowStore): Boolean {
+        val snap = store.snapshot()
+        if (snap.builderDraft.active) return true
+        val id = snap.activeIntentionId ?: SESSION_INTENTION_ID
+        if (id != SESSION_INTENTION_ID && snap.intentions.none { it.id == SESSION_INTENTION_ID }) {
+            return false
+        }
+        val createId = if (snap.intentions.any { it.id == SESSION_INTENTION_ID }) {
+            SESSION_INTENTION_ID
+        } else {
+            return false
+        }
+        return snap.adaptiveBuilderStates.none { it.intentionId == createId }
+    }
+
     fun isCreateSessionActive(store: IntentionFlowStore): Boolean {
         val snap = store.snapshot()
         return snap.activeIntentionId == SESSION_INTENTION_ID ||

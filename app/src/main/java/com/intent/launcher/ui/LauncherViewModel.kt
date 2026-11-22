@@ -1170,9 +1170,7 @@ class LauncherViewModel(
 
     fun onConversationChip(chip: String) {
         val now = System.currentTimeMillis()
-        if (CreateIntentionChat.isCreateSession(activeIntention()) ||
-            store.snapshot().builderDraft.active
-        ) {
+        if (CreateIntentionChat.isCreateInProgress(store)) {
             val result = CreateIntentionChat.submitChoice(
                 store = store,
                 label = chip,
@@ -1276,8 +1274,9 @@ class LauncherViewModel(
         discussThinkingTurnId = thinkingTurnId
         discussJob = viewModelScope.launch {
             try {
-                val createActive = CreateIntentionChat.isCreateSession(activeIntention()) ||
-                    store.snapshot().builderDraft.active
+                // After Confirm, adaptive builder state exists on the create shell —
+                // Discuss / CorrectFact must not route back into CreateIntentionChat.
+                val createActive = CreateIntentionChat.isCreateInProgress(store)
                 val honesty = withContext(Dispatchers.IO) {
                     // Bail if the user cancelled while we were queued for IO.
                     if (discussThinkingTurnId != thinkingTurnId) {
@@ -1317,6 +1316,26 @@ class LauncherViewModel(
                                 nowEpochMs = now,
                                 expectedQuestionId = currentAdaptiveQuestionId(intention.id)
                             ).honestyNote
+                        // §8.5 offline — relative date free-text corrects move estimate.
+                        intention != null &&
+                            com.intent.launcher.domain.RelativeDateAnchoring.looksRelative(text) &&
+                            store.snapshot().facts.any {
+                                it.intentionId == intention.id &&
+                                    it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                                    it.status == com.intent.launcher.domain.FactStatus.ACTIVE
+                            } -> {
+                            val result = AdaptiveBuilderEngine.correctMoveEstimate(
+                                store = store,
+                                intentionId = intention.id,
+                                newUtterance = text,
+                                nowEpochMs = now
+                            )
+                            if (result.accepted) {
+                                "Move estimate updated — prior estimate stays on record as corrected."
+                            } else {
+                                result.reason
+                            }
+                        }
                         else -> ConversationCoordinator.submitFreeText(
                             store = store,
                             intention = intention,

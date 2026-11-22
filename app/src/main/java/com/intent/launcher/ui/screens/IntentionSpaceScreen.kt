@@ -34,6 +34,7 @@ import com.intent.launcher.domain.DestinationApp
 import com.intent.launcher.domain.Evidence
 import com.intent.launcher.domain.EvidenceAccuracy
 import com.intent.launcher.domain.Fact
+import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.HeldApp
 import com.intent.launcher.domain.Hypothesis
 import com.intent.launcher.domain.Intention
@@ -382,8 +383,11 @@ fun IntentionSpaceScreen(
             if (facts.isEmpty() && hypotheses.isEmpty() && sessions.isEmpty() && evidence.isEmpty()) {
                 projection.defaultFacts.forEach { FactRow(text = it) }
             } else {
-                facts.forEach { f ->
+                facts.filter { it.status == FactStatus.ACTIVE }.forEach { f ->
                     FactRow(text = "Confirmed by you · ${f.text}")
+                }
+                facts.filter { it.status == FactStatus.CORRECTED }.forEach { f ->
+                    FactRow(text = "Corrected · ${f.text}")
                 }
                 hypotheses.forEach { h ->
                     FactRow(text = "Inferred · ${h.text}")
