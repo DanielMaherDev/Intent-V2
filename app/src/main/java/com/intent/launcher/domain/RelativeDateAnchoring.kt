@@ -140,7 +140,10 @@ object RelativeDateAnchoring {
             remainingDays >= 0 -> "in the coming days"
             else -> "around now or past"
         }
-        val needs = fact.approximate || ageDays >= freshnessDays.toLong() ||
+        // Approximate alone is not stale — reconfirm after wall-clock age (or when
+        // the remaining horizon is near and enough time has elapsed). Immediate
+        // reconfirm would block OfferApproaches and mint low-value duplicate asks.
+        val needs = ageDays >= freshnessDays.toLong() ||
             (estimated != null && remainingDays <= 45 && ageDays >= 14)
         val prompt = if (needs) {
             "Last time, you expected this around $label. Is that still about right?"
