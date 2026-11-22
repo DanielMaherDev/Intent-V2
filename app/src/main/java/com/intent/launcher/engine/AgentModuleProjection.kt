@@ -43,7 +43,9 @@ object AgentModuleProjection {
         val options: List<String>,
         val freeTextHint: String,
         val blockId: String?,
-        val sourceLabel: String
+        val sourceLabel: String,
+        /** When true, options toggle and the caller submits the joined selection. */
+        val multiSelect: Boolean = false
     )
 
     data class ProposalCard(
@@ -205,10 +207,11 @@ object AgentModuleProjection {
                 } else {
                     block.actions
                 }
+                val multi = BuilderAnswerCard.decode(block) is BuilderAnswerCard.Decoded.MultiChoice
                 return OneQuestionCard(
                     title = block.title.ifBlank { "One question" },
                     body = block.body,
-                    provenanceChip = "ONE QUESTION",
+                    provenanceChip = if (multi) "PICK ALL THAT APPLY" else "ONE QUESTION",
                     options = options,
                     freeTextHint = if (prefersOtherPath(block)) {
                         "Tell me in your own words — or choose Other"
@@ -216,7 +219,8 @@ object AgentModuleProjection {
                         "Tell me in your own words"
                     },
                     blockId = block.blockId,
-                    sourceLabel = block.sourceLabel
+                    sourceLabel = block.sourceLabel,
+                    multiSelect = multi
                 )
             }
             ResponseBlockType.QUESTION -> {
@@ -233,7 +237,8 @@ object AgentModuleProjection {
                     options = options,
                     freeTextHint = "Tell me in your own words — or choose Other",
                     blockId = block.blockId,
-                    sourceLabel = block.sourceLabel
+                    sourceLabel = block.sourceLabel,
+                    multiSelect = false
                 )
             }
             else -> return null

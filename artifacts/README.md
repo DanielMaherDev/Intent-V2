@@ -1,5 +1,5 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.224.apk`](./INTENT-v0.0.224.apk) — Message composer timed activity SaveFact/CorrectFact wins over pending Ask and live Discuss (IV-263; based on main tip **0.0.223**).
+Latest sideload APK (this branch): [`INTENT-v0.0.225.apk`](./INTENT-v0.0.225.apk) — OC6 Chess.com Visible controls chrome: source/freshness badge, Refresh data, Use manual baseline, practice multiselect, rating chart from real dated entries only (IV-267; based on main tip **0.0.224**).
 
 Do not overwrite lower version APKs.

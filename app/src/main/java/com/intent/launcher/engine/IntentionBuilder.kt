@@ -30,7 +30,9 @@ object IntentionBuilder {
          * Predefined chip labels (without Other). Conversation / builder UI
          * appends [ChoiceOptions.OTHER] for the free-text path.
          */
-        val choiceOptions: List<String>? = null
+        val choiceOptions: List<String>? = null,
+        /** When true, choice chips toggle and Continue submits the joined selection. */
+        val multiSelect: Boolean = false
     )
 
     data class StartResult(
@@ -375,9 +377,11 @@ object IntentionBuilder {
                 Prompt(
                     id = AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE,
                     question =
-                        "What practice mix do you want? Practice stays distinct from " +
-                            "rating — a played game is not proof the rating improved.",
-                    choiceOptions = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS
+                        "What practice approaches do you want? Pick all that apply. " +
+                            "Practice stays distinct from rating — a played game is not " +
+                            "proof the rating improved.",
+                    choiceOptions = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS,
+                    multiSelect = true
                 )
             )
             "cessation" -> listOf(

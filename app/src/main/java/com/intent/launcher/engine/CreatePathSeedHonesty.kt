@@ -123,11 +123,11 @@ object CreatePathSeedHonesty {
         "Not connected yet"
     )
 
+    /** Multiselect practice approaches — combination is selecting several, not a fourth mode. */
     val PRACTICE_PREFERENCE_OPTIONS: List<String> = listOf(
         "Playing games",
         "Reviewing games",
-        "Studying",
-        "A combination"
+        "Studying"
     )
 
     /**

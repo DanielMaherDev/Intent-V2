@@ -65,6 +65,7 @@ fun IntentionBuilderScreen(
     var showOtherField by remember { mutableStateOf(false) }
     var showShapeCorrection by remember { mutableStateOf(false) }
     val prompt = IntentionBuilder.nextPrompt(draft)
+    var multiSelected by remember(prompt?.id) { mutableStateOf(setOf<String>()) }
     val (step, totalSteps) = IntentionBuilder.progressStep(draft)
     val paperWash = Brush.verticalGradient(
         colors = listOf(
@@ -219,17 +220,43 @@ fun IntentionBuilderScreen(
                             )
                         } else if (chipOptions != null) {
                             val display = ChoiceOptions.withOther(chipOptions)
+                            val multi = prompt.multiSelect
                             display.forEach { label ->
+                                val selected = multi && label in multiSelected
                                 IntentSecondaryButton(
-                                    text = label,
+                                    text = if (selected) "✓ $label" else label,
                                     onClick = {
                                         if (ChoiceOptions.isOther(label)) {
                                             showOtherField = true
+                                            if (multi) multiSelected = emptySet()
+                                        } else if (multi) {
+                                            showOtherField = false
+                                            multiSelected =
+                                                if (label in multiSelected) {
+                                                    multiSelected - label
+                                                } else {
+                                                    multiSelected + label
+                                                }
                                         } else {
                                             showOtherField = false
                                             onAnswerPrompt(prompt.id, label)
                                             answerText = ""
                                         }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            if (multi && !showOtherField) {
+                                IntentPrimaryButton(
+                                    text = "Continue with selection",
+                                    onClick = {
+                                        if (multiSelected.isEmpty()) return@IntentPrimaryButton
+                                        onAnswerPrompt(
+                                            prompt.id,
+                                            multiSelected.joinToString(" and ")
+                                        )
+                                        multiSelected = emptySet()
+                                        answerText = ""
                                     }
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -254,6 +281,7 @@ fun IntentionBuilderScreen(
                                         onAnswerPrompt(prompt.id, answerText)
                                         answerText = ""
                                         showOtherField = false
+                                        multiSelected = emptySet()
                                     }
                                 )
                             }

@@ -303,6 +303,7 @@ fun ConversationScreen(
         progressCard == null
 
     var selectedQuestionIndex by remember { mutableStateOf<Int?>(null) }
+    var selectedQuestionIndices by remember { mutableStateOf(setOf<Int>()) }
     var awaitingOtherText by remember { mutableStateOf(false) }
     val quantitySpec = builderQuantity?.second
     var wheelValue by remember(quantitySpec?.promptId, quantitySpec?.defaultValue) {
@@ -455,6 +456,41 @@ fun ConversationScreen(
                     AgentOneQuestionCard(
                         model = oneQuestion,
                         selectedIndex = selectedQuestionIndex,
+                        selectedIndices = selectedQuestionIndices,
+                        onToggle = { index ->
+                            val label = oneQuestion.options.getOrNull(index)
+                                ?: return@AgentOneQuestionCard
+                            if (ChoiceOptions.isOther(label)) {
+                                selectedQuestionIndices = setOf(index)
+                                awaitingOtherText = true
+                                return@AgentOneQuestionCard
+                            }
+                            awaitingOtherText = false
+                            val otherIdx = oneQuestion.options.indexOfFirst {
+                                ChoiceOptions.isOther(it)
+                            }
+                            selectedQuestionIndices =
+                                if (index in selectedQuestionIndices) {
+                                    selectedQuestionIndices - index
+                                } else {
+                                    val withoutOther =
+                                        if (otherIdx >= 0) {
+                                            selectedQuestionIndices - otherIdx
+                                        } else {
+                                            selectedQuestionIndices
+                                        }
+                                    withoutOther + index
+                                }
+                        },
+                        onConfirmMulti = {
+                            val labels = selectedQuestionIndices
+                                .sorted()
+                                .mapNotNull { oneQuestion.options.getOrNull(it) }
+                                .filterNot { ChoiceOptions.isOther(it) }
+                            if (labels.isEmpty()) return@AgentOneQuestionCard
+                            onChip(labels.joinToString(" and "))
+                            selectedQuestionIndices = emptySet()
+                        },
                         onSelect = { index ->
                             selectedQuestionIndex = index
                             val label = oneQuestion.options.getOrNull(index)
