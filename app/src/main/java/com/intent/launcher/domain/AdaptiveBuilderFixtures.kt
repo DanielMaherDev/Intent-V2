@@ -110,49 +110,49 @@ object AdaptiveBuilderFixtures {
                 "Work legally in Spain",
                 "Help me complete what I need to work legally here.",
                 "research",
-                listOf("conditional_process")
+                AdaptiveBuilderEngine.facetsForShape("research")
             )
             "marathon" -> FixtureSpec(
                 "ab-marathon",
                 "Run a marathon",
                 "I want to run a marathon in eight months.",
                 "marathon",
-                listOf("dated_outcome", "skill_practice")
+                AdaptiveBuilderEngine.facetsForShape("marathon")
             )
             "smoking" -> FixtureSpec(
                 "ab-smoking",
                 "Reduce smoking",
                 "I smoke about eight cigarettes a day and want to quit.",
                 "cessation",
-                listOf("habit_change")
+                AdaptiveBuilderEngine.facetsForShape("cessation")
             )
             "app_use" -> FixtureSpec(
                 "ab-app-use",
                 "Limit short-form video",
                 "Keep Instagram and YouTube Shorts under 45 minutes a day.",
                 "app_use",
-                listOf("habit_change")
+                AdaptiveBuilderEngine.facetsForShape("app_use")
             )
             "chess" -> FixtureSpec(
                 "ab-chess",
                 "Raise Chess.com rapid rating",
                 "Raise my Chess.com rapid rating from 900 to 1200.",
                 "chess",
-                listOf("skill_practice", "dated_outcome")
+                AdaptiveBuilderEngine.facetsForShape("chess")
             )
             "move" -> FixtureSpec(
                 "ab-move",
                 "Move to Valencia",
                 "Move from Barcelona to Valencia within six weeks.",
                 "move",
-                listOf("dated_outcome", "conditional_process")
+                AdaptiveBuilderEngine.facetsForShape("move")
             )
             "job_offer" -> FixtureSpec(
                 "ab-job-offer",
                 "Decide on job offer",
                 "Help me decide whether to accept a job offer. I have ten days.",
                 "decision",
-                listOf("decision")
+                AdaptiveBuilderEngine.facetsForShape("decision")
             )
             else -> FixtureSpec(
                 "ab-other-$caseId",

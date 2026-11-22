@@ -1,5 +1,5 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.166.apk`](./INTENT-v0.0.166.apk) — ProposalReview SessionMetaGrid 4-cell crash fix (unblocks §8.4 AVD). Based on tip 0.0.164 (#109).
+Latest sideload APK (this branch): [`INTENT-v0.0.169.apk`](./INTENT-v0.0.169.apk) — §8.2 multimodal tap/typed AnswerQuestion JVM proof (Gate D2). Based on tip 0.0.168 (#112) after redesign 0.0.167 (#110).
 
 Do not overwrite lower version APKs.

@@ -21,7 +21,8 @@ class FloatingAgentRestartPolicyTest {
         assertEquals(FloatingAgentRestartPolicy.StartMode.STOP_NOT_STICKY, d.mode)
         assertNull(d.resolvedState)
         assertNotNull(d.fallbackNote)
-        assertTrue(d.fallbackNote!!.contains("no floating bubble", ignoreCase = true))
+        assertTrue(d.fallbackNote!!.contains("Companion", ignoreCase = true))
+        assertFalse(d.fallbackNote!!.contains("Overlay permission not granted", ignoreCase = true))
         assertFalse(d.fallbackNote!!.contains("showing over", ignoreCase = true))
         assertFalse(d.postTakeoverNotification)
     }
@@ -61,8 +62,8 @@ class FloatingAgentRestartPolicyTest {
         assertEquals(FloatingAgentRestartPolicy.StartMode.STOP_NOT_STICKY, d.mode)
         assertNull(d.resolvedState)
         assertNotNull(d.fallbackNote)
-        assertTrue(d.fallbackNote!!.contains("not running", ignoreCase = true) ||
-            d.fallbackNote!!.contains("Settings", ignoreCase = true))
+        assertTrue(d.fallbackNote!!.contains("Companion", ignoreCase = true))
+        assertFalse(d.fallbackNote!!.contains("Overlay permission not granted", ignoreCase = true))
         assertTrue(d.postTakeoverNotification)
         assertEquals(
             FloatingAgentRestartPolicy.InterruptReason.PROCESS_DEATH_OVERLAY_DENIED,
@@ -101,9 +102,8 @@ class FloatingAgentRestartPolicyTest {
     @Test
     fun serviceStoppedFallback_pointsToHomeAndNotification() {
         val note = TalkBackLabels.serviceStoppedFallbackNote()
-        assertTrue(note.contains("not running", ignoreCase = true))
-        assertTrue(note.contains("Companion menu", ignoreCase = true))
+        assertTrue(note.contains("Companion", ignoreCase = true))
         assertTrue(note.contains("notification", ignoreCase = true))
-        assertTrue(note.contains("not invented", ignoreCase = true))
+        assertFalse(note.contains("Overlay permission not granted", ignoreCase = true))
     }
 }

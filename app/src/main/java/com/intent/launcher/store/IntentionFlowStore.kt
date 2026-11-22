@@ -3071,7 +3071,7 @@ class IntentionFlowStore(
         val statement: String = "",
         val factAnswers: Map<String, String> = emptyMap(),
         val phase: String = BuilderPhase.ENTER_TEXT.name,
-        val honestyNote: String = "Heuristic shape suggestion — no live LLM."
+        val honestyNote: String = "On-device suggestion — not a live model."
     ) {
         fun toDomain() = BuilderDraft(
             active = active,
@@ -3108,7 +3108,7 @@ class IntentionFlowStore(
         val suggestedNextAction: String = "",
         val sourceThoughtIds: List<String> = emptyList(),
         val status: String = TriageItemStatus.PENDING.name,
-        val honestyNote: String = "Heuristic split — no live LLM."
+        val honestyNote: String = "On-device split — not a live model."
     ) {
         fun toDomain() = TriageItem(
             id = id,

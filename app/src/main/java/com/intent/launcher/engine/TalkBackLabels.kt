@@ -90,14 +90,10 @@ object TalkBackLabels {
      * Never claims a floating bubble or overlay grant.
      */
     fun overlayDeniedFallbackNote(): String =
-        "Overlay permission not granted — no floating bubble. " +
-            "Use Home’s Companion menu, Discuss, or Agent for the same Conversation. " +
-            "Grant overlay only from system Settings if you want the bubble."
+        "Use Companion, Discuss, or Agent for Conversation."
 
     fun serviceStoppedFallbackNote(): String =
-        "Floating companion is not running. " +
-            "Use Home’s Companion menu, Discuss, or the INTENT companion notification when shown. " +
-            "Overlay is not invented — grant it in system Settings to show the bubble again."
+        "Companion is not floating. Use Companion, Discuss, or the INTENT notification."
 
     private data class KindDefaults(val status: String, val title: String, val support: String)
 

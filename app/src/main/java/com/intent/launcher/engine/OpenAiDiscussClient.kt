@@ -46,7 +46,7 @@ class OpenAiDiscussClient(
         val trimmedKey = apiKey.trim()
         if (trimmedKey.isEmpty()) {
             return Outcome.Failure(
-                "No OpenAI API key available. Discuss stays on local heuristics."
+                "No assistant key available. Discuss stays on-device."
             )
         }
         val trimmedUser = userMessage.trim()

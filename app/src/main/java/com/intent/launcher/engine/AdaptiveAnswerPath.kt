@@ -4,6 +4,7 @@ import com.intent.launcher.domain.AdaptiveBuilderState
 import com.intent.launcher.domain.AnswerQuestion
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.OpenQuestionState
+import com.intent.launcher.domain.RelativeDateAnchoring
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.store.IntentionFlowStore
@@ -72,6 +73,83 @@ object AdaptiveAnswerPath {
             )
         }
 
+        // §8.1 / §8.5 — freshness reconfirm chips.
+        if (question.purpose == "reconfirm_move_estimate") {
+            val lower = trimmed.lowercase()
+            when {
+                lower.contains("still about") || lower == "yes" || lower.contains("still right") -> {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-reconfirm-ok-$nowEpochMs",
+                            intentionId = intentionId,
+                            role = "user",
+                            text = trimmed,
+                            nowEpochMs = nowEpochMs,
+                            modality = modality
+                        )
+                    )
+                    store.apply(
+                        FlowCommand.AnswerOpenQuestion(
+                            questionId = activeId,
+                            intentionId = intentionId,
+                            answerText = "Still about right",
+                            nowEpochMs = nowEpochMs,
+                            sourceTurnId = "turn-reconfirm-ok-$nowEpochMs",
+                            modality = modality,
+                            idempotencyKey = "idem-reconfirm-ok-$nowEpochMs",
+                            factId = null
+                        )
+                    )
+                    bumpClearQuestion(store, intentionId, nowEpochMs)
+                    return Result(
+                        ok = true,
+                        honestyNote = "Move timing confirmed — prior estimate unchanged.",
+                        accepted = true
+                    )
+                }
+                lower.contains("update") || lower.contains("change the date") -> {
+                    return Result(
+                        ok = true,
+                        honestyNote = "Update the date — type the new estimate below " +
+                            "(for example “in about six months”).",
+                        needsFreeText = true
+                    )
+                }
+                RelativeDateAnchoring.looksRelative(trimmed) -> {
+                    val corrected = AdaptiveBuilderEngine.correctMoveEstimate(
+                        store = store,
+                        intentionId = intentionId,
+                        newUtterance = trimmed,
+                        nowEpochMs = nowEpochMs,
+                        timeZone = timeZone,
+                        sourceTurnId = "turn-reconfirm-correct-$nowEpochMs"
+                    )
+                    if (!corrected.accepted) {
+                        return Result(false, corrected.reason)
+                    }
+                    // Close the reconfirm Ask without saving a duplicate purpose-key fact.
+                    store.apply(
+                        FlowCommand.AnswerOpenQuestion(
+                            questionId = activeId,
+                            intentionId = intentionId,
+                            answerText = trimmed,
+                            nowEpochMs = nowEpochMs,
+                            sourceTurnId = "turn-reconfirm-correct-$nowEpochMs",
+                            modality = modality,
+                            idempotencyKey = "idem-reconfirm-correct-$nowEpochMs",
+                            factId = null
+                        )
+                    )
+                    bumpClearQuestion(store, intentionId, nowEpochMs)
+                    return Result(
+                        ok = true,
+                        honestyNote = "Move estimate updated — prior estimate stays on record as corrected.",
+                        accepted = true
+                    )
+                }
+            }
+        }
+
         return when (val selection = ChoiceOptions.resolveSelection(trimmed, question.optionIds)) {
             ChoiceOptions.Selection.Empty -> Result(false, "Empty answer.")
             ChoiceOptions.Selection.NeedsFreeText -> Result(
@@ -98,6 +176,25 @@ object AdaptiveAnswerPath {
                 modality, nowEpochMs, state.revision, question.purpose, timeZone
             )
         }
+    }
+
+    private fun bumpClearQuestion(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long
+    ) {
+        val prior = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId } ?: return
+        store.apply(
+            FlowCommand.SetAdaptiveBuilderState(
+                state = prior.copy(
+                    currentQuestionId = null,
+                    revision = prior.revision + 1,
+                    updatedAtEpochMs = nowEpochMs
+                ),
+                nowEpochMs = nowEpochMs
+            )
+        )
     }
 
     fun commitAnswer(
@@ -153,14 +250,60 @@ object AdaptiveAnswerPath {
                 accepted = false
             )
         }
-        val ctx = AdaptiveBuilderEngine.projectContext(
-            store.snapshot(), intentionId, nowEpochMs + 2, timeZone
-        )
-        if (ctx != null) {
-            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, nowEpochMs + 2, timeZone)
-            AdaptiveBuilderEngine.applyDecision(store, next, nowEpochMs + 3, timeZone = timeZone)
+        // §8.2 / Gate D2: approach Ask answers also SelectApproaches so chip/tap
+        // and typed free text write the same SELECTED approach records.
+        if (factKey == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES) {
+            val approachIds = AdaptiveBuilderEngine.matchApproachIds(
+                store.snapshot(), intentionId, normalizedValue
+            )
+            if (approachIds.isNotEmpty()) {
+                val rev = store.snapshot().adaptiveBuilderStates
+                    .firstOrNull { it.intentionId == intentionId }
+                    ?.revision
+                    ?: expectedRevision
+                AdaptiveBuilderEngine.selectApproaches(
+                    store = store,
+                    intentionId = intentionId,
+                    approachIds = approachIds,
+                    nowEpochMs = nowEpochMs + 2,
+                    sourceTurnId = turnId,
+                    expectedRevision = rev,
+                    modality = modality
+                )
+            }
         }
+        advanceAfterAnswer(store, intentionId, nowEpochMs + 3, timeZone)
         return Result(ok = true, honestyNote = "Answer recorded.", accepted = true)
+    }
+
+    /**
+     * Apply up to two policy steps so OfferApproaches can seed candidates and the
+     * follow-up MULTI_CHOICE Ask lands as the active card in the same turn.
+     */
+    private fun advanceAfterAnswer(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ) {
+        var t = nowEpochMs
+        repeat(2) {
+            val state = store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }
+            if (state?.currentQuestionId != null) return
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            AdaptiveBuilderEngine.applyDecision(store, next, t, timeZone = timeZone)
+            t += 1
+            when (next) {
+                is com.intent.launcher.domain.BuilderDecision.Ask,
+                is com.intent.launcher.domain.BuilderDecision.Propose,
+                is com.intent.launcher.domain.BuilderDecision.Pause -> return
+                else -> Unit
+            }
+        }
     }
 
     fun deferQuestion(

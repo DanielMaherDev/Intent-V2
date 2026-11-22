@@ -66,34 +66,35 @@ data class IntentColorTokens(
     val UserBubble: Color
 )
 
+/** DESIGN_SPEC 2026-11-21 tokens (paper / brand / ink). Do not sample screenshots. */
 val LightIntentColors = IntentColorTokens(
-    Paper = Color(0xFFF4F2EC),
-    Card = Color(0xFFFFFEFA),
-    Ink = Color(0xFF202522),
-    Muted = Color(0xFF68716C),
-    Line = Color(0xFFDEDFD6),
-    Accent = Color(0xFF5459C9),
-    AccentDark = Color(0xFF4146AE),
-    AccentSoft = Color(0xFFE9E9FA),
+    Paper = Color(0xFFF6F4F0),
+    Card = Color(0xFFFFFFFF),
+    Ink = Color(0xFF161616),
+    Muted = Color(0xFF8A857E),
+    Line = Color(0xFFE6E1D8),
+    Accent = Color(0xFF5C4DFF),
+    AccentDark = Color(0xFF4A3DE0),
+    AccentSoft = Color(0xFFEEEBFF),
     Success = Color(0xFF2D786A),
     SuccessSoft = Color(0xFFE5F1EC),
     Warm = Color(0xFFA76531),
     WarmSoft = Color(0xFFF8EEE2),
-    NavBar = Color(0xFFFAF9F5),
-    Pill = Color(0xFFEFF0EB),
-    PillText = Color(0xFF536058),
-    EmptyBorder = Color(0xFFC9CFC5),
-    ComposerHint = Color(0xFF7A847C),
-    Lede = Color(0xFF4E5952),
-    Section = Color(0xFF59645C),
-    FactText = Color(0xFF4C5851),
-    NavIdle = Color(0xFF6D766E),
-    Arrow = Color(0xFF8E9891),
-    GridCell = Color(0xFFF2F2EC),
-    CalloutText = Color(0xFF444A84),
-    ComposerBorder = Color(0xFFCDD1C9),
-    EmptyFill = Color(0xFFFBFAF6),
-    UserBubble = Color(0xFFF3EDE3)
+    NavBar = Color(0xFFF6F4F0),
+    Pill = Color(0xFFF3F0EA),
+    PillText = Color(0xFF5E5A55),
+    EmptyBorder = Color(0xFFD4CEC3),
+    ComposerHint = Color(0xFF8A857E),
+    Lede = Color(0xFF5E5A55),
+    Section = Color(0xFF5E5A55),
+    FactText = Color(0xFF5E5A55),
+    NavIdle = Color(0xFF8A857E),
+    Arrow = Color(0xFF8A857E),
+    GridCell = Color(0xFFF3F0EA),
+    CalloutText = Color(0xFF4A3DE0),
+    ComposerBorder = Color(0xFFE6E1D8),
+    EmptyFill = Color(0xFFF3F0EA),
+    UserBubble = Color(0xFFEEEBFF)
 )
 
 /** Warm charcoal + lifted indigo — same roles as [LightIntentColors], not pure black. */

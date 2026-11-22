@@ -129,4 +129,83 @@ class AdaptiveAnswerPathTest {
         assertTrue(BuilderAnswerCard.isBuilderCard(block!!))
         assertEquals("q-block", BuilderAnswerCard.decode(block)?.promptId)
     }
+
+    @Test
+    fun chipAndTyped_sameApproachAsk_writeEquivalentSelectedApproaches() {
+        fun seed(target: IntentionFlowStore, qid: String) {
+            AdaptiveBuilderFixtures.seedSpanishDiscovery(target, now)
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.OfferApproaches(
+                    intentionId = id,
+                    expectedRevision = 0L,
+                    approachDrafts = AdaptiveBuilderEngine.defaultApproachDrafts()
+                ),
+                now,
+                timeZone = tz
+            )
+            val rev = target.snapshot().adaptiveBuilderStates.first { it.intentionId == id }.revision
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.Ask(
+                    intentionId = id,
+                    expectedRevision = rev,
+                    questionId = qid,
+                    whyItMatters = "Which ways of learning appeal to you?",
+                    answerSchema = AnswerSchema.MULTI_CHOICE,
+                    purpose = AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES,
+                    options = AdaptiveBuilderEngine.defaultApproachDrafts().map { it.title }
+                ),
+                now + 1,
+                timeZone = tz
+            )
+        }
+
+        fun selected(target: IntentionFlowStore): Set<String> =
+            target.snapshot().approaches
+                .filter {
+                    it.intentionId == id &&
+                        it.status == com.intent.launcher.domain.ApproachStatus.SELECTED
+                }
+                .map { it.id }
+                .toSet()
+
+        val value = "AI conversation practice and Learning app"
+        seed(store, "q-chip")
+        assertTrue(
+            AdaptiveAnswerPath.submit(
+                store = store,
+                intentionId = id,
+                rawValue = value,
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                nowEpochMs = now + 5,
+                timeZone = tz,
+                expectedQuestionId = "q-chip"
+            ).accepted
+        )
+
+        val typedStore = IntentionFlowStore(tmp.newFile("answer-path-typed.json"))
+        seed(typedStore, "q-typed")
+        assertTrue(
+            AdaptiveAnswerPath.submit(
+                store = typedStore,
+                intentionId = id,
+                rawValue = value,
+                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                nowEpochMs = now + 6,
+                timeZone = tz,
+                expectedQuestionId = "q-typed"
+            ).accepted
+        )
+
+        val expected = setOf("approach-ai-practice", "approach-learning-app")
+        assertEquals(expected, selected(store))
+        assertEquals(expected, selected(typedStore))
+        assertEquals(
+            AdaptiveBuilderEngine.activeFacts(store.snapshot(), id)
+                .first { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }.text,
+            AdaptiveBuilderEngine.activeFacts(typedStore.snapshot(), id)
+                .first { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }.text
+        )
+    }
 }

@@ -101,9 +101,9 @@ class TalkBackLabelsTest {
     @Test
     fun overlayDeniedFallback_neverClaimsBubbleOrGrant() {
         val note = TalkBackLabels.overlayDeniedFallbackNote()
-        assertTrue(note.contains("no floating bubble", ignoreCase = true))
+        assertTrue(note.contains("Companion", ignoreCase = true))
         assertTrue(note.contains("Discuss", ignoreCase = true))
-        assertTrue(note.contains("Companion menu", ignoreCase = true))
+        assertFalse(note.contains("Overlay permission not granted", ignoreCase = true))
         assertFalse(note.contains("overlay granted", ignoreCase = true))
         assertFalse(note.contains("bubble is showing", ignoreCase = true))
     }

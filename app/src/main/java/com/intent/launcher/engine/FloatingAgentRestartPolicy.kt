@@ -155,7 +155,7 @@ object FloatingAgentRestartPolicy {
             "Tap to open Conversation for the same intervention " +
                 "(job ${deepLink.jobId ?: "—"}, turn ${deepLink.turnId ?: "—"})."
         } else {
-            "Tap to open Conversation, or use Home’s Companion menu."
+            "Tap to open Conversation, or use Companion."
         }
         return "$cause $work $path"
     }
@@ -170,6 +170,6 @@ object FloatingAgentRestartPolicy {
             "On sticky restart with a null intent, state defaults to IDLE and overlay is re-checked. " +
             "If overlay is denied, the service stops with START_NOT_STICKY, posts a permitted " +
             "notification that opens Conversation (reusing intervention turn/job ids when active), " +
-            "and Home / Companion menu remain the Conversation path — no floating bubble is invented. " +
+            "and Home / Companion remain the Conversation path. " +
             "IntentionFlowStore mutations survive process kill via atomic persist + tmp recovery."
 }

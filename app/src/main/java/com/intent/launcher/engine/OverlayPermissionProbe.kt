@@ -38,7 +38,7 @@ object OverlayPermissionProbe {
                 entry.copy(
                     status = CapabilityStatus.AVAILABLE,
                     limitNote = "Floating companion overlay available — same agent as Conversation. " +
-                        "Voice turns use Conversation mic when permitted; no live LLM."
+                        "Voice turns use Conversation mic when permitted."
                 )
             }             else {
                 entry.copy(

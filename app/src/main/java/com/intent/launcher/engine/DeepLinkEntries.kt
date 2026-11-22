@@ -60,7 +60,7 @@ object DeepLinkEntries {
             action = "com.intent.launcher.OPEN_CONVERSATION",
             label = "Ask",
             destination = "conversation",
-            honestyNote = "Launcher long-press shortcut → Conversation; no live LLM unless LIVE."
+            honestyNote = "Launcher long-press shortcut → Conversation."
         ),
         Entry(
             action = "com.intent.launcher.OPEN_TODAY",

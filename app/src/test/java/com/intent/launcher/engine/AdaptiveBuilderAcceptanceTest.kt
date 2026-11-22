@@ -27,8 +27,8 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
- * Gate F JVM harness — worksheet §8 scenarios 1, 2, 4, 5, 6, 7, 9 (deterministic).
- * Fixtures cover companion other-cases seeds without inventing plans.
+ * Gate F JVM harness — worksheet §8 scenarios 1, 2, 4, 5, 6, 7, 8, 9 (deterministic).
+ * Fixtures + walks for companion other-cases (OC2–OC7, OC9) without inventing plans.
  * Gate D/E paths: AnswerQuestion parity + PlanCompiler review fields.
  */
 class AdaptiveBuilderAcceptanceTest {
@@ -150,113 +150,163 @@ class AdaptiveBuilderAcceptanceTest {
         )
     }
 
-    // —— §8.2 Multimodal choice (tap vs speech → same AnswerQuestion records) ——
+    // —— §8.2 Multimodal choice (chip/tap vs typed free text → same records) ——
     @Test
-    fun scenario2_multimodalChoice_tapAndSpeechSameRecords() {
-        AdaptiveBuilderFixtures.seedSpanishDiscovery(store, now)
+    fun scenario2_multimodalChoice_tapAndTypedSameRecords() {
         val id = AdaptiveBuilderFixtures.SPANISH_ID
-        var t = now
-        fun rev(): Long =
-            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+        val approachValue = "AI conversation practice and Learning app"
+        val expectedApproachIds = setOf("approach-ai-practice", "approach-learning-app")
 
-        AdaptiveBuilderEngine.applyDecision(
-            store,
-            BuilderDecision.Ask(
-                intentionId = id,
-                expectedRevision = rev(),
-                questionId = "q-lang-multi",
-                whyItMatters = "Target language changes tools.",
-                answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
-                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
-                options = listOf("Spanish", "French", "Other")
-            ),
-            t,
-            timeZone = tz
-        )
-        // Ask projects a BuilderAnswerCard (Gate D), not a bare QUESTION.
-        val askBlock = store.snapshot().turns.flatMap { it.blocks }
-            .first { "q-lang-multi" in it.linkedObjectIds }
-        assertTrue(BuilderAnswerCard.isBuilderCard(askBlock))
-        assertNotNull(BuilderAnswerCard.decode(askBlock))
+        fun seedApproachAsk(target: IntentionFlowStore, questionId: String): String {
+            AdaptiveBuilderFixtures.seedSpanishDiscovery(target, now)
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.OfferApproaches(
+                    intentionId = id,
+                    expectedRevision = 0L,
+                    approachDrafts = AdaptiveBuilderEngine.defaultApproachDrafts()
+                ),
+                now,
+                timeZone = tz
+            )
+            val rev = AdaptiveBuilderEngine.projectContext(target.snapshot(), id, now, tz)!!.revision
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.Ask(
+                    intentionId = id,
+                    expectedRevision = rev,
+                    questionId = questionId,
+                    whyItMatters = "Which ways of learning appeal to you?",
+                    answerSchema = com.intent.launcher.domain.AnswerSchema.MULTI_CHOICE,
+                    purpose = AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES,
+                    options = AdaptiveBuilderEngine.defaultApproachDrafts().map { it.title }
+                ),
+                now + 1,
+                timeZone = tz
+            )
+            return questionId
+        }
 
-        t += 5
+        fun selectedApproachIds(target: IntentionFlowStore): Set<String> =
+            target.snapshot().approaches
+                .filter { it.intentionId == id && it.status == ApproachStatus.SELECTED }
+                .map { it.id }
+                .toSet()
+
+        fun approachFactText(target: IntentionFlowStore): String? =
+            AdaptiveBuilderEngine.activeFacts(target.snapshot(), id)
+                .firstOrNull { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }
+                ?.text
+
+        // Chip/tap path (TEXT_CHIP) — multi-select value via one AnswerQuestion.
+        val tapQ = seedApproachAsk(store, "q-approaches-tap")
+        val tapBlock = store.snapshot().turns.flatMap { it.blocks }
+            .first { tapQ in it.linkedObjectIds }
+        assertTrue(BuilderAnswerCard.isBuilderCard(tapBlock))
+        assertNotNull(BuilderAnswerCard.decode(tapBlock))
+
         val tap = AdaptiveAnswerPath.submit(
             store = store,
             intentionId = id,
-            rawValue = "Spanish",
-            modality = "TEXT_CHIP",
-            nowEpochMs = t,
-            timeZone = tz,
-            expectedQuestionId = "q-lang-multi"
-        )
-        assertTrue(tap.honestyNote, tap.accepted)
-        val afterTap = store.snapshot()
-        assertEquals(
-            OpenQuestionState.ANSWERED,
-            afterTap.openQuestions.first { it.id == "q-lang-multi" }.state
-        )
-        assertTrue(
-            AdaptiveBuilderEngine.activeFacts(afterTap, id)
-                .any { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE && it.text == "Spanish" }
-        )
-
-        // Fresh run: speech with same value + modality VOICE yields same fact key (idempotent shape).
-        val storeB = IntentionFlowStore(tmp.newFile("adaptive-builder-voice.json"))
-        AdaptiveBuilderFixtures.seedSpanishDiscovery(storeB, now)
-        AdaptiveBuilderEngine.applyDecision(
-            storeB,
-            BuilderDecision.Ask(
-                intentionId = id,
-                expectedRevision = 0L,
-                questionId = "q-lang-voice",
-                whyItMatters = "Target language changes tools.",
-                answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
-                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
-                options = listOf("Spanish", "French", "Other")
-            ),
-            now,
-            timeZone = tz
-        )
-        val speech = AdaptiveAnswerPath.submit(
-            store = storeB,
-            intentionId = id,
-            rawValue = "Spanish",
-            modality = "VOICE_TRANSCRIPT",
+            rawValue = approachValue,
+            modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
             nowEpochMs = now + 10,
             timeZone = tz,
-            expectedQuestionId = "q-lang-voice"
+            expectedQuestionId = tapQ
         )
-        assertTrue(speech.honestyNote, speech.accepted)
-        val voiceFact = AdaptiveBuilderEngine.activeFacts(storeB.snapshot(), id)
-            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
-        assertEquals("Spanish", voiceFact.text)
+        assertTrue(tap.honestyNote, tap.accepted)
+        assertEquals(expectedApproachIds, selectedApproachIds(store))
+        assertEquals(approachValue, approachFactText(store))
         assertEquals(
             OpenQuestionState.ANSWERED,
-            storeB.snapshot().openQuestions.first { it.id == "q-lang-voice" }.state
+            store.snapshot().openQuestions.first { it.id == tapQ }.state
         )
 
-        // Uncertain voice → confirm card, no fact write yet.
-        val storeC = IntentionFlowStore(tmp.newFile("adaptive-builder-unc.json"))
-        AdaptiveBuilderFixtures.seedSpanishDiscovery(storeC, now)
-        AdaptiveBuilderEngine.applyDecision(
-            storeC,
-            BuilderDecision.Ask(
-                intentionId = id,
-                expectedRevision = 0L,
-                questionId = "q-lang-unc",
-                whyItMatters = "Need language",
-                answerSchema = com.intent.launcher.domain.AnswerSchema.FREE_TEXT,
-                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE
-            ),
-            now,
-            timeZone = tz
+        // Fresh run: typed free text (FREE_TEXT) with the same value → same approach + fact.
+        val storeTyped = IntentionFlowStore(tmp.newFile("adaptive-builder-typed.json"))
+        val typedQ = seedApproachAsk(storeTyped, "q-approaches-typed")
+        val typed = AdaptiveAnswerPath.submit(
+            store = storeTyped,
+            intentionId = id,
+            rawValue = approachValue,
+            modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+            nowEpochMs = now + 20,
+            timeZone = tz,
+            expectedQuestionId = typedQ
         )
+        assertTrue(typed.honestyNote, typed.accepted)
+        assertEquals(expectedApproachIds, selectedApproachIds(storeTyped))
+        assertEquals(approachValue, approachFactText(storeTyped))
+        assertEquals(
+            approachFactText(store),
+            approachFactText(storeTyped)
+        )
+        assertEquals(
+            selectedApproachIds(store),
+            selectedApproachIds(storeTyped)
+        )
+
+        // Fact Ask: chip tap vs typed free text write the same key/value (no divergent plan).
+        fun seedLanguageAsk(target: IntentionFlowStore, questionId: String) {
+            AdaptiveBuilderFixtures.seedSpanishDiscovery(target, now)
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.Ask(
+                    intentionId = id,
+                    expectedRevision = 0L,
+                    questionId = questionId,
+                    whyItMatters = "Target language changes tools.",
+                    answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
+                    purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
+                    options = listOf("Spanish", "French", "Other")
+                ),
+                now,
+                timeZone = tz
+            )
+        }
+        val storeLangTap = IntentionFlowStore(tmp.newFile("adaptive-builder-lang-tap.json"))
+        seedLanguageAsk(storeLangTap, "q-lang-tap")
+        assertTrue(
+            AdaptiveAnswerPath.submit(
+                store = storeLangTap,
+                intentionId = id,
+                rawValue = "Spanish",
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                nowEpochMs = now + 30,
+                timeZone = tz,
+                expectedQuestionId = "q-lang-tap"
+            ).accepted
+        )
+        val storeLangTyped = IntentionFlowStore(tmp.newFile("adaptive-builder-lang-typed.json"))
+        seedLanguageAsk(storeLangTyped, "q-lang-typed")
+        assertTrue(
+            AdaptiveAnswerPath.submit(
+                store = storeLangTyped,
+                intentionId = id,
+                rawValue = "Spanish",
+                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                nowEpochMs = now + 40,
+                timeZone = tz,
+                expectedQuestionId = "q-lang-typed"
+            ).accepted
+        )
+        val tapLang = AdaptiveBuilderEngine.activeFacts(storeLangTap.snapshot(), id)
+            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        val typedLang = AdaptiveBuilderEngine.activeFacts(storeLangTyped.snapshot(), id)
+            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        assertEquals(tapLang.key, typedLang.key)
+        assertEquals(tapLang.text, typedLang.text)
+        assertEquals("Spanish", typedLang.text)
+
+        // Uncertain voice still confirms without writing (Gate D2) — no STT stack invented.
+        val storeUnc = IntentionFlowStore(tmp.newFile("adaptive-builder-unc.json"))
+        seedLanguageAsk(storeUnc, "q-lang-unc")
         val unc = AdaptiveAnswerPath.submit(
-            store = storeC,
+            store = storeUnc,
             intentionId = id,
             rawValue = "Spanish",
-            modality = "VOICE_TRANSCRIPT",
-            nowEpochMs = now + 20,
+            modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
+            nowEpochMs = now + 50,
             timeZone = tz,
             voiceUncertain = true,
             expectedQuestionId = "q-lang-unc"
@@ -264,7 +314,7 @@ class AdaptiveBuilderAcceptanceTest {
         assertTrue(unc.needsVoiceConfirm)
         assertFalse(unc.accepted)
         assertTrue(
-            AdaptiveBuilderEngine.activeFacts(storeC.snapshot(), id)
+            AdaptiveBuilderEngine.activeFacts(storeUnc.snapshot(), id)
                 .none { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
         )
     }
@@ -775,5 +825,414 @@ class AdaptiveBuilderAcceptanceTest {
             snap.adaptiveBuilderStates.first { it.intentionId == id }.lifecycleHint
         )
         assertTrue(AdaptiveBuilderEngine.activeFacts(snap, id).any { it.text == "Spanish" })
+    }
+
+    // —— §8.8 / OC2 Conditional process — eligibility → research pause ——
+    @Test
+    fun scenario8_oc2_spainEligibility_thenResearchPause_noInventedLegalPlan() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "eu_work", now)
+        var t = now
+
+        fun next(): BuilderDecision =
+            AdaptiveBuilderEngine.suggestNextDecision(
+                AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+            )
+
+        fun answerAsk(ask: BuilderDecision.Ask, text: String, key: String, suffix: String) {
+            val applied = AdaptiveBuilderEngine.applyDecision(store, ask, t, timeZone = tz)
+            assertTrue(applied.reason, applied.accepted)
+            t += 1
+            val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+            val ans = AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = text,
+                    rawValue = text,
+                    modality = "FREE_TEXT",
+                    sourceTurnId = "turn-$suffix",
+                    answeredAtEpochMs = t,
+                    idempotencyKey = "idem-$suffix",
+                    expectedRevision = rev
+                ),
+                factKey = key,
+                timeZone = tz
+            )
+            assertTrue(ans.reason, ans.accepted)
+            t += 5
+        }
+
+        val citizenship = next()
+        assertTrue("expected citizenship Ask, got $citizenship", citizenship is BuilderDecision.Ask)
+        assertEquals(AdaptiveBuilderEngine.KEY_CITIZENSHIP, (citizenship as BuilderDecision.Ask).purpose)
+        answerAsk(citizenship, "Irish", AdaptiveBuilderEngine.KEY_CITIZENSHIP, "citizenship")
+
+        val employment = next()
+        assertTrue(employment is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT,
+            (employment as BuilderDecision.Ask).purpose
+        )
+        answerAsk(
+            employment,
+            "Employed",
+            AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT,
+            "employment"
+        )
+
+        val residence = next()
+        assertTrue(residence is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION,
+            (residence as BuilderDecision.Ask).purpose
+        )
+        answerAsk(
+            residence,
+            "About a month",
+            AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION,
+            "residence"
+        )
+
+        val pause = next()
+        assertTrue("expected research Pause, got $pause", pause is BuilderDecision.Pause)
+        val pauseDec = pause as BuilderDecision.Pause
+        assertTrue(pauseDec.reason.contains("unverified", ignoreCase = true))
+        assertTrue(
+            pauseDec.reason.contains("research", ignoreCase = true) ||
+                pauseDec.reason.contains("sourced", ignoreCase = true)
+        )
+        assertFalse(pauseDec.reason.contains("NIE", ignoreCase = true))
+        assertFalse(pauseDec.reason.contains("visa", ignoreCase = true))
+
+        val applied = AdaptiveBuilderEngine.applyDecision(store, pauseDec, t, timeZone = tz)
+        assertTrue(applied.reason, applied.accepted)
+        val snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertEquals(3, AdaptiveBuilderEngine.activeFacts(snap, id).size)
+        assertEquals(
+            "paused",
+            snap.adaptiveBuilderStates.first { it.intentionId == id }.lifecycleHint
+        )
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("you must register", ignoreCase = true) ||
+                    it.text.contains("NIE required", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— OC3 Marathon — first phase ask, no invented 8-month plan ——
+    @Test
+    fun oc3_marathon_firstPhaseAsk_thenPause_noInventedPlan() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "marathon", now)
+        val first = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        )
+        assertTrue(first is BuilderDecision.Ask)
+        assertEquals(AdaptiveBuilderEngine.KEY_RACE_STATUS, (first as BuilderDecision.Ask).purpose)
+        AdaptiveBuilderEngine.applyDecision(store, first, now, timeZone = tz)
+        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = first.questionId,
+                    intentionId = id,
+                    normalizedValue = "Event still to choose",
+                    rawValue = "Event still to choose",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-race",
+                    answeredAtEpochMs = now + 1,
+                    idempotencyKey = "idem-race",
+                    expectedRevision = rev
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_RACE_STATUS,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue((pause as BuilderDecision.Pause).reason.contains("eight-month", ignoreCase = true) ||
+            pause.reason.contains("No eight-month", ignoreCase = true) ||
+            pause.reason.contains("first phase", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("week 32", ignoreCase = true) ||
+                    it.text.contains("taper", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— OC4 Habit — baseline then pause; no cessation-from-task claim ——
+    @Test
+    fun oc4_smoking_baselineAsk_thenPause_noCessationClaim() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "smoking", now)
+        val ask = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        )
+        assertTrue(ask is BuilderDecision.Ask)
+        assertEquals(AdaptiveBuilderEngine.KEY_HABIT_BASELINE, (ask as BuilderDecision.Ask).purpose)
+        assertTrue(ask.whyItMatters.contains("cessation", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, ask, now, timeZone = tz)
+        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = "About eight a day",
+                    rawValue = "About eight a day",
+                    modality = "FREE_TEXT",
+                    sourceTurnId = "turn-baseline",
+                    answeredAtEpochMs = now + 1,
+                    idempotencyKey = "idem-baseline",
+                    expectedRevision = rev
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_HABIT_BASELINE,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue((pause as BuilderDecision.Pause).reason.contains("Baseline", ignoreCase = true))
+        assertTrue(pause.reason.contains("cessation", ignoreCase = true) ||
+            pause.reason.contains("Quit approach", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertFalse(
+            snap.turns.any { it.text.contains("you have quit", ignoreCase = true) }
+        )
+    }
+
+    // —— OC5 Usage — measurement honesty pause ——
+    @Test
+    fun oc5_usage_measurementHonesty_thenPause_noFabricatedShorts() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "app_use", now)
+        val ask = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        )
+        assertTrue(ask is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_USAGE_MEASUREMENT,
+            (ask as BuilderDecision.Ask).purpose
+        )
+        assertTrue(ask.whyItMatters.contains("Shorts", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, ask, now, timeZone = tz)
+        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = "Track Instagram automatically; log Shorts myself",
+                    rawValue = "Track Instagram automatically; log Shorts myself",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-usage",
+                    answeredAtEpochMs = now + 1,
+                    idempotencyKey = "idem-usage",
+                    expectedRevision = rev
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_USAGE_MEASUREMENT,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue((pause as BuilderDecision.Pause).reason.contains("Shorts", ignoreCase = true) ||
+            pause.reason.contains("Measurement", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        assertTrue(store.snapshot().proposals.none { it.intentionId == id })
+        assertTrue(store.snapshot().sessions.none { it.intentionId == id })
+    }
+
+    // —— OC6 Chess — manual/provider baseline honesty, no invented ratings ——
+    @Test
+    fun oc6_chess_ratingBaselineAsk_thenPause_noInventedRating() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "chess", now)
+        val ask = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        )
+        assertTrue(ask is BuilderDecision.Ask)
+        assertEquals(AdaptiveBuilderEngine.KEY_RATING_BASELINE, (ask as BuilderDecision.Ask).purpose)
+        assertTrue(ask.whyItMatters.contains("invent", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, ask, now, timeZone = tz)
+        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = "Use manual baseline (e.g. 900)",
+                    rawValue = "Use manual baseline (e.g. 900)",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-rating",
+                    answeredAtEpochMs = now + 1,
+                    idempotencyKey = "idem-rating",
+                    expectedRevision = rev
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_RATING_BASELINE,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue(
+            (pause as BuilderDecision.Pause).reason.contains("invented", ignoreCase = true) ||
+                pause.reason.contains("live rating", ignoreCase = true)
+        )
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("your rating is now", ignoreCase = true) ||
+                    it.text.contains("you won", ignoreCase = true)
+            }
+        )
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
+    }
+
+    // —— OC7 Move — lease/notice then waiting pause, no invented secured plan ——
+    @Test
+    fun oc7_move_leaseAndNotice_thenWaitingPause_noInventedPlan() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "move", now)
+        var t = now
+        fun next(): BuilderDecision =
+            AdaptiveBuilderEngine.suggestNextDecision(
+                AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+            )
+        fun answerAsk(ask: BuilderDecision.Ask, text: String, key: String, suffix: String) {
+            assertTrue(
+                AdaptiveBuilderEngine.applyDecision(store, ask, t, timeZone = tz).accepted
+            )
+            t += 1
+            val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+            assertTrue(
+                AdaptiveBuilderEngine.answerQuestion(
+                    store,
+                    AnswerQuestion(
+                        questionId = ask.questionId,
+                        intentionId = id,
+                        normalizedValue = text,
+                        rawValue = text,
+                        modality = "FREE_TEXT",
+                        sourceTurnId = "turn-$suffix",
+                        answeredAtEpochMs = t,
+                        idempotencyKey = "idem-$suffix",
+                        expectedRevision = rev
+                    ),
+                    factKey = key,
+                    timeZone = tz
+                ).accepted
+            )
+            t += 5
+        }
+
+        val lease = next()
+        assertTrue(lease is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_LEASE_DEADLINE,
+            (lease as BuilderDecision.Ask).purpose
+        )
+        answerAsk(lease, "Lease ends in six weeks", AdaptiveBuilderEngine.KEY_LEASE_DEADLINE, "lease")
+
+        val notice = next()
+        assertTrue(notice is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_NOTICE_STATUS,
+            (notice as BuilderDecision.Ask).purpose
+        )
+        answerAsk(
+            notice,
+            "Notice not given yet",
+            AdaptiveBuilderEngine.KEY_NOTICE_STATUS,
+            "notice"
+        )
+
+        val pause = next()
+        assertTrue("expected waiting Pause, got $pause", pause is BuilderDecision.Pause)
+        val pauseDec = pause as BuilderDecision.Pause
+        assertTrue(pauseDec.reason.contains("waiting", ignoreCase = true))
+        assertTrue(
+            pauseDec.reason.contains("invented", ignoreCase = true) ||
+                pauseDec.reason.contains("secured", ignoreCase = true)
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, pauseDec, t, timeZone = tz).accepted
+        )
+        val snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertEquals(2, AdaptiveBuilderEngine.activeFacts(snap, id).size)
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("viewing booked", ignoreCase = true) ||
+                    it.text.contains("you have a flat", ignoreCase = true)
+            }
+        )
+    }
+
+    // —— OC9 Job offer — decide-by date, no auto-accept ——
+    @Test
+    fun oc9_jobOffer_decideByDate_thenPause_noAutoAccept() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "job_offer", now)
+        val ask = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        )
+        assertTrue(ask is BuilderDecision.Ask)
+        assertEquals(AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE, (ask as BuilderDecision.Ask).purpose)
+        assertTrue(ask.whyItMatters.contains("auto-accept", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, ask, now, timeZone = tz)
+        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = "In ten days",
+                    rawValue = "In ten days",
+                    modality = "FREE_TEXT",
+                    sourceTurnId = "turn-decide",
+                    answeredAtEpochMs = now + 1,
+                    idempotencyKey = "idem-decide",
+                    expectedRevision = rev
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue((pause as BuilderDecision.Pause).reason.contains("auto-accept", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
     }
 }

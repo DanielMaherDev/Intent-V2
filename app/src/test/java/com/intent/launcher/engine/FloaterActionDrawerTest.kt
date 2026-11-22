@@ -52,18 +52,35 @@ class FloaterActionDrawerTest {
     }
 
     @Test
-    fun items_areAskTodayCaptureHistory() {
+    fun items_areCompanionSheetRows() {
         val actions = FloaterActionDrawer.items.map { it.action }
         assertEquals(
             listOf(
                 FloaterDrawerAction.ASK,
                 FloaterDrawerAction.TODAY,
-                FloaterDrawerAction.CAPTURE,
-                FloaterDrawerAction.HISTORY
+                FloaterDrawerAction.CHECK_IN,
+                FloaterDrawerAction.CHECK_OUT,
+                FloaterDrawerAction.CAPTURE
             ),
             actions
         )
-        assertTrue(FloaterActionDrawer.items.all { it.label.isNotBlank() })
+        assertEquals(
+            listOf(
+                "Ask agent",
+                "Today",
+                "Check in",
+                "Check out",
+                "Capture a thought"
+            ),
+            FloaterActionDrawer.items.map { it.label }
+        )
+        assertTrue(
+            FloaterActionDrawer.items.none {
+                it.detail.contains("heuristic", ignoreCase = true) ||
+                    it.detail.contains("SAID") ||
+                    it.detail.contains("LLM")
+            }
+        )
         assertEquals(FloaterActionDrawer.HISTORY_ROUTE, "history")
     }
 
@@ -92,6 +109,6 @@ class FloaterActionDrawerTest {
         assertEquals(FloaterActionDrawer.TODAY_ROUTE, today.navigateTo)
         assertTrue(today.focusNote.contains("Begin Spanish session"))
         assertTrue(today.focusNote.contains("Planned", ignoreCase = true))
-        assertTrue(today.focusNote.contains("not chat prose", ignoreCase = true))
+        assertTrue(today.focusNote.contains("day cycle", ignoreCase = true))
     }
 }

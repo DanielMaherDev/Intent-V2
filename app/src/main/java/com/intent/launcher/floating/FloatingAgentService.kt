@@ -159,7 +159,7 @@ class FloatingAgentService : Service() {
             .setContentTitle("INTENT companion")
             .setContentText(
                 "Same agent as Conversation — tap the bubble or this notice. " +
-                    "If the bubble is gone, open Home’s Companion menu."
+                    "If the bubble is gone, open Companion."
             )
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(open)

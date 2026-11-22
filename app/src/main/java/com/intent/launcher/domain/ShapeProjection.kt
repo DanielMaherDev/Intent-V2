@@ -501,8 +501,31 @@ object ShapeProjection {
         facts: List<Fact> = emptyList(),
         approaches: List<Approach> = emptyList(),
         openQuestions: List<OpenQuestion> = emptyList()
-    ): IntentionHeroProjection =
-        when (phase) {
+    ): IntentionHeroProjection {
+        // §8.1 — freshness reconfirm outranks proposal CTA when an Ask is open.
+        val reconfirm = openQuestions.firstOrNull {
+            it.purpose == "reconfirm_move_estimate" &&
+                it.state != OpenQuestionState.ANSWERED &&
+                it.state != OpenQuestionState.DECLINED
+        }
+        if (reconfirm != null) {
+            return IntentionHeroProjection(
+                phaseLabel = when (phase) {
+                    IntentionPhase.PROPOSAL_PENDING -> "Approach in progress"
+                    IntentionPhase.ACTIVE -> "In motion"
+                    else -> "Exploring"
+                },
+                heroLabel = "The question now",
+                heroTitle = "Is your move timing still about right?",
+                heroBody = reconfirm.whyItMatters.ifBlank {
+                    "Time has passed since you estimated the move. Confirm or update the date — " +
+                        "we will not re-ask language or motivation."
+                },
+                heroCta = "Continue discussion",
+                tone = "accent"
+            )
+        }
+        return when (phase) {
             IntentionPhase.EXPLORING, IntentionPhase.CLARIFYING -> {
                 discoveryHero(shapeTag, facts, approaches, openQuestions)
             }
@@ -573,6 +596,7 @@ object ShapeProjection {
                 tone = "accent"
             )
         }
+    }
 
     private fun conversationEyebrow(phase: IntentionPhase, shapeTag: String?): String =
         when (phase) {

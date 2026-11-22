@@ -26,7 +26,10 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.ui.res.painterResource
+import com.intent.launcher.R
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -74,31 +77,39 @@ fun IntentBrandMark(
     compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val logoSize = if (compact) 22.dp else 28.dp
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "✦",
-            color = IntentColors.Accent,
-            fontSize = if (compact) 18.sp else 22.sp,
-            fontWeight = FontWeight.Bold
+        Icon(
+            painter = painterResource(id = R.drawable.logo_diamond),
+            contentDescription = null,
+            tint = IntentColors.Accent,
+            modifier = Modifier.size(logoSize)
         )
-        Spacer(modifier = Modifier.width(5.dp))
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "INTENT",
             style = MaterialTheme.typography.labelMedium,
-            color = IntentColors.Ink,
-            letterSpacing = 2.4.sp,
-            fontWeight = FontWeight.ExtraBold
+            color = IntentColors.Accent,
+            letterSpacing = 0.7.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = if (compact) 16.sp else 18.sp
         )
     }
 }
 
+/**
+ * Home app bar. [emptyHome] follows DESIGN_SPEC S-HOME-EMPTY: diamond + brand
+ * wordmark + bell only (no more / gear). Settings stays on non-empty chrome and
+ * via overflow when provided.
+ */
 @Composable
 fun HomeBrandRow(
     onSettings: (() -> Unit)? = null,
     overflowItems: List<OverflowMenuItem> = emptyList(),
+    emptyHome: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -111,29 +122,45 @@ fun HomeBrandRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (overflowItems.isNotEmpty()) {
-                OverflowMenuButton(
-                    items = overflowItems,
-                    contentDescription = "More — History and Trash"
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .border(1.dp, IntentColors.Line, CircleShape)
-                    .clip(CircleShape)
-                    .background(IntentColors.Card)
-                    .then(
-                        if (onSettings != null) Modifier.clickable(onClick = onSettings) else Modifier
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
+            if (emptyHome) {
+                // S-HOME-EMPTY: bell only as attention placeholder (not Settings).
                 Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Settings",
-                    tint = IntentColors.Ink,
-                    modifier = Modifier.size(18.dp)
+                    imageVector = Icons.Outlined.NotificationsNone,
+                    contentDescription = "Notifications",
+                    tint = IntentColors.Lede,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .padding(12.dp)
                 )
+                // Overflow may carry Settings / History without restoring the gear.
+                if (overflowItems.isNotEmpty()) {
+                    OverflowMenuButton(
+                        items = overflowItems,
+                        contentDescription = "More"
+                    )
+                }
+            } else {
+                if (overflowItems.isNotEmpty()) {
+                    OverflowMenuButton(
+                        items = overflowItems,
+                        contentDescription = "More — History and Trash"
+                    )
+                }
+                if (onSettings != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable(onClick = onSettings),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Settings",
+                            tint = IntentColors.Ink,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -367,24 +394,38 @@ fun SoftCard(
 fun IntentPrimaryButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** DESIGN_SPEC home emphasis = 56 / radius 16; standard = 52 / 14. */
+    emphasized: Boolean = false,
+    leadingIcon: ImageVector? = null
 ) {
+    val height = if (emphasized) 56.dp else 52.dp
+    val radius = if (emphasized) 16.dp else 14.dp
     Button(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(13.dp),
+            .height(height),
+        shape = RoundedCornerShape(radius),
         colors = ButtonDefaults.buttonColors(
             containerColor = IntentColors.Accent,
             contentColor = Color.White
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
     ) {
+        if (leadingIcon != null) {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

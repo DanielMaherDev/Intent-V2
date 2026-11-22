@@ -123,8 +123,8 @@ class CapabilityRegistryTest {
         assertEquals(CapabilityStatus.NOT_SUPPORTED, live.status)
         assertFalse(registry.canUseLiveLlm())
         assertTrue(registry.isUnsupported(CapabilityRegistry.ID_LIVE_LLM))
-        assertTrue(live.limitNote.contains("local heuristics", ignoreCase = true))
-        assertTrue(live.limitNote.contains("OBSERVED", ignoreCase = true))
+        assertTrue(live.limitNote.contains("on-device", ignoreCase = true))
+        assertFalse(live.limitNote.contains("heuristic", ignoreCase = true))
     }
 
     @Test

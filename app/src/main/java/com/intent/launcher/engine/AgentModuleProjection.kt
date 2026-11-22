@@ -231,7 +231,7 @@ object AgentModuleProjection {
             options = ChoiceOptions.withOther(chips),
             freeTextHint = "Tell me in your own words — or choose Other",
             blockId = null,
-            sourceLabel = "Local heuristics"
+            sourceLabel = "On-device replies"
         )
     }
 

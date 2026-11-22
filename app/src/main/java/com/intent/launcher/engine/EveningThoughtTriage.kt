@@ -15,7 +15,7 @@ import java.util.UUID
  */
 object EveningThoughtTriage {
 
-    const val HONESTY = "You choose — no auto-classify, no live LLM."
+    const val HONESTY = "You choose — nothing is auto-classified."
 
     data class Result(
         val ok: Boolean,

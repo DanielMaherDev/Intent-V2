@@ -17,9 +17,8 @@ class LiveLlmProbeTest {
         val entry = registry.get(CapabilityRegistry.ID_LIVE_LLM)!!
         assertEquals(CapabilityStatus.NOT_SUPPORTED, entry.status)
         assertFalse(registry.canUseLiveLlm())
-        assertTrue(entry.limitNote.contains("local heuristics", ignoreCase = true))
-        assertTrue(entry.limitNote.contains("OBSERVED", ignoreCase = true))
-        assertTrue(entry.limitNote.contains("auto-Complete", ignoreCase = true))
+        assertTrue(entry.limitNote.contains("on-device", ignoreCase = true))
+        assertFalse(entry.limitNote.contains("heuristic", ignoreCase = true))
 
         val obs = LiveLlmProbe.observe(access)
         assertEquals(LiveLlmProbe.LOCAL_HEURISTIC_LABEL, obs.sourceLabel)
@@ -56,8 +55,8 @@ class LiveLlmProbeTest {
         )
         assertFalse(registry.canUseLiveLlm())
         val note = registry.get(CapabilityRegistry.ID_LIVE_LLM)!!.limitNote
-        assertTrue(note.contains("not claiming LIVE", ignoreCase = true))
-        assertTrue(note.contains("local heuristics", ignoreCase = true))
+        assertTrue(note.contains("on-device", ignoreCase = true))
+        assertFalse(note.contains("heuristic", ignoreCase = true))
     }
 
     @Test
@@ -78,8 +77,8 @@ class LiveLlmProbeTest {
             LiveLlmProbe.discussSourceLabel(registry)
         )
         val note = registry.get(CapabilityRegistry.ID_LIVE_LLM)!!.limitNote
-        assertTrue(note.contains("OBSERVED", ignoreCase = true))
-        assertTrue(note.contains("auto-Complete", ignoreCase = true))
+        assertTrue(note.contains("Live assistant", ignoreCase = true) || note.contains("suggestions", ignoreCase = true))
+        assertFalse(note.contains("heuristic", ignoreCase = true))
     }
 
     @Test

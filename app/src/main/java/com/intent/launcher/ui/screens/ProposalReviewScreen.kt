@@ -98,7 +98,7 @@ fun ProposalReviewScreen(
                     Spacer(modifier = Modifier.height(4.dp))
                     LineRow(
                         title = "Specialist app",
-                        subtitle = "Structured lessons; INTENT manages the habit",
+                        subtitle = ProposalReviewHonesty.SPECIALIST_APP,
                         showArrow = false,
                         glyphIcon = Icons.Outlined.Widgets
                     )
@@ -110,13 +110,13 @@ fun ProposalReviewScreen(
                     )
                     LineRow(
                         title = "Practise with your agent",
-                        subtitle = "Conversations tailored to your level",
+                        subtitle = ProposalReviewHonesty.AGENT_PRACTICE,
                         showArrow = false,
                         glyphIcon = Icons.Outlined.AutoAwesome
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Callout(text = "Choosing an approach will not create a schedule until you approve one.")
+                Callout(text = ProposalReviewHonesty.EMPTY_APPROACH_CALLOUT)
             } else {
                 SmallLabel(
                     text = if (pending) "PROPOSAL · NOT YET ACTIVE" else "Reviewed",
@@ -155,7 +155,7 @@ fun ProposalReviewScreen(
                             icon = Icons.Outlined.PhoneAndroid,
                             label = "App access",
                             value = proposal.capabilityHonesty.ifBlank {
-                                "Can open linked apps; progress inside apps needs your check-in."
+                                ProposalReviewHonesty.APP_ACCESS_FALLBACK
                             }
                         ),
                         SessionMetaCell(
@@ -263,3 +263,18 @@ fun ProposalReviewScreen(
 private fun dayName(isoDay: Int): String =
     listOf("", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
         .getOrElse(isoDay) { "Day $isoDay" }
+
+/** Gate C5 — keep install / launch / usage / progress-read distinct in review copy. */
+internal object ProposalReviewHonesty {
+    const val SPECIALIST_APP =
+        "Install or launch only — cannot read lessons or progress inside the app"
+    const val AGENT_PRACTICE =
+        "Guided practice inside INTENT — not third-party lesson completion"
+    const val EMPTY_APPROACH_CALLOUT =
+        "Choosing an approach will not create a schedule until you approve one. " +
+            "Install, launch, usage access, and progress-read stay distinct — " +
+            "INTENT never claims Duolingo lesson completion."
+    const val APP_ACCESS_FALLBACK =
+        "Can install or launch linked apps and optionally time foreground use; " +
+            "cannot read lesson progress inside those apps — that needs your check-in."
+}

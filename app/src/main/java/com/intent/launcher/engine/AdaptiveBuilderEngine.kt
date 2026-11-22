@@ -40,6 +40,22 @@ object AdaptiveBuilderEngine {
     const val KEY_PRACTICE_DURATION = "practice_duration"
     const val KEY_PRACTICE_TIME = "practice_time"
     const val KEY_PRACTICE_DAYS = "practice_days"
+    /** Approach multiselect Ask — chip/tap and typed free text share this purpose. */
+    const val KEY_SELECTED_APPROACHES = "selected_approaches"
+
+    /** OC2 / §8.8 conditional process eligibility. */
+    const val KEY_CITIZENSHIP = "citizenship"
+    const val KEY_EMPLOYMENT_ARRANGEMENT = "employment_arrangement"
+    const val KEY_RESIDENCE_DURATION = "residence_duration"
+
+    /** OC3 / OC4 / OC5 / OC6 / OC7 / OC9 honesty keys. */
+    const val KEY_RACE_STATUS = "race_status"
+    const val KEY_HABIT_BASELINE = "habit_baseline"
+    const val KEY_USAGE_MEASUREMENT = "usage_measurement"
+    const val KEY_RATING_BASELINE = "rating_baseline"
+    const val KEY_LEASE_DEADLINE = "lease_deadline"
+    const val KEY_NOTICE_STATUS = "notice_status"
+    const val KEY_DECIDE_BY_DATE = "decide_by_date"
 
     data class ApplyResult(
         val accepted: Boolean,
@@ -84,17 +100,43 @@ object AdaptiveBuilderEngine {
     }
 
     fun facetsForShape(shapeTag: String): List<String> = when (shapeTag.lowercase()) {
-        "language" -> listOf("skill_practice", "dated_outcome")
-        "marathon" -> listOf("dated_outcome", "skill_practice")
+        "language" -> listOf("language_learning", "skill_practice", "dated_outcome")
+        "marathon" -> listOf("dated_outcome", "skill_practice", "physical_training")
         "business" -> listOf("exploration", "ambition")
         "move" -> listOf("dated_outcome", "conditional_process")
         "decision" -> listOf("decision")
         "cessation" -> listOf("habit_change")
-        "app_use" -> listOf("habit_change")
+        "app_use" -> listOf("habit_change", "usage_goal")
         "research" -> listOf("conditional_process")
-        "chess" -> listOf("skill_practice", "dated_outcome")
+        "chess" -> listOf("skill_practice", "dated_outcome", "connected_metric")
         "errand" -> listOf("one_off_action")
         else -> listOf("exploration")
+    }
+
+    /**
+     * Project the next policy decision into the store when it is an Ask
+     * (e.g. §8.1 freshness reconfirm). No-op when Propose/Offer already pending
+     * or when an open Ask for the same purpose already exists.
+     *
+     * @return true when a new Ask was applied
+     */
+    fun projectPendingAsk(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Boolean {
+        val ctx = projectContext(store.snapshot(), intentionId, nowEpochMs, timeZone) ?: return false
+        val next = suggestNextDecision(ctx, nowEpochMs, timeZone)
+        if (next !is BuilderDecision.Ask) return false
+        val alreadyOpen = store.snapshot().openQuestions.any {
+            it.intentionId == intentionId &&
+                it.purpose == next.purpose &&
+                it.state != OpenQuestionState.ANSWERED &&
+                it.state != OpenQuestionState.DECLINED
+        }
+        if (alreadyOpen) return false
+        return applyDecision(store, next, nowEpochMs, timeZone = timeZone).accepted
     }
 
     /**
@@ -133,6 +175,42 @@ object AdaptiveBuilderEngine {
                 blocksWhat = "validation_experiment",
                 priority = 10
             )
+        }
+
+        // —— OC2 / §8.8: eligibility → research pause (research shape; not dated move projects) ——
+        if (context.typeFacets.contains("conditional_process") &&
+            !context.typeFacets.contains("dated_outcome")
+        ) {
+            conditionalProcessDecision(context)?.let { return it }
+        }
+
+        // —— OC3: dated physical goal — first phase only, no fabricated multi-month plan ——
+        if (context.typeFacets.contains("physical_training")) {
+            physicalTrainingDecision(context)?.let { return it }
+        }
+
+        // —— OC4 / OC5: habit / usage — baseline or measurement honesty, no invented quit/block plan ——
+        if (context.typeFacets.contains("habit_change") ||
+            context.typeFacets.contains("usage_goal")
+        ) {
+            habitOrUsageDecision(context)?.let { return it }
+        }
+
+        // —— OC9: time-limited decision — decide-by date, never auto-accept ——
+        if (context.typeFacets.contains("decision")) {
+            decisionCaseDecision(context)?.let { return it }
+        }
+
+        // —— OC6: connected metric — manual/provider baseline honesty, no invented ratings ——
+        if (context.typeFacets.contains("connected_metric")) {
+            connectedMetricDecision(context)?.let { return it }
+        }
+
+        // —— OC7: finite move project — constraints + waiting, no invented secured plan ——
+        if (context.typeFacets.contains("dated_outcome") &&
+            context.typeFacets.contains("conditional_process")
+        ) {
+            finiteMoveProjectDecision(context)?.let { return it }
         }
 
         val hasSelectedApproaches =
@@ -191,7 +269,7 @@ object AdaptiveBuilderEngine {
         }
 
         if (context.confirmedFacts.none { it.key == KEY_TARGET_LANGUAGE } &&
-            context.typeFacets.contains("skill_practice")
+            context.typeFacets.contains("language_learning")
         ) {
             return BuilderDecision.Ask(
                 intentionId = context.intentionId,
@@ -235,43 +313,285 @@ object AdaptiveBuilderEngine {
         if (!hasSelectedApproaches &&
             context.confirmedFacts.any { it.key == KEY_MOVE_ESTIMATE }
         ) {
-            return BuilderDecision.OfferApproaches(
-                intentionId = context.intentionId,
-                expectedRevision = context.revision,
-                approachDrafts = listOf(
-                    ApproachDraft(
-                        approachId = "approach-ai-practice",
-                        title = "AI conversation practice",
-                        summary = "Guided Spanish practice in INTENT.",
-                        actor = ApproachActor.INTENT,
-                        capabilityNote = "Guided session objective + typed result; shared agent history."
-                    ),
-                    ApproachDraft(
-                        approachId = "approach-learning-app",
-                        title = "Learning app",
-                        summary = "Launch an installed language app.",
-                        actor = ApproachActor.APP,
-                        capabilityNote = "Launch and optional foreground timing — not lesson completion."
-                    ),
-                    ApproachDraft(
-                        approachId = "approach-offline",
-                        title = "Offline practice",
-                        summary = "Practice with a person or offline materials.",
-                        actor = ApproachActor.PERSON
-                    ),
-                    ApproachDraft(
-                        approachId = "approach-other",
-                        title = "Something else",
-                        summary = "Open response for another method.",
-                        actor = ApproachActor.EXTERNAL
-                    )
+            val drafts = defaultApproachDrafts()
+            // Seed candidates once; then Ask MULTI_CHOICE so chip/tap and typed
+            // free text both resolve through AdaptiveAnswerPath → AnswerQuestion.
+            if (context.approaches.isEmpty()) {
+                return BuilderDecision.OfferApproaches(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    approachDrafts = drafts
                 )
-            )
+            }
+            if (context.openQuestions.none {
+                    it.purpose == KEY_SELECTED_APPROACHES &&
+                        it.state == OpenQuestionState.ASKED
+                }
+            ) {
+                return BuilderDecision.Ask(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    questionId = "q-approaches-${context.intentionId}",
+                    whyItMatters = "Which ways of learning appeal to you?",
+                    answerSchema = AnswerSchema.MULTI_CHOICE,
+                    purpose = KEY_SELECTED_APPROACHES,
+                    blocksWhat = "routine_proposal",
+                    options = drafts.map { it.title },
+                    priority = 60
+                )
+            }
         }
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason = "Enough known for now — leave discovery resumable.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /**
+     * OC2 / §8.8 — ask eligibility, then pause for sourced research.
+     * Never invents legal requirements or an unconditional checklist.
+     */
+    private fun conditionalProcessDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_CITIZENSHIP }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-citizenship-${context.intentionId}",
+                whyItMatters =
+                    "Citizenship and jurisdiction change which registrations may apply — " +
+                        "requirements cannot be prescribed without this.",
+                answerSchema = AnswerSchema.FREE_TEXT,
+                purpose = KEY_CITIZENSHIP,
+                blocksWhat = "sourced_research",
+                priority = 95
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_EMPLOYMENT_ARRANGEMENT }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-employment-${context.intentionId}",
+                whyItMatters =
+                    "Employment vs self-employed vs looking changes which steps apply.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_EMPLOYMENT_ARRANGEMENT,
+                blocksWhat = "sourced_research",
+                options = listOf("Employed", "Self-employed", "Still looking", "Not sure"),
+                priority = 90
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_RESIDENCE_DURATION }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-residence-${context.intentionId}",
+                whyItMatters =
+                    "How long you have lived here affects which documents may already apply. " +
+                        "You can say not sure.",
+                answerSchema = AnswerSchema.FREE_TEXT,
+                purpose = KEY_RESIDENCE_DURATION,
+                blocksWhat = "sourced_research",
+                priority = 85
+            )
+        }
+        // Eligibility known — pause for research; do not invent statutes or a plan.
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Eligibility facts are recorded. Requirements stay unverified until " +
+                    "sourced research completes — no legal checklist invented.",
+            resumeCue = "Continue after research"
+        )
+    }
+
+    /** OC3 — first useful phase only; never fabricate an 8-month workout plan. */
+    private fun physicalTrainingDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_RACE_STATUS }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-race-${context.intentionId}",
+                whyItMatters =
+                    "Whether a race is chosen shapes the first phase — baseline and " +
+                        "consistency come before later months of training.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_RACE_STATUS,
+                blocksWhat = "first_phase_proposal",
+                options = listOf("Race chosen with date", "Event still to choose", "Not sure"),
+                priority = 80
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "First phase stays open: race choice, baseline, and available days. " +
+                    "No eight-month workout plan invented.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /** OC4 / OC5 — baseline or measurement honesty; no cessation-from-task or fabricated Shorts claims. */
+    private fun habitOrUsageDecision(context: BuilderContext): BuilderDecision? {
+        if (context.typeFacets.contains("usage_goal")) {
+            if (context.confirmedFacts.none { it.key == KEY_USAGE_MEASUREMENT }) {
+                return BuilderDecision.Ask(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    questionId = "q-usage-measure-${context.intentionId}",
+                    whyItMatters =
+                        "Usage access can measure app foreground time, not Shorts inside YouTube. " +
+                            "Choose an honest measurement method before any intervention.",
+                    answerSchema = AnswerSchema.SINGLE_CHOICE,
+                    purpose = KEY_USAGE_MEASUREMENT,
+                    blocksWhat = "usage_intervention",
+                    options = listOf(
+                        "Track Instagram automatically; log Shorts myself",
+                        "Track both apps as total time",
+                        "Manual log only"
+                    ),
+                    priority = 80
+                )
+            }
+            return BuilderDecision.Pause(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                reason =
+                    "Measurement method recorded. No overlay, block, or Shorts claim until " +
+                        "permission and method match capability.",
+                resumeCue = "Continue discussion"
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_HABIT_BASELINE }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-habit-baseline-${context.intentionId}",
+                whyItMatters =
+                    "A self-reported baseline lets check-ins track change. A checked task " +
+                        "does not prove cessation.",
+                answerSchema = AnswerSchema.FREE_TEXT,
+                purpose = KEY_HABIT_BASELINE,
+                blocksWhat = "check_in_cadence",
+                priority = 80
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Baseline saved. Quit approach and date stay open — no cessation claim " +
+                    "from an unchecked day.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /** OC9 — capture decide-by date; never auto-accept an offer. */
+    private fun decisionCaseDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_DECIDE_BY_DATE }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-decide-by-${context.intentionId}",
+                whyItMatters =
+                    "A decide-by date keeps comparison useful. INTENT will not auto-accept " +
+                        "or decline an offer.",
+                answerSchema = AnswerSchema.DATE_TIME,
+                purpose = KEY_DECIDE_BY_DATE,
+                blocksWhat = "offer_comparison",
+                priority = 90
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Decide-by date recorded. Comparison stays open — no auto-accept of the offer.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /**
+     * OC6 — Chess.com / connected metric: ask baseline source honesty.
+     * Never invents a live rating, games, or lesson completion.
+     */
+    private fun connectedMetricDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_RATING_BASELINE }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-rating-baseline-${context.intentionId}",
+                whyItMatters =
+                    "Without a provider import, use a manual baseline. Do not invent a live " +
+                        "Chess.com rating from a stale or missing connection.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_RATING_BASELINE,
+                blocksWhat = "practice_routine",
+                options = listOf(
+                    "Use manual baseline (e.g. 900)",
+                    "Refresh from connected provider",
+                    "Not connected yet"
+                ),
+                priority = 85
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Baseline method recorded. Practice stays distinct from rating — no invented " +
+                    "games, lesson completion, or live rating claimed.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /**
+     * OC7 — Barcelona→Valencia move: capture lease deadline + notice, then pause with waiting.
+     * Never invents viewings or assumes a property is secured.
+     */
+    private fun finiteMoveProjectDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_LEASE_DEADLINE }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-lease-${context.intentionId}",
+                whyItMatters =
+                    "Lease end date shapes the critical path for search and notice — " +
+                        "no move plan assumes a place is already secured.",
+                answerSchema = AnswerSchema.DATE_TIME,
+                purpose = KEY_LEASE_DEADLINE,
+                blocksWhat = "move_project_board",
+                priority = 90
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_NOTICE_STATUS }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-notice-${context.intentionId}",
+                whyItMatters =
+                    "Notice and mover vs self-move change which steps are yours versus " +
+                        "waiting on landlords or appointments.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_NOTICE_STATUS,
+                blocksWhat = "move_project_board",
+                options = listOf(
+                    "Notice not given yet",
+                    "Notice given",
+                    "Not sure about movers yet"
+                ),
+                priority = 85
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Lease and notice facts saved. External steps stay waiting — no invented " +
+                    "viewings or secured-property plan.",
             resumeCue = "Continue discussion"
         )
     }
@@ -534,6 +854,52 @@ object AdaptiveBuilderEngine {
         return ApplyResult(true, "ok", validation.decisionKind, store.snapshot())
     }
 
+    /**
+     * §8.5 — replace an ACTIVE [KEY_MOVE_ESTIMATE] with a new relative/absolute
+     * utterance via [BuilderDecision.CorrectFact]. Prior fact stays CORRECTED.
+     */
+    fun correctMoveEstimate(
+        store: IntentionFlowStore,
+        intentionId: String,
+        newUtterance: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        sourceTurnId: String? = null
+    ): ApplyResult {
+        val prior = store.snapshot().facts.firstOrNull {
+            it.intentionId == intentionId &&
+                it.key == KEY_MOVE_ESTIMATE &&
+                it.status == FactStatus.ACTIVE
+        } ?: return ApplyResult(
+            false,
+            "No active move estimate to correct.",
+            "CorrectFact",
+            store.snapshot()
+        )
+        val rev = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+        val phrase = CreateIntentionChat.extractRelativePhrase(newUtterance)
+            ?: newUtterance.trim()
+        return applyDecision(
+            store,
+            BuilderDecision.CorrectFact(
+                intentionId = intentionId,
+                expectedRevision = rev,
+                existingFactId = prior.id,
+                replacement = FactDraft(
+                    factId = "fact-move-corrected-$intentionId-$nowEpochMs",
+                    text = phrase,
+                    key = KEY_MOVE_ESTIMATE,
+                    rawUtterance = newUtterance.trim(),
+                    approximate = RelativeDateAnchoring.looksRelative(newUtterance)
+                ),
+                sourceTurnId = sourceTurnId ?: "turn-correct-move-$nowEpochMs"
+            ),
+            nowEpochMs,
+            timeZone = timeZone
+        )
+    }
+
     fun answerQuestion(
         store: IntentionFlowStore,
         answer: AnswerQuestion,
@@ -751,4 +1117,54 @@ object AdaptiveBuilderEngine {
     /** Simulated month offset helper for interrupted-session tests. */
     fun plusDays(epochMs: Long, days: Int): Long =
         epochMs + TimeUnit.DAYS.toMillis(days.toLong())
+
+    fun defaultApproachDrafts(): List<ApproachDraft> = listOf(
+        ApproachDraft(
+            approachId = "approach-ai-practice",
+            title = "AI conversation practice",
+            summary = "Guided Spanish practice in INTENT.",
+            actor = ApproachActor.INTENT,
+            capabilityNote = "Guided session objective + typed result; shared agent history."
+        ),
+        ApproachDraft(
+            approachId = "approach-learning-app",
+            title = "Learning app",
+            summary = "Launch an installed language app.",
+            actor = ApproachActor.APP,
+            capabilityNote = "Launch and optional foreground timing — not lesson completion."
+        ),
+        ApproachDraft(
+            approachId = "approach-offline",
+            title = "Offline practice",
+            summary = "Practice with a person or offline materials.",
+            actor = ApproachActor.PERSON
+        ),
+        ApproachDraft(
+            approachId = "approach-other",
+            title = "Something else",
+            summary = "Open response for another method.",
+            actor = ApproachActor.EXTERNAL
+        )
+    )
+
+    /**
+     * Map a chip / typed answer onto approach ids by title (or id) containment.
+     * Multi-select answers may join titles with commas / "and" / "+".
+     */
+    fun matchApproachIds(
+        snapshot: IntentionSnapshot,
+        intentionId: String,
+        rawValue: String
+    ): List<String> {
+        val lower = rawValue.lowercase()
+        if (lower.isBlank()) return emptyList()
+        return snapshot.approaches
+            .filter { it.intentionId == intentionId }
+            .filter { approach ->
+                lower.contains(approach.title.lowercase()) ||
+                    lower.contains(approach.id.lowercase())
+            }
+            .map { it.id }
+            .distinct()
+    }
 }
