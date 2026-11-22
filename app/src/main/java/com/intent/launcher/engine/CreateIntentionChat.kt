@@ -11,6 +11,7 @@ import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
 import com.intent.launcher.domain.ProposalStatus
+import com.intent.launcher.domain.RelativeDateAnchoring
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.store.IntentionFlowStore
 import java.util.TimeZone
@@ -704,6 +705,55 @@ object CreateIntentionChat {
             t += 1
         }
 
+        // §8.1 — relative move timing in the create sentence becomes an anchored
+        // KEY_MOVE_ESTIMATE so a later freshness check can reconfirm (not re-ask language).
+        if (shapeTag == "language" &&
+            !hasKey(AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE) &&
+            RelativeDateAnchoring.looksRelative(freeText)
+        ) {
+            if (!hasKey(AdaptiveBuilderEngine.KEY_MOTIVATION) &&
+                freeText.contains("mov", ignoreCase = true)
+            ) {
+                AdaptiveBuilderEngine.applyDecision(
+                    store,
+                    BuilderDecision.SaveFact(
+                        intentionId = intentionId,
+                        expectedRevision = rev(),
+                        factDraft = FactDraft(
+                            factId = "fact-create-motivation-$intentionId",
+                            text = "I'm moving.",
+                            key = AdaptiveBuilderEngine.KEY_MOTIVATION,
+                            rawUtterance = freeText,
+                            normalizedValue = "moving"
+                        ),
+                        sourceTurnId = "turn-create-bridge-motivation-$t"
+                    ),
+                    t,
+                    timeZone = timeZone
+                )
+                t += 1
+            }
+            val movePhrase = extractRelativePhrase(freeText) ?: freeText.trim()
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-move-$intentionId",
+                        text = movePhrase,
+                        key = AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE,
+                        rawUtterance = freeText,
+                        approximate = true
+                    ),
+                    sourceTurnId = "turn-create-bridge-move-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
         val hasSelected = store.snapshot().approaches.any {
             it.intentionId == intentionId &&
                 it.status == com.intent.launcher.domain.ApproachStatus.SELECTED
@@ -808,6 +858,19 @@ object CreateIntentionChat {
             else -> null
         }
     }
+
+    /** Pull the relative-date substring used for [RelativeDateAnchoring.anchor]. */
+    internal fun extractRelativePhrase(freeText: String): String? {
+        val matcher = RELATIVE_PHRASE.matcher(freeText.trim())
+        if (!matcher.find()) return null
+        return matcher.group()?.trim()
+    }
+
+    private val RELATIVE_PHRASE = java.util.regex.Pattern.compile(
+        """(?i)(?:in\s+)?(?:about\s+|around\s+|roughly\s+|approx(?:imately)?\s+)?""" +
+            """(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve)\s+""" +
+            """(?:days?|weeks?|months?|years?)"""
+    )
 
     private fun createApproachDrafts(): List<ApproachDraft> = listOf(
         ApproachDraft(

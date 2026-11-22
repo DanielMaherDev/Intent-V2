@@ -748,8 +748,16 @@ class MainActivity : ComponentActivity() {
                                 hierarchy = vm.hierarchyForActive(),
                                 onOpenRelatedIntention = { id -> vm.openRelatedIntention(id) },
                                 onWorkThisOut = {
-                                    when (active?.phase) {
-                                        IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
+                                    val reconfirmOpen = vm.snapshot.openQuestions.any {
+                                        it.intentionId == active?.id &&
+                                            it.purpose == "reconfirm_move_estimate" &&
+                                            it.state != com.intent.launcher.domain.OpenQuestionState.ANSWERED &&
+                                            it.state != com.intent.launcher.domain.OpenQuestionState.DECLINED
+                                    }
+                                    when {
+                                        reconfirmOpen -> nav.navigate("conversation")
+                                        active?.phase == IntentionPhase.PROPOSAL_PENDING ->
+                                            nav.navigate("proposal")
                                         else -> nav.navigate("conversation")
                                     }
                                 },

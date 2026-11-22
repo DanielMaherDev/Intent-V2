@@ -12,6 +12,7 @@
 | Brand | Diamond PNG + brand-colored wordmark (`IntentBrandMark`) |
 | S-HOME-EMPTY | No hero card; emphasized Start CTA + sparkle; todo / capture icon rows; no mid-page overlay essay / ERRANDS header; bell + overflow (Settings in overflow) |
 | Primary button | 52/56 height, 14/16 radius, optional leading icon |
+| §8.1 freshness | Create utterance with relative move → anchored `KEY_MOVE_ESTIMATE`; Intention Space reconfirm hero after elapsed time |
 | §8.9 Cancel | `cancelDiscussThinking()` + **Cancel** banner while `freeTextBusy`; late replies ignored; `CommandGateway.cancelTurn` marker |
 | Spec in repo | `docs/design/intent-redesign-2026-11/{DESIGN_SPEC,README,tokens}.json/md` |
 | Icons | `res/drawable/logo_diamond.png` (+ nav/action PNGs staged) |

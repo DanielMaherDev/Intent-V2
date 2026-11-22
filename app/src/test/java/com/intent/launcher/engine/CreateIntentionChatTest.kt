@@ -3,7 +3,9 @@ package com.intent.launcher.engine
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.ApproachStatus
 import com.intent.launcher.domain.BuilderPhase
+import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.IntentionPhase
+import com.intent.launcher.domain.OpenQuestionState
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.store.IntentionFlowStore
@@ -241,6 +243,53 @@ class CreateIntentionChatTest {
         assertEquals(
             ChoiceOptions.Selection.Chosen("A"),
             ChoiceOptions.resolveSelection("a", once)
+        )
+    }
+
+    @Test
+    fun confirm_languageCreate_withRelativeMove_bridgesAnchoredMoveEstimate() {
+        CreateIntentionChat.begin(store, now, registry)
+        CreateIntentionChat.submitUtterance(
+            store,
+            "I want to speak spanish at work. Im moving to Spain in about three months",
+            now + 10,
+            registry
+        )
+        CreateIntentionChat.submitQuantity(
+            store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, "Not yet", now + 30, registry
+        )
+        val commit = CreateIntentionChat.submitChoice(
+            store, "Confirm intention", now + 40, registry
+        )
+        assertTrue(commit.ok)
+        val id = CreateIntentionChat.SESSION_INTENTION_ID
+        val move = store.snapshot().facts.firstOrNull {
+            it.intentionId == id &&
+                it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                it.status == FactStatus.ACTIVE
+        }
+        assertNotNull(move)
+        assertNotNull(move!!.estimatedEpochMs)
+        assertTrue(move.approximate)
+
+        // §8.1 — after ~30 days, policy asks reconfirm (not language again).
+        val later = now + java.util.concurrent.TimeUnit.DAYS.toMillis(30)
+        assertTrue(
+            AdaptiveBuilderEngine.projectPendingAsk(store, id, later)
+        )
+        val ask = store.snapshot().openQuestions.firstOrNull {
+            it.intentionId == id && it.purpose == "reconfirm_move_estimate"
+        }
+        assertNotNull(ask)
+        assertFalse(
+            store.snapshot().openQuestions.any {
+                it.intentionId == id &&
+                    it.purpose == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE &&
+                    it.state == OpenQuestionState.ASKED
+            }
         )
     }
 

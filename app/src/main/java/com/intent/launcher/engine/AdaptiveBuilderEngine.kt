@@ -98,6 +98,32 @@ object AdaptiveBuilderEngine {
     }
 
     /**
+     * Project the next policy decision into the store when it is an Ask
+     * (e.g. §8.1 freshness reconfirm). No-op when Propose/Offer already pending
+     * or when an open Ask for the same purpose already exists.
+     *
+     * @return true when a new Ask was applied
+     */
+    fun projectPendingAsk(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Boolean {
+        val ctx = projectContext(store.snapshot(), intentionId, nowEpochMs, timeZone) ?: return false
+        val next = suggestNextDecision(ctx, nowEpochMs, timeZone)
+        if (next !is BuilderDecision.Ask) return false
+        val alreadyOpen = store.snapshot().openQuestions.any {
+            it.intentionId == intentionId &&
+                it.purpose == next.purpose &&
+                it.state != OpenQuestionState.ANSWERED &&
+                it.state != OpenQuestionState.DECLINED
+        }
+        if (alreadyOpen) return false
+        return applyDecision(store, next, nowEpochMs, timeZone = timeZone).accepted
+    }
+
+    /**
      * Deterministic next-move policy for tests and Conversation hooks.
      * Not an LLM — ranks by consequence; zero questions for small errands.
      */

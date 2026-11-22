@@ -1047,12 +1047,21 @@ class LauncherViewModel(
         HoldableApps.suggestions(activeIntention(), snapshot)
 
     fun openIntentionFromDrawer(intentionId: String) {
+        val now = System.currentTimeMillis()
         store.apply(
             FlowCommand.SetActiveIntention(
                 intentionId = intentionId,
-                nowEpochMs = System.currentTimeMillis()
+                nowEpochMs = now
             )
         )
+        // §8.1 — project freshness reconfirm (or next Ask) when opening Intention Space.
+        if (store.snapshot().adaptiveBuilderStates.any { it.intentionId == intentionId }) {
+            AdaptiveBuilderEngine.projectPendingAsk(
+                store = store,
+                intentionId = intentionId,
+                nowEpochMs = now
+            )
+        }
         refresh()
     }
 
@@ -1276,6 +1285,20 @@ class LauncherViewModel(
                     }
                     val now = System.currentTimeMillis()
                     val intention = activeIntention()
+                    // §8.1 — before free-text/model, project a pending Ask (e.g. move
+                    // freshness reconfirm). Do not treat this send as the answer.
+                    if (!createActive &&
+                        intention != null &&
+                        !hasActiveAdaptiveQuestion(intention.id) &&
+                        store.snapshot().adaptiveBuilderStates.any { it.intentionId == intention.id } &&
+                        AdaptiveBuilderEngine.projectPendingAsk(
+                            store = store,
+                            intentionId = intention.id,
+                            nowEpochMs = now
+                        )
+                    ) {
+                        return@withContext "Refreshed the next useful question — answer the card above."
+                    }
                     when {
                         createActive -> CreateIntentionChat.submitUtterance(
                             store = store,
