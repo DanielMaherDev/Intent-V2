@@ -64,8 +64,10 @@ object StaleConnectedSource {
             else -> "CURRENT · $valueText"
         }
         val actions = buildList {
-            if (status != CapabilityStatus.NOT_SUPPORTED) add("Refresh connection")
-            add("Log manual SAID rating")
+            // Always expose Refresh data — when NOT_SUPPORTED it states honesty
+            // instead of inventing an import (OC6 Visible controls).
+            add(ConnectedMetricChrome.ACTION_REFRESH)
+            add(ConnectedMetricChrome.ACTION_MANUAL)
         }
         val honesty = when {
             status == CapabilityStatus.NOT_SUPPORTED ->

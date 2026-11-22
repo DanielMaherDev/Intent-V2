@@ -8,7 +8,7 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.223** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as [`artifacts/INTENT-v0.0.224.apk`](artifacts/INTENT-v0.0.224.apk)
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as [`artifacts/INTENT-v0.0.225.apk`](artifacts/INTENT-v0.0.225.apk)
 
 ## Scope
 

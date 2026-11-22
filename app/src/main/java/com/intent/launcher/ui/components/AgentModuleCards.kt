@@ -196,6 +196,9 @@ fun AgentOneQuestionCard(
     selectedIndex: Int?,
     onSelect: (Int) -> Unit,
     onFreeTextMic: (() -> Unit)? = null,
+    selectedIndices: Set<Int> = emptySet(),
+    onToggle: ((Int) -> Unit)? = null,
+    onConfirmMulti: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -238,21 +241,45 @@ fun AgentOneQuestionCard(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 model.options.forEachIndexed { index, label ->
                     val isOther = ChoiceOptions.isOther(label)
+                    val selected = if (model.multiSelect) {
+                        index in selectedIndices
+                    } else {
+                        selectedIndex == index
+                    }
                     RadioOptionRow(
                         text = if (isOther) "Other — type your own" else label,
-                        selected = selectedIndex == index,
-                        onClick = { onSelect(index) },
-                        emphasize = isOther
+                        selected = selected,
+                        onClick = {
+                            if (model.multiSelect) {
+                                onToggle?.invoke(index) ?: onSelect(index)
+                            } else {
+                                onSelect(index)
+                            }
+                        },
+                        emphasize = isOther,
+                        multiSelect = model.multiSelect && !isOther
                     )
                 }
             }
-            if (otherIndex >= 0 && selectedIndex == otherIndex) {
+            val otherSelected = if (model.multiSelect) {
+                otherIndex >= 0 && otherIndex in selectedIndices
+            } else {
+                otherIndex >= 0 && selectedIndex == otherIndex
+            }
+            if (otherSelected) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Type your answer in the composer below.",
                     style = MaterialTheme.typography.bodySmall,
                     color = IntentColors.Warm,
                     fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (model.multiSelect && onConfirmMulti != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                IntentPrimaryButton(
+                    text = "Continue with selection",
+                    onClick = onConfirmMulti
                 )
             }
         }
@@ -1011,7 +1038,8 @@ private fun RadioOptionRow(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
-    emphasize: Boolean = false
+    emphasize: Boolean = false,
+    multiSelect: Boolean = false
 ) {
     val border = when {
         selected -> IntentColors.Accent
@@ -1038,10 +1066,11 @@ private fun RadioOptionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (selected) {
-                Icons.Outlined.RadioButtonChecked
-            } else {
-                Icons.Outlined.RadioButtonUnchecked
+            imageVector = when {
+                multiSelect && selected -> Icons.Outlined.Check
+                multiSelect -> Icons.Outlined.RadioButtonUnchecked
+                selected -> Icons.Outlined.RadioButtonChecked
+                else -> Icons.Outlined.RadioButtonUnchecked
             },
             contentDescription = null,
             tint = when {

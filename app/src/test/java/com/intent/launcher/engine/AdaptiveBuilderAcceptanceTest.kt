@@ -2,6 +2,7 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.domain.AdaptiveBuilderFixtures
 import com.intent.launcher.domain.AnswerQuestion
+import com.intent.launcher.domain.AnswerSchema
 import com.intent.launcher.domain.ApproachStatus
 import com.intent.launcher.domain.BuilderDecision
 import com.intent.launcher.domain.ErrandScenario
@@ -1779,6 +1780,11 @@ class AdaptiveBuilderAcceptanceTest {
             practiceAsk.whyItMatters.contains("distinct", ignoreCase = true) ||
                 practiceAsk.whyItMatters.contains("not proof", ignoreCase = true)
         )
+        assertEquals(AnswerSchema.MULTI_CHOICE, practiceAsk.answerSchema)
+        assertTrue(practiceAsk.options.contains("Playing games"))
+        assertTrue(practiceAsk.options.contains("Reviewing games"))
+        assertTrue(practiceAsk.options.contains("Studying"))
+        assertFalse(practiceAsk.options.any { it.equals("A combination", ignoreCase = true) })
         AdaptiveBuilderEngine.applyDecision(store, practiceAsk, now + 2, timeZone = tz)
         val rev2 = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 3, tz)!!.revision
         assertTrue(
@@ -1787,8 +1793,8 @@ class AdaptiveBuilderAcceptanceTest {
                 AnswerQuestion(
                     questionId = practiceAsk.questionId,
                     intentionId = id,
-                    normalizedValue = "A combination",
-                    rawValue = "A combination",
+                    normalizedValue = "Playing games and Studying",
+                    rawValue = "Playing games and Studying",
                     modality = "TEXT_CHIP",
                     sourceTurnId = "turn-practice",
                     answeredAtEpochMs = now + 3,

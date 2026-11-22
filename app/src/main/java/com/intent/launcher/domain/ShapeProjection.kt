@@ -237,6 +237,9 @@ object ShapeProjection {
         if (shapeTag == "move") {
             return moveDependencyPlan(phase, sessions, facts, hypotheses)
         }
+        if (shapeTag == "chess") {
+            return chessPracticePlan(phase, sessions, facts)
+        }
         if (phase != IntentionPhase.ACTIVE) return emptyList()
         val session = sessions.firstOrNull()
         val whenLabel = session?.let {
@@ -315,17 +318,6 @@ object ShapeProjection {
                     muted = true
                 )
             )
-            "chess" -> listOf(
-                ApproachStep(
-                    title = session?.title ?: "Evening chess practice",
-                    detail = (whenLabel?.let { "$it · approved" } ?: "Approved practice / review rhythm")
-                ),
-                ApproachStep(
-                    title = "Log rating and practice",
-                    detail = "Self-reported SAID only — not a Chess.com scrape or fabricated games.",
-                    muted = true
-                )
-            )
             else -> listOf(
                 ApproachStep(
                     title = session?.title ?: "Weekly speaking practice",
@@ -338,6 +330,65 @@ object ShapeProjection {
                 )
             )
         }
+    }
+
+    /**
+     * OC6 practice approach + routine review lanes. Shown once baseline/practice
+     * facts exist (or when active). Approaches come from the multiselect fact —
+     * never invents partner games or a live rating.
+     */
+    private fun chessPracticePlan(
+        phase: IntentionPhase,
+        sessions: List<ScheduledSession>,
+        facts: List<Fact>
+    ): List<ApproachStep> {
+        val hasPlanSignal = facts.isNotEmpty() ||
+            phase == IntentionPhase.ACTIVE ||
+            phase == IntentionPhase.PROPOSAL_PENDING
+        if (!hasPlanSignal) return emptyList()
+
+        val approaches = com.intent.launcher.engine.ConnectedMetricChrome.practiceApproaches(facts)
+        val session = sessions.firstOrNull()
+        val whenLabel = session?.let {
+            "day ${it.dayOfWeek} · %02d:%02d".format(it.hour, it.minute)
+        }
+        val steps = mutableListOf<ApproachStep>()
+        if (approaches.isEmpty()) {
+            steps += ApproachStep(
+                title = "Practice approaches · not chosen yet",
+                detail = "Pick playing, reviewing, and/or studying — multiselect. " +
+                    "Practice stays distinct from rating proof.",
+                muted = true
+            )
+        } else {
+            approaches.forEach { label ->
+                steps += ApproachStep(
+                    title = "Approach · $label",
+                    detail = "Selected practice mix — not proof the rating moved.",
+                    muted = false
+                )
+            }
+        }
+        steps += ApproachStep(
+            title = session?.title ?: "Routine review",
+            detail = when {
+                session != null ->
+                    whenLabel?.let { "$it · approved practice / review rhythm" }
+                        ?: "Approved practice / review rhythm"
+                phase == IntentionPhase.PROPOSAL_PENDING ->
+                    "Practice routine pending approval"
+                else ->
+                    "Weekly rating review uses imported or user-entered values only"
+            },
+            muted = session == null && phase != IntentionPhase.ACTIVE
+        )
+        steps += ApproachStep(
+            title = "Log rating and practice",
+            detail = "Self-reported SAID or a real import — not a Chess.com scrape " +
+                "or fabricated games.",
+            muted = true
+        )
+        return steps
     }
 
     /**

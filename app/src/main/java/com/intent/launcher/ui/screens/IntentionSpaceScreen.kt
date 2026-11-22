@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -51,8 +52,10 @@ import com.intent.launcher.domain.ProvenanceKind
 import com.intent.launcher.domain.ScheduledSession
 import com.intent.launcher.domain.SessionDestinations
 import com.intent.launcher.domain.ShapeProjection
+import com.intent.launcher.domain.TrackerEntry
 import com.intent.launcher.domain.TrashEntry
 import com.intent.launcher.engine.AppConnectionUsage
+import com.intent.launcher.engine.ConnectedMetricChrome
 import com.intent.launcher.engine.IntentionHierarchy
 import com.intent.launcher.ui.components.EmptyNote
 import com.intent.launcher.ui.components.HeroCard
@@ -98,6 +101,10 @@ fun IntentionSpaceScreen(
     onOpenReports: (() -> Unit)? = null,
     approaches: List<Approach> = emptyList(),
     openQuestions: List<OpenQuestion> = emptyList(),
+    trackerEntries: List<TrackerEntry> = emptyList(),
+    nowEpochMs: Long = System.currentTimeMillis(),
+    onRefreshConnectedMetric: (() -> Unit)? = null,
+    onUseManualBaseline: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val projection = ShapeProjection.project(
@@ -109,6 +116,14 @@ fun IntentionSpaceScreen(
         approaches = approaches,
         openQuestions = openQuestions
     )
+    val connectedChrome = remember(intention?.id, facts, trackerEntries, nowEpochMs) {
+        ConnectedMetricChrome.forChessIntention(
+            intention = intention,
+            facts = facts,
+            trackerEntries = trackerEntries,
+            nowEpochMs = nowEpochMs
+        )
+    }
     val heroTone = when (projection.hero.tone) {
         "warm" -> HeroTone.Warm
         "success" -> HeroTone.Success
@@ -122,6 +137,7 @@ fun IntentionSpaceScreen(
     val statusWord = intention?.phase?.let { drawerStatusLabel(it) } ?: "Exploring"
     var confirmTrash by remember { mutableStateOf(false) }
     var showAppsManage by remember { mutableStateOf(false) }
+    var showRefreshHonesty by remember { mutableStateOf(false) }
 
     val overflow = buildList {
         add(OverflowMenuItem("Discuss") { onWorkThisOut() })
@@ -150,6 +166,48 @@ fun IntentionSpaceScreen(
             dismissButton = {
                 TextButton(onClick = { confirmTrash = false }) {
                     Text("Cancel", color = IntentColors.Accent)
+                }
+            }
+        )
+    }
+
+    if (showRefreshHonesty && connectedChrome != null) {
+        AlertDialog(
+            onDismissRequest = { showRefreshHonesty = false },
+            title = { Text("Refresh data") },
+            text = {
+                Text(
+                    if (connectedChrome.refreshCanImport) {
+                        connectedChrome.honestyNote
+                    } else {
+                        ConnectedMetricChrome.refreshHonestyMessage()
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRefreshHonesty = false
+                        if (connectedChrome.refreshCanImport) {
+                            onRefreshConnectedMetric?.invoke()
+                        } else {
+                            onUseManualBaseline?.invoke()
+                        }
+                    }
+                ) {
+                    Text(
+                        if (connectedChrome.refreshCanImport) {
+                            "Try refresh"
+                        } else {
+                            "Use manual baseline"
+                        },
+                        color = IntentColors.Ink
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRefreshHonesty = false }) {
+                    Text("Close", color = IntentColors.Accent)
                 }
             }
         )
@@ -204,6 +262,106 @@ fun IntentionSpaceScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = IntentColors.Ink
         )
+
+        if (connectedChrome != null) {
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Rating source")
+            Spacer(modifier = Modifier.height(9.dp))
+            Text(
+                text = connectedChrome.badgeLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = IntentColors.AccentDark,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics {
+                    contentDescription = "Source freshness badge ${connectedChrome.badgeLabel}"
+                }
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = connectedChrome.honestyNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            IntentSecondaryButton(
+                text = connectedChrome.refreshLabel,
+                onClick = {
+                    if (onRefreshConnectedMetric != null && connectedChrome.refreshCanImport) {
+                        onRefreshConnectedMetric()
+                    } else {
+                        showRefreshHonesty = true
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            IntentSecondaryButton(
+                text = connectedChrome.manualLabel,
+                onClick = { onUseManualBaseline?.invoke() ?: onOpenTracker?.invoke() }
+            )
+
+            Spacer(modifier = Modifier.height(26.dp))
+            SectionTitle("Rating chart")
+            Spacer(modifier = Modifier.height(9.dp))
+            if (connectedChrome.ratingPoints.isEmpty()) {
+                Text(
+                    text = connectedChrome.emptyChartNote,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Muted,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Rating chart empty"
+                    }
+                )
+            } else {
+                val heights = ConnectedMetricChrome.chartHeights(connectedChrome.ratingPoints)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "Rating chart from real entries" }
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    connectedChrome.ratingPoints.forEachIndexed { index, point ->
+                        val h = heights.getOrNull(index) ?: 0.35f
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = point.valueText.take(6),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = IntentColors.Ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height((28 + (72 * h)).dp)
+                                    .background(
+                                        IntentColors.AccentSoft,
+                                        RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
+                                    )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = point.dayLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = IntentColors.Muted,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = point.provenanceLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = IntentColors.Muted,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(26.dp))
         SectionTitle("Next")

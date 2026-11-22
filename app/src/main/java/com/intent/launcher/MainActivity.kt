@@ -855,6 +855,19 @@ class MainActivity : ComponentActivity() {
                                 openQuestions = vm.snapshot.openQuestions.filter {
                                     it.intentionId == active?.id
                                 },
+                                trackerEntries = vm.snapshot.trackerEntries.filter {
+                                    it.intentionId == active?.id
+                                },
+                                nowEpochMs = System.currentTimeMillis(),
+                                onRefreshConnectedMetric = {
+                                    // observe_chess_rating is NOT_SUPPORTED — Space dialog
+                                    // states honesty; no invented import.
+                                },
+                                onUseManualBaseline = if (vm.canOpenTracker()) {
+                                    { nav.navigate("tracker") }
+                                } else {
+                                    { nav.navigate("conversation") }
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

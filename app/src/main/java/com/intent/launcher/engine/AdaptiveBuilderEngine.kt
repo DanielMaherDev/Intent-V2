@@ -1280,8 +1280,9 @@ object AdaptiveBuilderEngine {
                 questionId = "q-practice-preference-${context.intentionId}",
                 whyItMatters =
                     "Practice stays distinct from the rating goal — a played game is not " +
-                        "proof that the imported or manual rating improved.",
-                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                        "proof that the imported or manual rating improved. " +
+                        "Pick one or more approaches.",
+                answerSchema = AnswerSchema.MULTI_CHOICE,
                 purpose = KEY_PRACTICE_PREFERENCE,
                 blocksWhat = "practice_routine",
                 options = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS,
