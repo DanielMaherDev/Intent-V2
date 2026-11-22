@@ -124,6 +124,10 @@ class CreateIntentionChatTest {
         CreateIntentionChat.submitChoice(
             store, "Moving or travel", now + 35, registry
         )
+        // Engine move/deadline Ask before Confirm when create text had no relative phrase.
+        CreateIntentionChat.submitUtterance(
+            store, "In about three months", now + 37, registry
+        )
         // Confirm commit so shell has durable facts under intention-creating.
         CreateIntentionChat.submitChoice(
             store, "Confirm intention", now + 40, registry
@@ -198,6 +202,10 @@ class CreateIntentionChatTest {
         // Engine motivation Ask (chips + Other) before Confirm.
         CreateIntentionChat.submitChoice(
             store, "Work or school", now + 45, registry
+        )
+        // Engine still ranks a generic timing Ask after any motivation.
+        CreateIntentionChat.submitUtterance(
+            store, "No hard deadline", now + 47, registry
         )
 
         val commit = CreateIntentionChat.submitChoice(
@@ -360,6 +368,17 @@ class CreateIntentionChatTest {
         CreateIntentionChat.submitChoice(
             store, "Moving or travel", now + 35, registry
         )
+        // No relative phrase in create text → move Ask before Confirm.
+        assertTrue(
+            store.snapshot().openQuestions.any {
+                it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID &&
+                    it.purpose == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                    it.state != OpenQuestionState.ANSWERED
+            }
+        )
+        CreateIntentionChat.submitUtterance(
+            store, "In about three months", now + 37, registry
+        )
         val commit = CreateIntentionChat.submitChoice(
             store, "Confirm intention", now + 40, registry
         )
@@ -369,6 +388,14 @@ class CreateIntentionChatTest {
 
         val snap = store.snapshot()
         val id = CreateIntentionChat.SESSION_INTENTION_ID
+        assertTrue(
+            snap.facts.any {
+                it.intentionId == id &&
+                    it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                    it.status == FactStatus.ACTIVE &&
+                    it.approximate
+            }
+        )
         // Remapped engine keys (not only draft prompt ids).
         assertTrue(
             snap.facts.any {
@@ -428,9 +455,12 @@ class CreateIntentionChatTest {
         CreateIntentionChat.submitChoice(
             store, "Not yet", now + 30, registry
         )
-        // Gate C2: motivation Ask before Confirm.
+        // Gate C2: motivation Ask → move Ask before Confirm.
         CreateIntentionChat.submitChoice(
             store, "Moving or travel", now + 35, registry
+        )
+        CreateIntentionChat.submitUtterance(
+            store, "In about three months", now + 37, registry
         )
         val commit = CreateIntentionChat.submitChoice(
             store, "Confirm intention", now + 40, registry
@@ -573,6 +603,9 @@ class CreateIntentionChatTest {
         CreateIntentionChat.submitChoice(
             store, "Work or school", now + 45, registry
         )
+        CreateIntentionChat.submitUtterance(
+            store, "No hard deadline", now + 47, registry
+        )
         val commit = CreateIntentionChat.submitChoice(
             store, "Confirm intention", now + 50, registry
         )
@@ -639,7 +672,7 @@ class CreateIntentionChatTest {
         assertTrue(motCard.actions.any { ChoiceOptions.isOther(it) })
         assertTrue(store.snapshot().proposals.none { it.status == ProposalStatus.PENDING })
 
-        // Other → free text path still records motivation, then Confirm → Propose.
+        // Other → free text path records motivation, then engine move Ask before Confirm.
         CreateIntentionChat.submitChoice(store, ChoiceOptions.OTHER, now + 35, registry)
         CreateIntentionChat.submitUtterance(
             store, "I'm moving to Spain.", now + 40, registry
@@ -651,6 +684,24 @@ class CreateIntentionChatTest {
                     it.text.contains("moving to Spain", ignoreCase = true)
             }
         )
+        val moveAsk = store.snapshot().openQuestions.firstOrNull {
+            it.intentionId == id &&
+                it.purpose == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                it.state == OpenQuestionState.ASKED
+        }
+        assertNotNull(moveAsk)
+        assertEquals(70, moveAsk!!.priority)
+        CreateIntentionChat.submitUtterance(
+            store, "In about three months", now + 45, registry
+        )
+        assertTrue(
+            store.snapshot().facts.any {
+                it.intentionId == id &&
+                    it.key == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
+                    it.status == FactStatus.ACTIVE &&
+                    it.approximate
+            }
+        )
         val commit = CreateIntentionChat.submitChoice(
             store, "Confirm intention", now + 50, registry
         )
@@ -660,14 +711,6 @@ class CreateIntentionChatTest {
             store.snapshot().turns.any { turn ->
                 turn.intentionId == id &&
                     turn.blocks.any { it.type == ResponseBlockType.PROPOSAL && it.active }
-            }
-        )
-        // No move Ask forced on create Confirm→Propose after motivation.
-        assertTrue(
-            store.snapshot().openQuestions.none {
-                it.intentionId == id &&
-                    it.purpose == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE &&
-                    it.state == OpenQuestionState.ASKED
             }
         )
     }

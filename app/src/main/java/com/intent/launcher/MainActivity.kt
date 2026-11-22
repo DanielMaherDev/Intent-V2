@@ -369,9 +369,13 @@ class MainActivity : ComponentActivity() {
                                 intentionHint = intentionHint,
                                 intentionTitle = intention?.title.orEmpty(),
                                 onContinueExploring = {
+                                    vm.openActiveIntentionSpace()
                                     nav.navigate("intention")
                                 },
-                                onOpenIntention = { nav.navigate("intention") },
+                                onOpenIntention = {
+                                    vm.openActiveIntentionSpace()
+                                    nav.navigate("intention")
+                                },
                                 onOpenIntentionDrawer = { nav.navigate("drawer") },
                                 onOpenToday = {
                                     val route = vm.openTodayFromDrawer()
