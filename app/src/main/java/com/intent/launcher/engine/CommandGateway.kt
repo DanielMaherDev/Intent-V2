@@ -389,8 +389,9 @@ object CommandGateway {
             }
             is ApprovalAmbiguityResolver.Outcome.Single -> {
                 val proposalId = outcome.proposalId
-                val before = store.snapshot()
-                val intentionId = before.proposals.firstOrNull { it.id == proposalId }?.intentionId
+                val intentionBefore = snap.proposals
+                    .firstOrNull { it.id == proposalId }
+                    ?.intentionId
                 store.apply(
                     FlowCommand.ApproveProposal(
                         proposalId = proposalId,
@@ -398,12 +399,18 @@ object CommandGateway {
                         nowEpochMs = nowEpochMs
                     )
                 )
-                if (intentionId != null) {
+                if (intentionBefore != null) {
+                    // IV-227: graduate create shell before cross-surface Active projection.
+                    val durableId = CreateIntentionChat.clearCreateSessionAfterApprove(
+                        store = store,
+                        approvedIntentionId = intentionBefore,
+                        nowEpochMs = nowEpochMs + 1
+                    )
                     CrossSurfaceContinuity.afterApprove(
                         store = store,
-                        intentionId = intentionId,
+                        intentionId = durableId,
                         sessionId = sessionId,
-                        nowEpochMs = nowEpochMs + 1
+                        nowEpochMs = nowEpochMs + 2
                     )
                 }
                 val after = store.snapshot()

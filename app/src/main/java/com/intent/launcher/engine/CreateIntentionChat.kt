@@ -12,6 +12,7 @@ import com.intent.launcher.domain.FactDraft
 import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
+import com.intent.launcher.domain.IntentionPhase
 import com.intent.launcher.domain.OpenQuestionState
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.RelativeDateAnchoring
@@ -55,34 +56,77 @@ object CreateIntentionChat {
         val pendingProposalId: String? = null
     )
 
+    /**
+     * Create-shell routing: true only for the live [SESSION_INTENTION_ID] shell
+     * before Approve graduates it. After Approve, phase is ACTIVE (and/or the id
+     * is remapped) so Discuss free-text hits [ConversationCoordinator].
+     */
     fun isCreateSession(intention: Intention?): Boolean =
-        intention?.id == SESSION_INTENTION_ID
+        intention?.id == SESSION_INTENTION_ID &&
+            intention.phase != IntentionPhase.ACTIVE
 
     /**
      * True while chat-first create is still collecting answers.
      * After Confirm, [bridgeAdaptiveBuilderAfterCommit] attaches an adaptive
      * builder state to [SESSION_INTENTION_ID] — that shell is then durable Discuss.
+     * After Approve, [clearCreateSessionAfterApprove] remaps the shell so this
+     * returns false even if adaptive state was somehow missing.
      */
     fun isCreateInProgress(store: IntentionFlowStore): Boolean {
         val snap = store.snapshot()
         if (snap.builderDraft.active) return true
-        val id = snap.activeIntentionId ?: SESSION_INTENTION_ID
-        if (id != SESSION_INTENTION_ID && snap.intentions.none { it.id == SESSION_INTENTION_ID }) {
-            return false
-        }
-        val createId = if (snap.intentions.any { it.id == SESSION_INTENTION_ID }) {
-            SESSION_INTENTION_ID
-        } else {
-            return false
-        }
-        return snap.adaptiveBuilderStates.none { it.intentionId == createId }
+        val create = snap.intentions.firstOrNull { it.id == SESSION_INTENTION_ID }
+            ?: return false
+        // Approved create shell is durable Discuss — never CreateIntentionChat.
+        if (create.phase == IntentionPhase.ACTIVE) return false
+        return snap.adaptiveBuilderStates.none { it.intentionId == SESSION_INTENTION_ID }
     }
 
     fun isCreateSessionActive(store: IntentionFlowStore): Boolean {
         val snap = store.snapshot()
-        return snap.activeIntentionId == SESSION_INTENTION_ID ||
-            snap.builderDraft.active ||
-            snap.intentions.any { it.id == SESSION_INTENTION_ID }
+        if (snap.builderDraft.active) return true
+        val create = snap.intentions.firstOrNull { it.id == SESSION_INTENTION_ID }
+            ?: return false
+        return create.phase != IntentionPhase.ACTIVE
+    }
+
+    /**
+     * IV-227 / Gate C6 AVD: after gateway Approve APPLIED, graduate the create
+     * shell so post-Approve free-text never re-enters [submitUtterance] /
+     * [startFromDescription] (which renamed the intention on tip 0.0.170).
+     *
+     * @return durable intention id after remap (unchanged when already durable)
+     */
+    fun clearCreateSessionAfterApprove(
+        store: IntentionFlowStore,
+        approvedIntentionId: String,
+        nowEpochMs: Long
+    ): String {
+        if (store.snapshot().builderDraft.active) {
+            IntentionBuilder.cancel(store, nowEpochMs)
+        }
+        val snap = store.snapshot()
+        val targetId = when {
+            approvedIntentionId == SESSION_INTENTION_ID -> SESSION_INTENTION_ID
+            snap.intentions.any { it.id == SESSION_INTENTION_ID } &&
+                snap.proposals.any {
+                    it.intentionId == SESSION_INTENTION_ID &&
+                        it.status == ProposalStatus.APPROVED
+                } -> SESSION_INTENTION_ID
+            else -> return approvedIntentionId
+        }
+        val durableId = "intention-$nowEpochMs"
+        if (snap.intentions.any { it.id == durableId }) {
+            return approvedIntentionId
+        }
+        store.apply(
+            FlowCommand.RemapIntentionId(
+                fromIntentionId = targetId,
+                toIntentionId = durableId,
+                nowEpochMs = nowEpochMs
+            )
+        )
+        return durableId
     }
 
     fun begin(

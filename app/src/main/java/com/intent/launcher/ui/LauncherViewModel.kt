@@ -1624,6 +1624,7 @@ class LauncherViewModel(
         }
         // Gate E3 — receipt is written atomically inside ApproveProposal reduce
         // (ApproveReceipt); do not add a second reversible turn that would steal Undo.
+        // IV-227 clear-create remaps that receipt via RemapIntentionId — no UI second write.
         refresh()
     }
 
