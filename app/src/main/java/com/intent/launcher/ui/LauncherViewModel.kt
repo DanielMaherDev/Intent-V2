@@ -1444,7 +1444,8 @@ class LauncherViewModel(
                     val intention = activeIntention()
                     when {
                         // After Confirm the create shell keeps SESSION_INTENTION_ID but
-                        // adaptive builder state is durable — gate on isCreateInProgress.
+                        // adaptive builder state is durable — use isCreateInProgress, not
+                        // isCreateSession(id), so inject/mic hit submitFromVoice.
                         intention != null &&
                             !CreateIntentionChat.isCreateInProgress(store) &&
                             !store.snapshot().builderDraft.active &&
