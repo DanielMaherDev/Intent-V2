@@ -44,6 +44,8 @@ object IntentionBuilder {
         return when {
             // OC2 / §8.8 — before language so “Spain” legal work ≠ Learn Spanish.
             looksLikeLegalResearch(t) -> "research"
+            // Usage / Shorts caps — before language so “Instagram” ≠ Learn Spanish.
+            CreatePathSeedHonesty.looksLikeUsageAppTimeSeed(t) -> "app_use"
             listOf("spanish", "language", "duolingo", "tutor", "french", "german")
                 .any { t.contains(it) } -> "language"
             listOf("marathon", "5k", "10k", "running", "long run", "race")
@@ -88,11 +90,24 @@ object IntentionBuilder {
             "marathon" -> "Train for a race"
             "business" -> "Explore a business idea"
             "research" -> "Work legally in Spain"
+            "app_use" -> "Usage target"
             else -> "New intention"
         }
 
     fun missingFactPrompts(shapeTag: String): List<Prompt> =
         when (shapeTag) {
+            "app_use" -> listOf(
+                Prompt(
+                    id = CreatePathSeedHonesty.PROMPT_USAGE_ACCESS,
+                    question = CreatePathSeedHonesty.USAGE_ACCESS_QUESTION,
+                    choiceOptions = CreatePathSeedHonesty.USAGE_ACCESS_OPTIONS
+                ),
+                Prompt(
+                    id = CreatePathSeedHonesty.PROMPT_USAGE_INTERVENTION,
+                    question = CreatePathSeedHonesty.USAGE_INTERVENTION_QUESTION,
+                    choiceOptions = CreatePathSeedHonesty.USAGE_INTERVENTION_OPTIONS
+                )
+            )
             "research" -> listOf(
                 Prompt(
                     id = AdaptiveBuilderEngine.KEY_CITIZENSHIP,
@@ -342,6 +357,7 @@ object IntentionBuilder {
         "marathon" to "Marathon / race",
         "business" to "Business",
         "research" to "Legal research",
+        "app_use" to "App usage",
         "other" to "Something else"
     )
 }

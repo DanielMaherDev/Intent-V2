@@ -34,17 +34,82 @@ object CreatePathSeedHonesty {
             "or Reels identity. Would you like to track package time automatically, " +
             "log Shorts time yourself, or use both? I will not claim exact Shorts minutes."
 
+    const val USAGE_ACCESS_QUESTION =
+        "I can open Android Usage access settings when you're ready. " +
+            "I won't report automatic app time until you grant it — " +
+            "and I will not silently turn on an overlay or block apps."
+
+    const val USAGE_INTERVENTION_QUESTION =
+        "When you approach your limit, how should I approach you?"
+
     const val JOB_OFFER_AGENT_NOTE =
         "I'll help you make a decision by a date — not assume the answer is yes or " +
             "auto-accept the offer. The deadline matters. When exactly is the response " +
             "due, and what matters most to you: pay, work, flexibility, growth, " +
             "location, or something else?"
 
+    const val PROMPT_USAGE_ACCESS = "usage_access"
+    const val PROMPT_USAGE_INTERVENTION = "usage_intervention"
+
     val USAGE_MEASUREMENT_OPTIONS: List<String> = listOf(
         "Track package time automatically",
         "Log Shorts time myself",
         "Use both"
     )
+
+    val USAGE_ACCESS_OPTIONS: List<String> = listOf(
+        "Open Usage access when ready",
+        "I'll grant later",
+        "Track manually for now"
+    )
+
+    val USAGE_INTERVENTION_OPTIONS: List<String> = listOf(
+        "Quiet reminder",
+        "Ask me first",
+        "No interruption by default"
+    )
+
+    /**
+     * True when [text] already states package-vs-Shorts measurement honesty
+     * (not merely naming Instagram / YouTube Shorts as products).
+     */
+    fun liveProseStatesUsageHonesty(text: String): Boolean {
+        val t = text.lowercase()
+        val access = t.contains("usage access") || t.contains("usagestats")
+        val packageLimit =
+            t.contains("package") ||
+                t.contains("≠ shorts") ||
+                t.contains("not shorts") ||
+                t.contains("cannot identify shorts") ||
+                t.contains("does not tell") ||
+                t.contains("can't tell which") ||
+                t.contains("cannot tell which")
+        val refuseExact =
+            t.contains("will not claim exact shorts") ||
+                t.contains("won't claim exact shorts") ||
+                t.contains("not claim exact shorts")
+        return access && (packageLimit || refuseExact)
+    }
+
+    fun liveProseStatesJobOfferHonesty(text: String): Boolean {
+        val t = text.lowercase()
+        val decideFrame =
+            t.contains("decide") || t.contains("decision") || t.contains("deadline")
+        val notAuto =
+            t.contains("auto-accept") || t.contains("not assume") ||
+                t.contains("will not accept") || t.contains("won't accept") ||
+                t.contains("not auto")
+        return decideFrame && notAuto
+    }
+
+    /** Merge live model prose with required seed honesty — never drop on casual product mentions. */
+    fun mergeLiveProseWithSeedHonesty(formatted: String, honesty: Honesty): String {
+        val already = when (honesty.kind) {
+            Kind.USAGE_APP_TIME -> liveProseStatesUsageHonesty(formatted)
+            Kind.JOB_OFFER_DECIDE -> liveProseStatesJobOfferHonesty(formatted)
+        }
+        return if (already) formatted else "$formatted\n\n${honesty.agentNote}"
+    }
 
     fun forDescription(text: String): Honesty? {
         val trimmed = text.trim()
