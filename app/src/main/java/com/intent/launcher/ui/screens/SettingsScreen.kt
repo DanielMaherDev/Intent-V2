@@ -53,6 +53,7 @@ fun SettingsScreen(
     versionName: String,
     schemaVersion: Int,
     onExportSnapshot: () -> Unit,
+    onExportTroubleshooting: () -> Unit = {},
     onImportSnapshot: () -> Unit = {},
     snapshotImportNote: String? = null,
     onOpenHistory: () -> Unit = {},
@@ -267,6 +268,17 @@ fun SettingsScreen(
             IntentPrimaryButton(
                 text = "Export snapshot",
                 onClick = onExportSnapshot
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            IntentSecondaryButton(
+                text = "Export troubleshooting",
+                onClick = onExportTroubleshooting
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = SnapshotExport.TROUBLESHOOTING_HONESTY_NOTE,
+                style = MaterialTheme.typography.bodySmall,
+                color = IntentColors.Muted
             )
             Spacer(modifier = Modifier.height(10.dp))
             IntentSecondaryButton(

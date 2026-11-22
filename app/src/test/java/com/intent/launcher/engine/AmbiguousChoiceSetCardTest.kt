@@ -35,7 +35,7 @@ class AmbiguousChoiceSetCardTest {
 
     @Test
     fun schemaStaysTen_stampOnly() {
-        assertEquals(10, SCHEMA_VERSION)
+        assertEquals(11, SCHEMA_VERSION)
         SpanishScenario.seed(store, now)
         assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
     }

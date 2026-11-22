@@ -594,6 +594,25 @@ class MainActivity : ComponentActivity() {
                                     val file = SnapshotExport.writeExportFile(cacheDir, json)
                                     startActivity(SnapshotExport.shareIntent(this@MainActivity, file))
                                 },
+                                onExportTroubleshooting = {
+                                    val now = System.currentTimeMillis()
+                                    val json = vm.exportTroubleshootingJson(
+                                        appVersionName = BuildConfig.VERSION_NAME,
+                                        nowEpochMs = now
+                                    )
+                                    val file = SnapshotExport.writeExportFile(
+                                        cacheDir = cacheDir,
+                                        json = json,
+                                        nowEpochMs = now,
+                                        exportFileName = SnapshotExport.troubleshootingFileName(now)
+                                    )
+                                    startActivity(
+                                        SnapshotExport.shareTroubleshootingIntent(
+                                            this@MainActivity,
+                                            file
+                                        )
+                                    )
+                                },
                                 onImportSnapshot = {
                                     importSnapshotPicker.launch(SnapshotExport.MIME_TYPE)
                                 },

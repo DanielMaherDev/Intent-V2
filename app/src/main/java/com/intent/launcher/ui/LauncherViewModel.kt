@@ -127,6 +127,7 @@ import com.intent.launcher.engine.UsageStatsProbe
 import com.intent.launcher.engine.VoiceInputProbe
 import com.intent.launcher.engine.VoicePermissionAccess
 import com.intent.launcher.store.IntentionFlowStore
+import com.intent.launcher.store.SnapshotExport
 import java.util.TimeZone
 
 
@@ -532,6 +533,19 @@ class LauncherViewModel(
 
     /** Wire JSON of the current snapshot for local export/share (OS-004). */
     fun exportSnapshotJson(): String = store.encode(store.snapshot())
+
+    /**
+     * Gate F troubleshooting sibling of OS-004 — redacted decision trail +
+     * intention summaries only (no chat dump / secrets / private audio).
+     */
+    fun exportTroubleshootingJson(
+        appVersionName: String,
+        nowEpochMs: Long = System.currentTimeMillis()
+    ): String = SnapshotExport.encodeTroubleshootingJson(
+        snapshot = store.snapshot(),
+        appVersionName = appVersionName,
+        nowEpochMs = nowEpochMs
+    )
 
     /** Last import status line for Settings (null when idle / cleared). */
     var snapshotImportNote by mutableStateOf<String?>(null)

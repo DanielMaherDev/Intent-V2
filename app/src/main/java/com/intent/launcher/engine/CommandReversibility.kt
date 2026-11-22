@@ -174,6 +174,13 @@ object CommandReversibility {
                     summary = "Deactivate builder cards ${command.intentionId}",
                     irreversibleReason = null
                 )
+            is FlowCommand.AppendDecisionEvent ->
+                // Gate F audit append — not a user Undo target.
+                Reversibility(
+                    reversible = false,
+                    summary = "Decision trail ${command.event.decisionType} ${command.event.id}",
+                    irreversibleReason = null
+                )
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,

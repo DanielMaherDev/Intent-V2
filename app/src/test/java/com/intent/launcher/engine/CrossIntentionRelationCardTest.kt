@@ -45,7 +45,7 @@ class CrossIntentionRelationCardTest {
                 nowEpochMs = now + 1
             )
         )
-        assertEquals(10, SCHEMA_VERSION)
+        assertEquals(11, SCHEMA_VERSION)
     }
 
     @Test

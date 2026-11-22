@@ -202,6 +202,12 @@ class CapabilityRegistry(
         isActionable(ID_LIVE_LLM)
 
     companion object {
+        /**
+         * Gate F capability snapshot stamp — bump when [DEFAULT_ENTRIES] semantics change.
+         * Not a live probe fingerprint; offline registry identity for decision trails.
+         */
+        const val SNAPSHOT_VERSION: String = "capability-registry-v1"
+
         const val ID_CONTINUE_EXPLORING = "continue_exploring"
         const val ID_RECORD_FACT = "record_user_fact"
         const val ID_ADD_HYPOTHESIS = "add_hypothesis"
