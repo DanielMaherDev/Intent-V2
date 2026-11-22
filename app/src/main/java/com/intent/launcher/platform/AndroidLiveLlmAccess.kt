@@ -10,8 +10,9 @@ import com.intent.launcher.engine.LiveLlmAccess
 /**
  * Live LLM key + opt-in for Discuss.
  *
- * - Build-time key: [BuildConfig.OPENAI_API_KEY] from Cursor/CI secret **OPENAPI_GENERAL**
- *   (env / gitignored `local.properties`) when `-Pintent.embed.openai.key=true` —
+ * - Build-time key: [BuildConfig.OPENAI_API_KEY] from Cursor/CI secret **OPENAI_GENERAL**
+ *   (preferred when both set; legacy alias **OPENAPI_GENERAL**) via env /
+ *   gitignored `local.properties` when `-Pintent.embed.openai.key=true` —
  *   empty string in public builds. Never commit the value.
  * - Runtime key: EncryptedSharedPreferences on device (Settings paste after rotate).
  * - Opt-in: same encrypted prefs; default false — no network until enabled.
