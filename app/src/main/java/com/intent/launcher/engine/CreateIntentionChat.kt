@@ -797,6 +797,17 @@ object CreateIntentionChat {
             )
         }
 
+        // OC3 — dated physical goal: race + log method → first-phase Pause (no 8-month plan).
+        if (shapeTag == "marathon") {
+            return bridgePhysicalTrainingAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+
         val minutes = factAnswers["practice_minutes"]?.trim()?.takeIf { it.isNotEmpty() }
         val method = factAnswers["existing_method"]?.trim()?.takeIf { it.isNotEmpty() }
         // Practice-shaped creates (language minutes wheel + method chips). Other
@@ -1123,10 +1134,8 @@ object CreateIntentionChat {
     }
 
     /**
-     * Map create eligibility answers onto AdaptiveBuilder keys, then advance to
-     * research Pause — never invents a legal checklist or Propose.
-     *
-     * @return always null (no pending proposal; Pause leaves discovery resumable)
+     * Time-limited decision create: seed decide-by / criteria facts, then Ask or Pause.
+     * Never Propose accept/decline.
      */
     private fun bridgeDecisionAfterCommit(
         store: IntentionFlowStore,
@@ -1220,6 +1229,106 @@ object CreateIntentionChat {
         return null
     }
 
+    /**
+     * OC3 — marathon / dated physical create: race status + activity log method
+     * → AdaptiveBuilder first-phase Pause. Never invents an 8-month workout plan.
+     */
+    private fun bridgePhysicalTrainingAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "marathon", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveKeyed(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        saveKeyed(
+            AdaptiveBuilderEngine.KEY_RACE_STATUS,
+            factAnswers[AdaptiveBuilderEngine.KEY_RACE_STATUS]?.trim().orEmpty(),
+            "race"
+        )
+        saveKeyed(
+            AdaptiveBuilderEngine.KEY_ACTIVITY_LOG_METHOD,
+            factAnswers[AdaptiveBuilderEngine.KEY_ACTIVITY_LOG_METHOD]?.trim().orEmpty(),
+            "activity-log"
+        )
+
+        repeat(8) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> {
+                    // Surface first-phase guidance without fabricating workouts.
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-first-phase-$intentionId-$t",
+                            intentionId = intentionId,
+                            role = "agent",
+                            text =
+                                "I suggest a short first phase: choose a suitable race, " +
+                                    "establish your current running baseline, and build " +
+                                    "consistency on your available days. We can review it " +
+                                    "before prescribing later phases. No eight-month plan " +
+                                    "invented — log runs with the method you chose.",
+                            nowEpochMs = t
+                        )
+                    )
+                    return null
+                }
+                is BuilderDecision.Propose -> return null
+                is BuilderDecision.Ask -> return null
+                else -> Unit
+            }
+        }
+        return null
+    }
+
+    /**
+     * Map create eligibility answers onto AdaptiveBuilder keys, then advance to
+     * research Pause — never invents a legal checklist or Propose.
+     *
+     * @return always null (no pending proposal; Pause leaves discovery resumable)
+     */
     private fun bridgeResearchAfterCommit(
         store: IntentionFlowStore,
         intentionId: String,

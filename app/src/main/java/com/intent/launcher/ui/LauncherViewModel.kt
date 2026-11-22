@@ -1367,6 +1367,35 @@ class LauncherViewModel(
                                 result.reason
                             }
                         }
+                        // Dated physical / practice — record timed activity or CorrectFact
+                        // (e.g. “I ran 20 minutes” → “Actually, 25 minutes”), not live prose.
+                        intention != null &&
+                            AdaptiveBuilderEngine.shouldHandleActivityReport(
+                                store = store,
+                                intentionId = intention.id,
+                                utterance = text
+                            ) -> {
+                            val hadActive = store.snapshot().facts.any {
+                                it.intentionId == intention.id &&
+                                    it.key == AdaptiveBuilderEngine.KEY_ACTIVITY_REPORT &&
+                                    it.status == com.intent.launcher.domain.FactStatus.ACTIVE
+                            }
+                            val result = AdaptiveBuilderEngine.recordOrCorrectActivityReport(
+                                store = store,
+                                intentionId = intention.id,
+                                utterance = text,
+                                nowEpochMs = now
+                            )
+                            if (result.accepted) {
+                                if (hadActive) {
+                                    "Updated the run you reported — prior duration stays on record as corrected."
+                                } else {
+                                    "Recorded as a run you reported. Was this one of your planned sessions, or a separate run?"
+                                }
+                            } else {
+                                result.reason
+                            }
+                        }
                         else -> ConversationCoordinator.submitFreeText(
                             store = store,
                             intention = intention,
