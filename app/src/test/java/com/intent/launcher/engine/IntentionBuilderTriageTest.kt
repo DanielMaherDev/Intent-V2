@@ -172,6 +172,12 @@ class IntentionBuilderTriageTest {
                 "I want to raise my Chess.com rapid rating from 900 to 1200"
             )
         )
+        assertEquals(
+            "cessation",
+            IntentionBuilder.suggestShape(
+                "I smoke about eight cigarettes a day and want to quit"
+            )
+        )
         assertEquals("other", IntentionBuilder.suggestShape("get better sleep"))
         assertEquals(
             "decision",

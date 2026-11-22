@@ -46,6 +46,8 @@ object IntentionBuilder {
             looksLikeLegalResearch(t) -> "research"
             // Usage / Shorts caps — before language so “Instagram” ≠ Learn Spanish.
             CreatePathSeedHonesty.looksLikeUsageAppTimeSeed(t) -> "app_use"
+            // OC4 habit / check-in measurement — before generic “other”.
+            CreatePathSeedHonesty.looksLikeHabitCheckInSeed(t) -> "cessation"
             // OC6 — connected partner metric before language (chess ≠ “tutor” language).
             CreatePathSeedHonesty.looksLikeConnectedMetricSeed(t) -> "chess"
             // Time-limited decision (decide-by date) — before business so “offer”
@@ -143,6 +145,7 @@ object IntentionBuilder {
             "decision" -> "Make a decision by a date"
             "move" -> "Plan a move"
             "chess" -> "Raise a connected rating"
+            "cessation" -> "Reduce a habit"
             else -> "New intention"
         }
 
@@ -353,6 +356,40 @@ object IntentionBuilder {
                     choiceOptions = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS
                 )
             )
+            "cessation" -> listOf(
+                Prompt(
+                    id = CreatePathSeedHonesty.PROMPT_HABIT_START,
+                    question =
+                        "Would you rather track a baseline, discuss approaches, or do both?",
+                    choiceOptions = CreatePathSeedHonesty.HABIT_START_OPTIONS
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_HABIT_BASELINE,
+                    question = "About how many per day is your current baseline count?",
+                    quantityChoices = (0..40).toList(),
+                    quantityUnitLabel = "per day",
+                    quantitySummaryTemplate = "{value} {unit}"
+                ),
+                Prompt(
+                    id = "craving_with_checkin",
+                    question =
+                        "Include an optional craving intensity rating (0–10) with each check-in?",
+                    choiceOptions = listOf(
+                        "Yes — count and craving",
+                        "Count only"
+                    )
+                ),
+                Prompt(
+                    id = "check_in_cadence",
+                    question =
+                        "For the first week, when should a short daily check-in happen?",
+                    choiceOptions = listOf(
+                        "Evening",
+                        "Morning",
+                        "Skip for now"
+                    )
+                )
+            )
             else -> listOf(
                 Prompt(
                     id = "current_state",
@@ -512,6 +549,7 @@ object IntentionBuilder {
         "decision" to "Time-limited decision",
         "move" to "Move / relocation",
         "chess" to "Connected rating",
+        "cessation" to "Habit change",
         "other" to "Something else"
     )
 }
