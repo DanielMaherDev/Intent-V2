@@ -263,7 +263,7 @@ class IntentionFlowStore(
                     minute = proposal.proposedMinute
                 )
                 // §8.10 — proposal / builder cards stop being interactive truth after Approve.
-                val turnsAfter = migrated.turns.map { turn ->
+                val turnsDeactivated = migrated.turns.map { turn ->
                     if (turn.intentionId != proposal.intentionId) return@map turn
                     turn.copy(
                         blocks = turn.blocks.map { block ->
@@ -279,6 +279,14 @@ class IntentionFlowStore(
                         }
                     )
                 }
+                // Gate E3 — receipt turn is part of the same reversible Apply so Undo
+                // restores activation + receipt together (does not steal last-undoable).
+                val receipt = com.intent.launcher.engine.ApproveReceipt.buildTurn(
+                    proposal = approved,
+                    sessionId = session.id,
+                    nowEpochMs = command.nowEpochMs
+                )
+                val turnsAfter = turnsDeactivated.filterNot { it.id == receipt.id } + receipt
                 migrated.copy(
                     proposals = migrated.proposals.map { if (it.id == proposal.id) approved else it },
                     sessions = migrated.sessions.filterNot { it.id == session.id } + session,
