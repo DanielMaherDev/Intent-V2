@@ -671,4 +671,98 @@ class CreateIntentionChatTest {
             }
         )
     }
+
+    // —— OC2 / §8.8 create routing: Spain legal → research eligibility → Pause ——
+    @Test
+    fun spainLegalWork_classifiesResearch_notOtherOrLanguage() {
+        assertEquals(
+            "research",
+            IntentionBuilder.suggestShape("Work legally in Spain")
+        )
+        assertEquals(
+            "research",
+            IntentionBuilder.suggestShape(
+                "I'm an EU citizen living in Spain. Help me complete what I need to work legally here."
+            )
+        )
+        assertEquals(
+            "language",
+            IntentionBuilder.suggestShape("I want to learn Spanish")
+        )
+        val first = IntentionBuilder.missingFactPrompts("research").first()
+        assertEquals(AdaptiveBuilderEngine.KEY_CITIZENSHIP, first.id)
+        assertFalse(first.question.contains("Where are you starting from", ignoreCase = true))
+        assertFalse(first.question.contains("practise", ignoreCase = true))
+    }
+
+    @Test
+    fun spainLegalWork_createPath_eligibilityThenResearchPause_noInventedPlan() {
+        CreateIntentionChat.begin(store, now, registry)
+        val start = CreateIntentionChat.submitUtterance(
+            store = store,
+            text = "Work legally in Spain",
+            nowEpochMs = now + 10,
+            registry = registry
+        )
+        assertTrue(start.ok)
+        assertEquals("research", store.snapshot().builderDraft.suggestedShapeTag)
+        assertEquals(BuilderPhase.MISSING_FACTS, store.snapshot().builderDraft.phase)
+
+        val citizenshipPrompt = IntentionBuilder.nextPrompt(store.snapshot().builderDraft)
+        assertNotNull(citizenshipPrompt)
+        assertEquals(AdaptiveBuilderEngine.KEY_CITIZENSHIP, citizenshipPrompt!!.id)
+        CreateIntentionChat.submitChoice(
+            store, "Irish / EU citizen", now + 20, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, "Employed", now + 30, registry
+        )
+        CreateIntentionChat.submitChoice(
+            store, "About a month — rental only", now + 40, registry
+        )
+        val commit = CreateIntentionChat.submitChoice(
+            store, "Confirm intention", now + 50, registry
+        )
+        assertTrue(commit.ok)
+        assertNull(commit.pendingProposalId)
+
+        val snap = store.snapshot()
+        val intention = snap.intentions.first { it.id == CreateIntentionChat.SESSION_INTENTION_ID }
+        assertEquals("research", intention.shapeTag)
+        assertEquals(IntentionPhase.EXPLORING, intention.phase)
+        assertTrue(
+            AdaptiveBuilderEngine.activeFacts(snap, CreateIntentionChat.SESSION_INTENTION_ID)
+                .any { it.key == AdaptiveBuilderEngine.KEY_CITIZENSHIP }
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.activeFacts(snap, CreateIntentionChat.SESSION_INTENTION_ID)
+                .any { it.key == AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT }
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.activeFacts(snap, CreateIntentionChat.SESSION_INTENTION_ID)
+                .any { it.key == AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION }
+        )
+        assertEquals(
+            "paused",
+            snap.adaptiveBuilderStates
+                .first { it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID }
+                .lifecycleHint
+        )
+        assertTrue(snap.proposals.none { it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID })
+        assertTrue(snap.sessions.none { it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID })
+        assertTrue(
+            snap.turns.any {
+                it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID &&
+                    it.role == "agent" &&
+                    (it.text.contains("unverified", ignoreCase = true) ||
+                        it.text.contains("research", ignoreCase = true))
+            }
+        )
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("NIE required", ignoreCase = true) ||
+                    it.text.contains("you must register", ignoreCase = true)
+            }
+        )
+    }
 }

@@ -42,6 +42,8 @@ object IntentionBuilder {
     fun suggestShape(text: String): String {
         val t = text.lowercase()
         return when {
+            // OC2 / §8.8 — before language so “Spain” legal work ≠ Learn Spanish.
+            looksLikeLegalResearch(t) -> "research"
             listOf("spanish", "language", "duolingo", "tutor", "french", "german")
                 .any { t.contains(it) } -> "language"
             listOf("marathon", "5k", "10k", "running", "long run", "race")
@@ -50,6 +52,25 @@ object IntentionBuilder {
                 .any { t.contains(it) } -> "business"
             else -> "other"
         }
+    }
+
+    /**
+     * Conditional legal/research process (e.g. work legally in Spain).
+     * Prefer this over language when legal/work-eligibility wording is present.
+     */
+    internal fun looksLikeLegalResearch(textLower: String): Boolean {
+        val t = textLower.lowercase()
+        if (t.contains("work legally") || t.contains("working legally")) return true
+        if (t.contains("work permit") || t.contains("residence permit")) return true
+        val spainOrEu = t.contains("spain") || t.contains("spanish") || t.contains("eu citizen")
+        val legalCue = listOf(
+            "legally", "legal", "visa", "nie", "nif", "paperwork", "registration",
+            "social security", "employment registration", "work here"
+        ).any { t.contains(it) }
+        return spainOrEu && legalCue &&
+            !t.contains("learn spanish") &&
+            !t.contains("practise spanish") &&
+            !t.contains("practice spanish")
     }
 
     fun shapeDisplayLabel(shapeTag: String): String =
@@ -66,11 +87,47 @@ object IntentionBuilder {
             "language" -> "Learn a language"
             "marathon" -> "Train for a race"
             "business" -> "Explore a business idea"
+            "research" -> "Work legally in Spain"
             else -> "New intention"
         }
 
     fun missingFactPrompts(shapeTag: String): List<Prompt> =
         when (shapeTag) {
+            "research" -> listOf(
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_CITIZENSHIP,
+                    question =
+                        "Which country are you a citizen of? Requirements depend on jurisdiction.",
+                    choiceOptions = listOf(
+                        "Irish / EU citizen",
+                        "Non-EU citizen",
+                        "Not sure"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT,
+                    question =
+                        "Are you employed, self-employed, or still looking?",
+                    choiceOptions = listOf(
+                        "Employed",
+                        "Self-employed",
+                        "Still looking",
+                        "Not sure"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION,
+                    question =
+                        "How long have you lived here, and which documents do you already have? " +
+                            "You can say not sure.",
+                    choiceOptions = listOf(
+                        "About a month — rental only",
+                        "Less than three months",
+                        "Longer — some paperwork done",
+                        "Not sure"
+                    )
+                )
+            )
             "language" -> listOf(
                 Prompt(
                     id = "practice_minutes",
@@ -284,6 +341,7 @@ object IntentionBuilder {
         "language" to "Language",
         "marathon" to "Marathon / race",
         "business" to "Business",
+        "research" to "Legal research",
         "other" to "Something else"
     )
 }
