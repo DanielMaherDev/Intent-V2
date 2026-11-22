@@ -2,6 +2,7 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.domain.AdaptiveBuilderState
 import com.intent.launcher.domain.AnswerQuestion
+import com.intent.launcher.domain.AnswerSchema
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.OpenQuestionState
 import com.intent.launcher.domain.RelativeDateAnchoring
@@ -260,13 +261,30 @@ object AdaptiveAnswerPath {
                 expectedQuestionId = activeId
             )
             is ConversationCoordinator.ChipMatch.Ambiguous -> {
-                projectVoiceConfirm(store, intentionId, activeId, match.candidates, nowEpochMs)
-                Result(
-                    ok = true,
-                    honestyNote = "Voice was uncertain — confirm before saving.",
-                    needsVoiceConfirm = true,
-                    accepted = false
-                )
+                // MULTI_CHOICE: several chip titles in one transcript is a selection,
+                // not Gate D2 single-choice uncertainty (e.g. "AI … and Learning app").
+                if (question.answerSchema == AnswerSchema.MULTI_CHOICE &&
+                    match.candidates.size >= 2
+                ) {
+                    submit(
+                        store = store,
+                        intentionId = intentionId,
+                        rawValue = match.candidates.joinToString(" and "),
+                        modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
+                        nowEpochMs = nowEpochMs,
+                        timeZone = timeZone,
+                        voiceUncertain = false,
+                        expectedQuestionId = activeId
+                    )
+                } else {
+                    projectVoiceConfirm(store, intentionId, activeId, match.candidates, nowEpochMs)
+                    Result(
+                        ok = true,
+                        honestyNote = "Voice was uncertain — confirm before saving.",
+                        needsVoiceConfirm = true,
+                        accepted = false
+                    )
+                }
             }
             ConversationCoordinator.ChipMatch.None -> submit(
                 store = store,
@@ -449,8 +467,9 @@ object AdaptiveAnswerPath {
                 nowEpochMs = nowEpochMs + 1
             )
         )
-        // §8.2 / Gate D2: approach Ask answers also SelectApproaches so chip/tap
-        // and typed free text write the same SELECTED approach records.
+        // §8.2 / Gate D2: approach Ask answers also SelectApproaches so chip/tap,
+        // typed free text, and speech-injected transcripts write the same SELECTED
+        // approach records through one AnswerQuestion path.
         if (factKey == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES) {
             val approachIds = AdaptiveBuilderEngine.matchApproachIds(
                 store.snapshot(), intentionId, normalizedValue

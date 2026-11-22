@@ -3,6 +3,7 @@ package com.intent.launcher.engine
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AdaptiveBuilderState
 import com.intent.launcher.domain.AnswerQuestion
+import com.intent.launcher.domain.AnswerSchema
 import com.intent.launcher.domain.ApproachActor
 import com.intent.launcher.domain.ApproachDraft
 import com.intent.launcher.domain.BuilderDecision
@@ -880,17 +881,41 @@ object CreateIntentionChat {
                 it.status == com.intent.launcher.domain.ApproachStatus.SELECTED
         }
         if (!hasSelected) {
+            val drafts = createApproachDrafts()
             AdaptiveBuilderEngine.applyDecision(
                 store,
                 BuilderDecision.OfferApproaches(
                     intentionId = intentionId,
                     expectedRevision = rev(),
-                    approachDrafts = createApproachDrafts()
+                    approachDrafts = drafts
                 ),
                 t,
                 timeZone = timeZone
             )
             t += 1
+            // Learning app / Tutor / Self / Other free-text still auto-select → Propose.
+            // "Not yet" leaves a durable MULTI_CHOICE Ask so chip/typed/speech share
+            // AdaptiveAnswerPath (§8.2 / Gate D2 inject) after Confirm — not create Discuss.
+            val m = method?.lowercase().orEmpty()
+            if (m.contains("not yet") || m.isBlank()) {
+                AdaptiveBuilderEngine.applyDecision(
+                    store,
+                    BuilderDecision.Ask(
+                        intentionId = intentionId,
+                        expectedRevision = rev(),
+                        questionId = "q-approaches-$intentionId",
+                        whyItMatters = "Which ways of learning appeal to you?",
+                        answerSchema = AnswerSchema.MULTI_CHOICE,
+                        purpose = AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES,
+                        blocksWhat = "routine_proposal",
+                        options = drafts.map { it.title },
+                        priority = 60
+                    ),
+                    t,
+                    timeZone = timeZone
+                )
+                return null
+            }
             val selectedIds = approachIdsForMethod(method)
             AdaptiveBuilderEngine.selectApproaches(
                 store = store,

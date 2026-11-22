@@ -40,7 +40,7 @@ object AdaptiveBuilderEngine {
     const val KEY_PRACTICE_DURATION = "practice_duration"
     const val KEY_PRACTICE_TIME = "practice_time"
     const val KEY_PRACTICE_DAYS = "practice_days"
-    /** Approach multiselect Ask — chip/tap and typed free text share this purpose. */
+    /** Approach multiselect Ask — chip/tap, typed, and speech share this purpose. */
     const val KEY_SELECTED_APPROACHES = "selected_approaches"
 
     /** OC2 / §8.8 conditional process eligibility. */
@@ -327,8 +327,8 @@ object AdaptiveBuilderEngine {
             context.confirmedFacts.any { it.key == KEY_MOVE_ESTIMATE }
         ) {
             val drafts = defaultApproachDrafts()
-            // Seed candidates once; then Ask MULTI_CHOICE so chip/tap and typed
-            // free text both resolve through AdaptiveAnswerPath → AnswerQuestion.
+            // Seed candidates once; then Ask MULTI_CHOICE so chip/tap, typed, and
+            // speech-injected transcripts resolve through AdaptiveAnswerPath.
             if (context.approaches.isEmpty()) {
                 return BuilderDecision.OfferApproaches(
                     intentionId = context.intentionId,
@@ -1167,7 +1167,7 @@ object AdaptiveBuilderEngine {
     )
 
     /**
-     * Map a chip / typed answer onto approach ids by title (or id) containment.
+     * Map a chip / typed / spoken answer onto approach ids by title (or id) containment.
      * Multi-select answers may join titles with commas / "and" / "+".
      */
     fun matchApproachIds(
