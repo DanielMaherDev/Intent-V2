@@ -122,6 +122,11 @@ object AdaptiveBuilderEngine {
     const val KEY_SELECTED_IDEA = "selected_idea"
     const val KEY_VALIDATION_APPROACH = "validation_approach"
 
+    /** Discuss resume chip after Explore ideas — same AdaptiveAnswerPath as validate-fast. */
+    const val CHIP_CHOOSE_IDEA_TO_VALIDATE = "Choose an idea to validate"
+    const val CHIP_START_EXPLORE_IDEAS = "Start Explore ideas"
+    const val CHIP_KEEP_EXPLORING = "Keep exploring"
+
     val EXPLORATION_MODE_OPTIONS: List<String> = listOf(
         "Brainstorm first",
         "Examine problems people pay to solve",
@@ -463,6 +468,11 @@ object AdaptiveBuilderEngine {
      * OTHER §8 — unformed ambition: skills → time budget → exploration mode →
      * Explore ideas / Choose an idea to validate / small experiment.
      * Never invents launch checklists, sales forecasts, or business ops.
+     *
+     * After Explore ideas is offered, the next policy step is Ask for a selected
+     * idea (not a forever-Pause). That Ask is what Discuss / AdaptiveAnswerPath
+     * need so the Small validation experiment OfferAction lands on the active
+     * path — same honesty as the create/JVM validate-fast path.
      */
     private fun ambitionExplorationDecision(context: BuilderContext): BuilderDecision? {
         if (context.confirmedFacts.none { it.key == KEY_SKILLS_OR_INTERESTS } &&
@@ -520,88 +530,17 @@ object AdaptiveBuilderEngine {
             .firstOrNull { it.key == KEY_EXPLORATION_MODE }
             ?.let { it.normalizedValue ?: it.text }
             .orEmpty()
-        val wantsValidate = looksLikeValidateMode(modeText) ||
-            context.confirmedFacts.any { it.key == KEY_SELECTED_IDEA }
+        val exploreOffered =
+            hasOfferedAction(context, "explore_ideas") ||
+                hasOfferedAction(context, "Explore ideas")
+        // Validate-fast mode, an already-chosen idea, or Explore ideas already
+        // offered → Ask / OfferAction for validation (Discuss AdaptiveAnswerPath).
+        val onValidateTrack = looksLikeValidateMode(modeText) ||
+            context.confirmedFacts.any { it.key == KEY_SELECTED_IDEA } ||
+            exploreOffered
 
-        if (wantsValidate) {
-            if (context.confirmedFacts.none { it.key == KEY_SELECTED_IDEA } &&
-                !hasUnresolvedPurpose(context, KEY_SELECTED_IDEA)
-            ) {
-                return BuilderDecision.Ask(
-                    intentionId = context.intentionId,
-                    expectedRevision = context.revision,
-                    questionId = "q-selected-idea-${context.intentionId}",
-                    whyItMatters =
-                        "Validation needs one idea chosen — do not assume an idea " +
-                            "was picked during brainstorming.",
-                    answerSchema = AnswerSchema.FREE_TEXT,
-                    purpose = KEY_SELECTED_IDEA,
-                    blocksWhat = "validation_experiment",
-                    priority = 80
-                )
-            }
-            if (context.confirmedFacts.none { it.key == KEY_VALIDATION_APPROACH } &&
-                !hasUnresolvedPurpose(context, KEY_VALIDATION_APPROACH)
-            ) {
-                return BuilderDecision.Ask(
-                    intentionId = context.intentionId,
-                    expectedRevision = context.revision,
-                    questionId = "q-validation-approach-${context.intentionId}",
-                    whyItMatters =
-                        "Choose whether to validate with potential customers, " +
-                            "keep exploring, or drop the idea.",
-                    answerSchema = AnswerSchema.SINGLE_CHOICE,
-                    purpose = KEY_VALIDATION_APPROACH,
-                    blocksWhat = "validation_experiment",
-                    options = VALIDATION_APPROACH_OPTIONS,
-                    priority = 75
-                )
-            }
-            val approachText = context.confirmedFacts
-                .firstOrNull { it.key == KEY_VALIDATION_APPROACH }
-                ?.let { it.normalizedValue ?: it.text }
-                .orEmpty()
-                .lowercase()
-            if (approachText.contains("keep exploring") || approachText.contains("drop")) {
-                return BuilderDecision.Pause(
-                    intentionId = context.intentionId,
-                    expectedRevision = context.revision,
-                    reason =
-                        "Staying in exploration — no business operations, sales forecasts, " +
-                            "or revenue tracker invented.",
-                    resumeCue = "Choose an idea to validate"
-                )
-            }
-            if (!hasOfferedAction(context, "validation_experiment") &&
-                !hasOfferedAction(context, "Small validation experiment")
-            ) {
-                return BuilderDecision.OfferAction(
-                    intentionId = context.intentionId,
-                    expectedRevision = context.revision,
-                    actionDraft = ActionDraft(
-                        actionId = "validation-experiment-${context.intentionId}",
-                        title = "Small validation experiment",
-                        summary =
-                            "A small experiment for this week plus a check-in to review " +
-                                "what you learn — not a launch checklist or revenue forecast.",
-                        kind = "validation_experiment"
-                    )
-                )
-            }
-            return BuilderDecision.Pause(
-                intentionId = context.intentionId,
-                expectedRevision = context.revision,
-                reason =
-                    "Validation experiment is proposed. Nothing is scheduled until you " +
-                        "approve a check-in — no ops plan invented.",
-                resumeCue = "Review experiment"
-            )
-        }
-
-        // Brainstorm / examine problems — Explore ideas session, then pause.
-        if (!hasOfferedAction(context, "explore_ideas") &&
-            !hasOfferedAction(context, "Explore ideas")
-        ) {
+        // Brainstorm / examine — Explore ideas first, then fall into validate Asks.
+        if (!onValidateTrack) {
             return BuilderDecision.OfferAction(
                 intentionId = context.intentionId,
                 expectedRevision = context.revision,
@@ -616,13 +555,78 @@ object AdaptiveBuilderEngine {
                 )
             )
         }
+
+        if (context.confirmedFacts.none { it.key == KEY_SELECTED_IDEA } &&
+            !hasUnresolvedPurpose(context, KEY_SELECTED_IDEA)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-selected-idea-${context.intentionId}",
+                whyItMatters =
+                    "Validation needs one idea chosen — do not assume an idea " +
+                        "was picked during brainstorming.",
+                answerSchema = AnswerSchema.FREE_TEXT,
+                purpose = KEY_SELECTED_IDEA,
+                blocksWhat = "validation_experiment",
+                priority = 80
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_VALIDATION_APPROACH } &&
+            !hasUnresolvedPurpose(context, KEY_VALIDATION_APPROACH)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-validation-approach-${context.intentionId}",
+                whyItMatters =
+                    "Choose whether to validate with potential customers, " +
+                        "keep exploring, or drop the idea.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_VALIDATION_APPROACH,
+                blocksWhat = "validation_experiment",
+                options = VALIDATION_APPROACH_OPTIONS,
+                priority = 75
+            )
+        }
+        val approachText = context.confirmedFacts
+            .firstOrNull { it.key == KEY_VALIDATION_APPROACH }
+            ?.let { it.normalizedValue ?: it.text }
+            .orEmpty()
+            .lowercase()
+        if (approachText.contains("keep exploring") || approachText.contains("drop")) {
+            return BuilderDecision.Pause(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                reason =
+                    "Staying in exploration — no business operations, sales forecasts, " +
+                        "or revenue tracker invented.",
+                resumeCue = CHIP_CHOOSE_IDEA_TO_VALIDATE
+            )
+        }
+        if (!hasOfferedAction(context, "validation_experiment") &&
+            !hasOfferedAction(context, "Small validation experiment")
+        ) {
+            return BuilderDecision.OfferAction(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                actionDraft = ActionDraft(
+                    actionId = "validation-experiment-${context.intentionId}",
+                    title = "Small validation experiment",
+                    summary =
+                        "A small experiment for this week plus a check-in to review " +
+                            "what you learn — not a launch checklist or revenue forecast.",
+                    kind = "validation_experiment"
+                )
+            )
+        }
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason =
-                "Exploration stays open on the ideas board. Choosing one idea to validate " +
-                    "comes next — no business operations or forecasts invented.",
-            resumeCue = "Choose an idea to validate"
+                "Validation experiment is proposed. Nothing is scheduled until you " +
+                    "approve a check-in — no ops plan invented.",
+            resumeCue = "Review experiment"
         )
     }
 
@@ -639,6 +643,90 @@ object AdaptiveBuilderEngine {
                     it.body.lowercase().contains(n)
             } || turn.text.lowercase().contains(n)
         }
+    }
+
+    /**
+     * Discuss chips for unformed ambition / exploration — route through
+     * AdaptiveBuilder Ask / OfferAction (not a parallel fixture ResponseBlock).
+     * @return true when the chip was consumed.
+     */
+    fun handleAmbitionExplorationChip(
+        store: IntentionFlowStore,
+        intentionId: String,
+        chip: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Boolean {
+        val trimmed = chip.trim()
+        val chooseIdea =
+            trimmed.equals(CHIP_CHOOSE_IDEA_TO_VALIDATE, ignoreCase = true) ||
+                trimmed.contains("idea to validate", ignoreCase = true)
+        val startExplore =
+            trimmed.equals(CHIP_START_EXPLORE_IDEAS, ignoreCase = true) ||
+                trimmed.equals("Explore ideas", ignoreCase = true)
+        val keepExploring =
+            trimmed.equals(CHIP_KEEP_EXPLORING, ignoreCase = true) ||
+                trimmed.contains("keep exploring", ignoreCase = true) ||
+                trimmed.contains("discovery for now", ignoreCase = true)
+        if (!chooseIdea && !startExplore && !keepExploring) return false
+
+        val ctx = projectContext(store.snapshot(), intentionId, nowEpochMs, timeZone)
+            ?: return false
+        if (!ctx.typeFacets.any { it == "ambition" || it == "exploration" }) return false
+
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-ambition-user-$nowEpochMs",
+                intentionId = intentionId,
+                role = "user",
+                text = trimmed,
+                nowEpochMs = nowEpochMs,
+                modality = "TEXT_CHIP"
+            )
+        )
+
+        if (keepExploring) {
+            store.apply(
+                FlowCommand.AddConversationTurn(
+                    turnId = "turn-ambition-keep-$nowEpochMs",
+                    intentionId = intentionId,
+                    role = "agent",
+                    text =
+                        "Fine — exploration stays open. No launch checklist or revenue " +
+                            "tracker invented. Resume with Choose an idea to validate when ready.",
+                    nowEpochMs = nowEpochMs + 1
+                )
+            )
+            return true
+        }
+
+        if (startExplore) {
+            val next = suggestNextDecision(ctx, nowEpochMs + 1, timeZone)
+            if (next is BuilderDecision.OfferAction &&
+                next.actionDraft.kind == "explore_ideas"
+            ) {
+                applyDecision(store, next, nowEpochMs + 1, timeZone = timeZone)
+            }
+            // Project follow-up Ask (selected idea) for Discuss AdaptiveAnswerPath.
+            projectPendingAsk(store, intentionId, nowEpochMs + 3, timeZone)
+            return true
+        }
+
+        // Choose an idea to validate — project Ask (or advance if already answered).
+        if (!projectPendingAsk(store, intentionId, nowEpochMs + 1, timeZone)) {
+            // Ask already open or next step is OfferAction — advance one policy step.
+            val nextCtx = projectContext(
+                store.snapshot(), intentionId, nowEpochMs + 2, timeZone
+            ) ?: return true
+            val next = suggestNextDecision(nextCtx, nowEpochMs + 2, timeZone)
+            when (next) {
+                is BuilderDecision.Ask,
+                is BuilderDecision.OfferAction ->
+                    applyDecision(store, next, nowEpochMs + 2, timeZone = timeZone)
+                else -> Unit
+            }
+        }
+        return true
     }
 
     /**
