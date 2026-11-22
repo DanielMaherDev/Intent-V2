@@ -149,27 +149,50 @@ object AgentModuleProjection {
     }
 
     /**
-     * Project Home [NextAction] BEGIN into the Conversation "NEXT FOR YOU" card.
-     * Uses only engine fields — no invented schedule details.
+     * Project Home [NextAction] into the Conversation "NEXT FOR YOU" card.
+     * Covers approved-schedule kinds (Begin / Discuss / Active session / check-ins)
+     * so Agent tab matches Home — never invents schedule details.
      */
     fun nextForYouFromNextAction(
         next: NextAction,
         intentionTitle: String
     ): NextForYouCard? {
-        if (next.kind != NextActionKind.BEGIN) return null
+        if (!isScheduleNextAction(next.kind)) return null
+        val primary = when (next.kind) {
+            NextActionKind.BEGIN ->
+                next.beginLabel?.takeIf { it.isNotBlank() } ?: "Ready when you are"
+            NextActionKind.ACTIVE_SESSION ->
+                next.completeLabel?.takeIf { it.isNotBlank() } ?: "In session"
+            NextActionKind.DISCUSS ->
+                next.discussLabel?.takeIf { it.isNotBlank() } ?: "Discuss"
+            else -> next.label.ifBlank { "Ready when you are" }
+        }
         return NextForYouCard(
             title = next.label.ifBlank { "Next useful step" },
             body = next.detail,
             provenanceChip = next.reason.ifBlank { "From your approved schedule" },
-            metaPrimary = next.beginLabel?.takeIf { it.isNotBlank() } ?: "Ready when you are",
+            metaPrimary = primary,
             metaSecondary = intentionTitle,
-            beginLabel = next.beginLabel?.takeIf { it.isNotBlank() } ?: "Begin now",
+            beginLabel = next.beginLabel?.takeIf { it.isNotBlank() }
+                ?: if (next.kind == NextActionKind.BEGIN) "Begin now" else next.label,
             laterLabel = next.deferLabel?.takeIf { it.isNotBlank() } ?: "Later",
             discussLabel = next.discussLabel?.takeIf { it.isNotBlank() } ?: "Discuss",
             blockId = null,
             fromBlock = false
         )
     }
+
+    /** §8.10 — kinds Home and Agent tab share after Approve. */
+    fun isScheduleNextAction(kind: NextActionKind): Boolean =
+        when (kind) {
+            NextActionKind.BEGIN,
+            NextActionKind.DISCUSS,
+            NextActionKind.ACTIVE_SESSION,
+            NextActionKind.CHECK_IN,
+            NextActionKind.MIDDAY,
+            NextActionKind.CHECK_OUT -> true
+            else -> false
+        }
 
     fun oneQuestionFromBlock(block: ResponseBlock): OneQuestionCard? {
         when (block.type) {
@@ -265,32 +288,16 @@ object AgentModuleProjection {
         // Cross-intention relation proposals render via CrossIntentionRelationCard —
         // never as a schedule proposal with invented duration lines.
         if (block.sourceLabel.startsWith(CrossIntentionLink.SOURCE_LABEL)) return null
-        val linked = proposal?.takeIf { it.status == ProposalStatus.PENDING }
-        return if (linked != null) {
-            proposalFromPending(linked, intentionTitle)?.copy(
-                blockId = block.blockId,
-                sourceLabel = block.sourceLabel,
-                reviewLabel = block.actions.getOrNull(0) ?: "Start this routine",
-                editLabel = block.actions.getOrNull(1) ?: "Edit plan",
-                keepDiscussingLabel = block.actions.getOrNull(2) ?: "Keep discussing",
-                dismissLabel = block.actions.getOrNull(2) ?: "Keep discussing"
-            )
-        } else {
-            ProposalCard(
-                title = block.title.ifBlank { "Proposed change" },
-                body = block.body,
-                scheduleLine = block.actions.getOrNull(0).orEmpty()
-                    .ifBlank { "Schedule pending your review" },
-                durationLine = "Duration shown after you review details",
-                linkedIntentionLine = "Linked to ${intentionTitle.ifBlank { "this intention" }}",
-                honestyNote = "PROPOSED · NOT YET ACTIVE — nothing is scheduled until you approve.",
-                reviewLabel = block.actions.getOrNull(0) ?: "Review & approve",
-                dismissLabel = block.actions.getOrNull(1) ?: "Not now",
-                proposalId = block.linkedObjectIds.firstOrNull(),
-                blockId = block.blockId,
-                sourceLabel = block.sourceLabel
-            )
-        }
+        // §8.10 — never re-surface create/proposal truth after Approve/Decline.
+        val linked = proposal?.takeIf { it.status == ProposalStatus.PENDING } ?: return null
+        return proposalFromPending(linked, intentionTitle)?.copy(
+            blockId = block.blockId,
+            sourceLabel = block.sourceLabel,
+            reviewLabel = block.actions.getOrNull(0) ?: "Start this routine",
+            editLabel = block.actions.getOrNull(1) ?: "Edit plan",
+            keepDiscussingLabel = block.actions.getOrNull(2) ?: "Keep discussing",
+            dismissLabel = block.actions.getOrNull(2) ?: "Keep discussing"
+        )
     }
 
     fun proposalFromPending(

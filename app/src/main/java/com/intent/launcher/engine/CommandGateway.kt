@@ -389,6 +389,8 @@ object CommandGateway {
             }
             is ApprovalAmbiguityResolver.Outcome.Single -> {
                 val proposalId = outcome.proposalId
+                val before = store.snapshot()
+                val intentionId = before.proposals.firstOrNull { it.id == proposalId }?.intentionId
                 store.apply(
                     FlowCommand.ApproveProposal(
                         proposalId = proposalId,
@@ -396,6 +398,14 @@ object CommandGateway {
                         nowEpochMs = nowEpochMs
                     )
                 )
+                if (intentionId != null) {
+                    CrossSurfaceContinuity.afterApprove(
+                        store = store,
+                        intentionId = intentionId,
+                        sessionId = sessionId,
+                        nowEpochMs = nowEpochMs + 1
+                    )
+                }
                 val after = store.snapshot()
                 val approved = after.proposals.firstOrNull { it.id == proposalId }
                 return GatewayResult(

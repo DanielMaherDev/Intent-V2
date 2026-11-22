@@ -262,6 +262,23 @@ class IntentionFlowStore(
                     hour = proposal.proposedHour,
                     minute = proposal.proposedMinute
                 )
+                // §8.10 — proposal / builder cards stop being interactive truth after Approve.
+                val turnsAfter = migrated.turns.map { turn ->
+                    if (turn.intentionId != proposal.intentionId) return@map turn
+                    turn.copy(
+                        blocks = turn.blocks.map { block ->
+                            val isStaleProposal =
+                                block.active && block.type == ResponseBlockType.PROPOSAL
+                            val isStaleBuilder =
+                                block.active && BuilderAnswerCard.isBuilderCard(block)
+                            if (isStaleProposal || isStaleBuilder) {
+                                block.copy(active = false)
+                            } else {
+                                block
+                            }
+                        }
+                    )
+                }
                 migrated.copy(
                     proposals = migrated.proposals.map { if (it.id == proposal.id) approved else it },
                     sessions = migrated.sessions.filterNot { it.id == session.id } + session,
@@ -270,7 +287,9 @@ class IntentionFlowStore(
                         proposal.intentionId,
                         IntentionPhase.ACTIVE,
                         command.nowEpochMs
-                    )
+                    ),
+                    activeIntentionId = proposal.intentionId,
+                    turns = turnsAfter
                 )
             }
 
