@@ -1,5 +1,6 @@
 package com.intent.launcher.engine
 
+import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.ActionDraft
 import com.intent.launcher.domain.AdaptiveBuilderState
 import com.intent.launcher.domain.AnswerQuestion
@@ -10,6 +11,7 @@ import com.intent.launcher.domain.ApproachDraft
 import com.intent.launcher.domain.ApproachStatus
 import com.intent.launcher.domain.BuilderContext
 import com.intent.launcher.domain.BuilderDecision
+import com.intent.launcher.domain.BuilderDecisionEvent
 import com.intent.launcher.domain.Fact
 import com.intent.launcher.domain.FactConfirmation
 import com.intent.launcher.domain.FactDraft
@@ -622,10 +624,39 @@ object AdaptiveBuilderEngine {
         cancelledTurnId: String? = null,
         timeZone: TimeZone = TimeZone.getDefault()
     ): ApplyResult {
+        val startedNs = System.nanoTime()
         val snap = store.snapshot()
         val validation = BuilderDecisionValidator.validate(snap, decision, cancelledTurnId)
         if (!validation.accepted) {
-            return ApplyResult(false, validation.reason, validation.decisionKind, snap)
+            appendDecisionEvent(
+                store = store,
+                preSnap = snap,
+                nowEpochMs = nowEpochMs,
+                startedNs = startedNs,
+                decisionType = validation.decisionKind,
+                intentionId = decision.intentionId,
+                accepted = false,
+                reason = validation.reason,
+                expectedRevision = decision.expectedRevision,
+                activeQuestionId = when (decision) {
+                    is BuilderDecision.Ask -> decision.questionId
+                    else -> snap.adaptiveBuilderStates
+                        .firstOrNull { it.intentionId == decision.intentionId }
+                        ?.currentQuestionId
+                },
+                factSourceIds = factSourceIdsFor(snap, decision),
+                selectedApproachIds = emptyList(),
+                rejectedApproachIds = emptyList(),
+                proposalId = (decision as? BuilderDecision.Propose)?.proposalId,
+                toolResults = emptyList(),
+                sourceTurnId = decision.sourceTurnId
+            )
+            return ApplyResult(
+                false,
+                validation.reason,
+                validation.decisionKind,
+                store.snapshot()
+            )
         }
         when (decision) {
             is BuilderDecision.SaveFact -> {
@@ -870,6 +901,44 @@ object AdaptiveBuilderEngine {
                 }
             }
         }
+        val selectedIds = when (decision) {
+            is BuilderDecision.OfferApproaches ->
+                decision.approachDrafts.filter { it.selected }.map { it.approachId }
+            else -> emptyList()
+        }
+        val rejectedIds = when (decision) {
+            is BuilderDecision.OfferApproaches ->
+                decision.approachDrafts.filterNot { it.selected }.map { it.approachId }
+            else -> emptyList()
+        }
+        val toolResults = when (decision) {
+            is BuilderDecision.Pause -> listOf("pause_recorded")
+            is BuilderDecision.Propose -> listOf("proposal_drafted")
+            else -> emptyList()
+        }
+        appendDecisionEvent(
+            store = store,
+            preSnap = snap,
+            nowEpochMs = nowEpochMs,
+            startedNs = startedNs,
+            decisionType = validation.decisionKind,
+            intentionId = decision.intentionId,
+            accepted = true,
+            reason = "ok",
+            expectedRevision = decision.expectedRevision,
+            activeQuestionId = when (decision) {
+                is BuilderDecision.Ask -> decision.questionId
+                else -> store.snapshot().adaptiveBuilderStates
+                    .firstOrNull { it.intentionId == decision.intentionId }
+                    ?.currentQuestionId
+            },
+            factSourceIds = factSourceIdsFor(snap, decision),
+            selectedApproachIds = selectedIds,
+            rejectedApproachIds = rejectedIds,
+            proposalId = (decision as? BuilderDecision.Propose)?.proposalId,
+            toolResults = toolResults,
+            sourceTurnId = decision.sourceTurnId
+        )
         return ApplyResult(true, "ok", validation.decisionKind, store.snapshot())
     }
 
@@ -925,10 +994,34 @@ object AdaptiveBuilderEngine {
         factKey: String? = null,
         timeZone: TimeZone = TimeZone.getDefault()
     ): ApplyResult {
+        val startedNs = System.nanoTime()
         val snap = store.snapshot()
         val validation = BuilderDecisionValidator.validateAnswer(snap, answer)
         if (!validation.accepted) {
-            return ApplyResult(false, validation.reason, validation.decisionKind, snap)
+            appendDecisionEvent(
+                store = store,
+                preSnap = snap,
+                nowEpochMs = answer.answeredAtEpochMs,
+                startedNs = startedNs,
+                decisionType = validation.decisionKind,
+                intentionId = answer.intentionId,
+                accepted = false,
+                reason = validation.reason,
+                expectedRevision = answer.expectedRevision,
+                activeQuestionId = answer.questionId,
+                factSourceIds = activeFactIds(snap, answer.intentionId),
+                selectedApproachIds = emptyList(),
+                rejectedApproachIds = emptyList(),
+                proposalId = null,
+                toolResults = emptyList(),
+                sourceTurnId = answer.sourceTurnId
+            )
+            return ApplyResult(
+                false,
+                validation.reason,
+                validation.decisionKind,
+                store.snapshot()
+            )
         }
         val question = snap.openQuestions.first { it.id == answer.questionId }
         val factId = "fact-${answer.questionId}-${answer.idempotencyKey.hashCode()}"
@@ -986,6 +1079,24 @@ object AdaptiveBuilderEngine {
                 conversationCursorTurnId = answer.sourceTurnId
             )
         }
+        appendDecisionEvent(
+            store = store,
+            preSnap = snap,
+            nowEpochMs = answer.answeredAtEpochMs,
+            startedNs = startedNs,
+            decisionType = validation.decisionKind,
+            intentionId = answer.intentionId,
+            accepted = true,
+            reason = "ok",
+            expectedRevision = answer.expectedRevision,
+            activeQuestionId = answer.questionId,
+            factSourceIds = activeFactIds(snap, answer.intentionId),
+            selectedApproachIds = emptyList(),
+            rejectedApproachIds = emptyList(),
+            proposalId = null,
+            toolResults = listOf("answer_recorded"),
+            sourceTurnId = answer.sourceTurnId
+        )
         return ApplyResult(true, "ok", validation.decisionKind, store.snapshot())
     }
 
@@ -998,18 +1109,64 @@ object AdaptiveBuilderEngine {
         expectedRevision: Long,
         modality: String
     ): ApplyResult {
+        val startedNs = System.nanoTime()
         val snap = store.snapshot()
         val state = snap.adaptiveBuilderStates.firstOrNull { it.intentionId == intentionId }
+        val candidateIds = snap.approaches
+            .filter { it.intentionId == intentionId }
+            .map { it.id }
+        val rejectedIds = candidateIds.filterNot { it in approachIds }
         if ((state?.revision ?: 0L) != expectedRevision) {
+            appendDecisionEvent(
+                store = store,
+                preSnap = snap,
+                nowEpochMs = nowEpochMs,
+                startedNs = startedNs,
+                decisionType = "SelectApproaches",
+                intentionId = intentionId,
+                accepted = false,
+                reason = "Stale revision for SelectApproaches.",
+                expectedRevision = expectedRevision,
+                activeQuestionId = state?.currentQuestionId,
+                factSourceIds = activeFactIds(snap, intentionId),
+                selectedApproachIds = approachIds,
+                rejectedApproachIds = rejectedIds,
+                proposalId = null,
+                toolResults = emptyList(),
+                sourceTurnId = sourceTurnId
+            )
             return ApplyResult(
                 false,
                 "Stale revision for SelectApproaches.",
                 "SelectApproaches",
-                snap
+                store.snapshot()
             )
         }
         if (sourceTurnId != null && AgentTurnLifecycle.isCancelled(snap, sourceTurnId)) {
-            return ApplyResult(false, "Cancelled turn — no approach write.", "SelectApproaches", snap)
+            appendDecisionEvent(
+                store = store,
+                preSnap = snap,
+                nowEpochMs = nowEpochMs,
+                startedNs = startedNs,
+                decisionType = "SelectApproaches",
+                intentionId = intentionId,
+                accepted = false,
+                reason = "Cancelled turn — no approach write.",
+                expectedRevision = expectedRevision,
+                activeQuestionId = state?.currentQuestionId,
+                factSourceIds = activeFactIds(snap, intentionId),
+                selectedApproachIds = approachIds,
+                rejectedApproachIds = rejectedIds,
+                proposalId = null,
+                toolResults = emptyList(),
+                sourceTurnId = sourceTurnId
+            )
+            return ApplyResult(
+                false,
+                "Cancelled turn — no approach write.",
+                "SelectApproaches",
+                store.snapshot()
+            )
         }
         // Idempotent: re-selecting the same set is a no-op success.
         val already = snap.approaches
@@ -1017,7 +1174,25 @@ object AdaptiveBuilderEngine {
             .map { it.id }
             .toSet()
         if (already == approachIds.toSet() && already.isNotEmpty()) {
-            return ApplyResult(true, "idempotent", "SelectApproaches", snap)
+            appendDecisionEvent(
+                store = store,
+                preSnap = snap,
+                nowEpochMs = nowEpochMs,
+                startedNs = startedNs,
+                decisionType = "SelectApproaches",
+                intentionId = intentionId,
+                accepted = true,
+                reason = "idempotent",
+                expectedRevision = expectedRevision,
+                activeQuestionId = state?.currentQuestionId,
+                factSourceIds = activeFactIds(snap, intentionId),
+                selectedApproachIds = approachIds,
+                rejectedApproachIds = rejectedIds,
+                proposalId = null,
+                toolResults = listOf("select_idempotent"),
+                sourceTurnId = sourceTurnId
+            )
+            return ApplyResult(true, "idempotent", "SelectApproaches", store.snapshot())
         }
         store.apply(
             FlowCommand.SelectApproaches(
@@ -1053,6 +1228,24 @@ object AdaptiveBuilderEngine {
             )
         }
         bumpState(store, intentionId, nowEpochMs) { it }
+        appendDecisionEvent(
+            store = store,
+            preSnap = snap,
+            nowEpochMs = nowEpochMs,
+            startedNs = startedNs,
+            decisionType = "SelectApproaches",
+            intentionId = intentionId,
+            accepted = true,
+            reason = "ok",
+            expectedRevision = expectedRevision,
+            activeQuestionId = state?.currentQuestionId,
+            factSourceIds = activeFactIds(snap, intentionId),
+            selectedApproachIds = approachIds,
+            rejectedApproachIds = rejectedIds,
+            proposalId = null,
+            toolResults = listOf("approaches_selected"),
+            sourceTurnId = sourceTurnId
+        )
         return ApplyResult(true, "ok", "SelectApproaches", store.snapshot())
     }
 
@@ -1110,6 +1303,84 @@ object AdaptiveBuilderEngine {
             validFromEpochMs = draft.validFromEpochMs ?: nowEpochMs
         )
     }
+
+    private fun activeFactIds(snap: IntentionSnapshot, intentionId: String): List<String> =
+        snap.facts
+            .filter { it.intentionId == intentionId && it.status == FactStatus.ACTIVE }
+            .map { it.id }
+
+    private fun factSourceIdsFor(snap: IntentionSnapshot, decision: BuilderDecision): List<String> =
+        when (decision) {
+            is BuilderDecision.Propose ->
+                decision.basedOnFactIds.ifEmpty { activeFactIds(snap, decision.intentionId) }
+            is BuilderDecision.CorrectFact ->
+                listOf(decision.existingFactId) + activeFactIds(snap, decision.intentionId)
+            else -> activeFactIds(snap, decision.intentionId)
+        }
+
+    /**
+     * Gate F: append a redacted decision event (IDs/versions/duration only).
+     * Strips secret-like substrings from [reason]; never stores chat or audio.
+     */
+    private fun appendDecisionEvent(
+        store: IntentionFlowStore,
+        preSnap: IntentionSnapshot,
+        nowEpochMs: Long,
+        startedNs: Long,
+        decisionType: String,
+        intentionId: String,
+        accepted: Boolean,
+        reason: String,
+        expectedRevision: Long,
+        activeQuestionId: String?,
+        factSourceIds: List<String>,
+        selectedApproachIds: List<String>,
+        rejectedApproachIds: List<String>,
+        proposalId: String?,
+        toolResults: List<String>,
+        sourceTurnId: String?
+    ) {
+        val after = store.snapshot()
+        val resultingRevision = after.adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }
+            ?.revision
+            ?: preSnap.adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }
+                ?.revision
+            ?: expectedRevision
+        val durationMs = ((System.nanoTime() - startedNs) / 1_000_000L).coerceAtLeast(0L)
+        val event = BuilderDecisionEvent(
+            id = "dec-$intentionId-$nowEpochMs-$decisionType-${after.decisionTrail.size}",
+            atEpochMs = nowEpochMs,
+            intentionId = intentionId,
+            decisionType = decisionType,
+            accepted = accepted,
+            reason = redactDecisionReason(reason),
+            activeQuestionId = activeQuestionId,
+            factSourceIds = factSourceIds.distinct(),
+            selectedApproachIds = selectedApproachIds.distinct(),
+            rejectedApproachIds = rejectedApproachIds.distinct(),
+            capabilitySnapshotVersion = CapabilityRegistry.SNAPSHOT_VERSION,
+            policyVersion = AdaptiveBuilderState.POLICY_VERSION,
+            proposalId = proposalId,
+            toolResults = toolResults,
+            expectedRevision = expectedRevision,
+            resultingRevision = resultingRevision,
+            applyDurationMs = durationMs,
+            sourceTurnId = sourceTurnId
+        )
+        store.apply(FlowCommand.AppendDecisionEvent(event, nowEpochMs))
+    }
+
+    /** Drop API-key-like tokens from free-text reason fields. */
+    internal fun redactDecisionReason(reason: String): String {
+        if (reason.isBlank()) return reason
+        return SECRET_LIKE.replace(reason, "[redacted]")
+    }
+
+    private val SECRET_LIKE = Regex(
+        """(?i)\b(sk-[A-Za-z0-9_\-]{8,}|Bearer\s+[A-Za-z0-9\-._~+/]+=*|api[_-]?key\s*[:=]\s*\S+)\b"""
+    )
 
     private fun bumpState(
         store: IntentionFlowStore,

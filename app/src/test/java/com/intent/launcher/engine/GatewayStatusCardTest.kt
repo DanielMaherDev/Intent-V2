@@ -35,7 +35,7 @@ class GatewayStatusCardTest {
 
     @Test
     fun schemaStaysTen() {
-        assertEquals(10, SCHEMA_VERSION)
+        assertEquals(11, SCHEMA_VERSION)
         MarathonScenario.seed(store, now)
         assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
     }

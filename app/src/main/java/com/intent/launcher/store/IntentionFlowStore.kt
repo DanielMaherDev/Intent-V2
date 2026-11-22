@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.intent.launcher.domain.AdaptiveBuilderState
 import com.intent.launcher.domain.Approach
 import com.intent.launcher.domain.ApproachStatus
+import com.intent.launcher.domain.BuilderDecisionEvent
 import com.intent.launcher.domain.BuilderDraft
 import com.intent.launcher.domain.BuilderPhase
 import com.intent.launcher.domain.ConversationTurn
@@ -1570,6 +1571,11 @@ class IntentionFlowStore(
                             it.copy(intentionId = command.toIntentionId)
                         } else it
                     },
+                    decisionTrail = migrated.decisionTrail.map { event ->
+                        if (event.intentionId == command.fromIntentionId) {
+                            event.copy(intentionId = command.toIntentionId)
+                        } else event
+                    },
                     activeIntentionId = if (migrated.activeIntentionId == command.fromIntentionId) {
                         command.toIntentionId
                     } else {
@@ -1597,6 +1603,12 @@ class IntentionFlowStore(
                         )
                     }
                 )
+            }
+
+            is FlowCommand.AppendDecisionEvent -> {
+                val capped = (migrated.decisionTrail + command.event)
+                    .takeLast(BuilderDecisionEvent.MAX_TRAIL_EVENTS)
+                migrated.copy(decisionTrail = capped)
             }
         }
     }
@@ -1858,6 +1870,7 @@ class IntentionFlowStore(
                     is FlowCommand.SetAdaptiveBuilderState -> command.nowEpochMs
                     is FlowCommand.RemapIntentionId -> command.nowEpochMs
                     is FlowCommand.DeactivateBuilderAnswerCards -> command.nowEpochMs
+                    is FlowCommand.AppendDecisionEvent -> command.nowEpochMs
                 }
         }
         val occurredAt = when (command) {
@@ -1927,6 +1940,7 @@ class IntentionFlowStore(
             is FlowCommand.SetAdaptiveBuilderState -> command.nowEpochMs
             is FlowCommand.RemapIntentionId -> command.nowEpochMs
             is FlowCommand.DeactivateBuilderAnswerCards -> command.nowEpochMs
+            is FlowCommand.AppendDecisionEvent -> command.nowEpochMs
         }
         val txn = FlowTransaction(
             id = txnId,
@@ -3275,6 +3289,71 @@ class IntentionFlowStore(
     }
 
 
+    data class WireDecisionEvent(
+        val id: String = "",
+        val atEpochMs: Long = 0L,
+        val intentionId: String = "",
+        val decisionType: String = "",
+        val accepted: Boolean = false,
+        val reason: String = "",
+        val activeQuestionId: String? = null,
+        val factSourceIds: List<String> = emptyList(),
+        val selectedApproachIds: List<String> = emptyList(),
+        val rejectedApproachIds: List<String> = emptyList(),
+        val capabilitySnapshotVersion: String = "",
+        val policyVersion: String = "",
+        val proposalId: String? = null,
+        val toolResults: List<String> = emptyList(),
+        val expectedRevision: Long = 0L,
+        val resultingRevision: Long = 0L,
+        val applyDurationMs: Long = 0L,
+        val sourceTurnId: String? = null
+    ) {
+        fun toDomain() = BuilderDecisionEvent(
+            id = id,
+            atEpochMs = atEpochMs,
+            intentionId = intentionId,
+            decisionType = decisionType,
+            accepted = accepted,
+            reason = reason,
+            activeQuestionId = activeQuestionId,
+            factSourceIds = factSourceIds,
+            selectedApproachIds = selectedApproachIds,
+            rejectedApproachIds = rejectedApproachIds,
+            capabilitySnapshotVersion = capabilitySnapshotVersion,
+            policyVersion = policyVersion.ifBlank { AdaptiveBuilderState.POLICY_VERSION },
+            proposalId = proposalId,
+            toolResults = toolResults,
+            expectedRevision = expectedRevision,
+            resultingRevision = resultingRevision,
+            applyDurationMs = applyDurationMs,
+            sourceTurnId = sourceTurnId
+        )
+
+        companion object {
+            fun from(e: BuilderDecisionEvent) = WireDecisionEvent(
+                id = e.id,
+                atEpochMs = e.atEpochMs,
+                intentionId = e.intentionId,
+                decisionType = e.decisionType,
+                accepted = e.accepted,
+                reason = e.reason,
+                activeQuestionId = e.activeQuestionId,
+                factSourceIds = e.factSourceIds,
+                selectedApproachIds = e.selectedApproachIds,
+                rejectedApproachIds = e.rejectedApproachIds,
+                capabilitySnapshotVersion = e.capabilitySnapshotVersion,
+                policyVersion = e.policyVersion,
+                proposalId = e.proposalId,
+                toolResults = e.toolResults,
+                expectedRevision = e.expectedRevision,
+                resultingRevision = e.resultingRevision,
+                applyDurationMs = e.applyDurationMs,
+                sourceTurnId = e.sourceTurnId
+            )
+        }
+    }
+
     data class WireSnapshot(
         val schemaVersion: Int = 0,
         val intentions: List<WireIntention> = emptyList(),
@@ -3304,7 +3383,8 @@ class IntentionFlowStore(
         val drawerCardLayouts: List<WireDrawerCardLayout> = emptyList(),
         val proactivityPrefs: WireProactivityPrefs = WireProactivityPrefs(),
         val triggerCooldowns: List<WireTriggerCooldown> = emptyList(),
-        val queuedInterventions: List<WireQueuedIntervention> = emptyList()
+        val queuedInterventions: List<WireQueuedIntervention> = emptyList(),
+        val decisionTrail: List<WireDecisionEvent> = emptyList()
     ) {
         fun toDomain() = IntentionSnapshot(
             schemaVersion = schemaVersion,
@@ -3335,7 +3415,8 @@ class IntentionFlowStore(
             drawerCardLayouts = drawerCardLayouts.map { it.toDomain() },
             proactivityPrefs = proactivityPrefs.toDomain(),
             triggerCooldowns = triggerCooldowns.map { it.toDomain() },
-            queuedInterventions = queuedInterventions.map { it.toDomain() }
+            queuedInterventions = queuedInterventions.map { it.toDomain() },
+            decisionTrail = decisionTrail.map { it.toDomain() }
         )
 
         companion object {
@@ -3368,7 +3449,8 @@ class IntentionFlowStore(
                 drawerCardLayouts = s.drawerCardLayouts.map(WireDrawerCardLayout::from),
                 proactivityPrefs = WireProactivityPrefs.from(s.proactivityPrefs),
                 triggerCooldowns = s.triggerCooldowns.map(WireTriggerCooldown::from),
-                queuedInterventions = s.queuedInterventions.map(WireQueuedIntervention::from)
+                queuedInterventions = s.queuedInterventions.map(WireQueuedIntervention::from),
+                decisionTrail = s.decisionTrail.map(WireDecisionEvent::from)
             )
         }
     }

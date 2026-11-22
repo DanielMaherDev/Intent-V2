@@ -264,3 +264,37 @@ data class AnswerQuestion(
     val idempotencyKey: String,
     val expectedRevision: Long
 )
+
+/**
+ * Gate F redacted builder decision event — why an Ask/Propose/Pause/selection
+ * was applied (or rejected). IDs and version stamps only; never secrets,
+ * private audio, or full chat text.
+ */
+data class BuilderDecisionEvent(
+    val id: String,
+    val atEpochMs: Long,
+    val intentionId: String,
+    /** Ask | Propose | Pause | SelectApproaches | AnswerQuestion | … */
+    val decisionType: String,
+    val accepted: Boolean,
+    val reason: String = "",
+    val activeQuestionId: String? = null,
+    /** Fact IDs considered (source IDs) — not utterance text. */
+    val factSourceIds: List<String> = emptyList(),
+    val selectedApproachIds: List<String> = emptyList(),
+    val rejectedApproachIds: List<String> = emptyList(),
+    val capabilitySnapshotVersion: String = "",
+    val policyVersion: String = AdaptiveBuilderState.POLICY_VERSION,
+    val proposalId: String? = null,
+    /** Short status codes only (e.g. offline_policy) — never tool payloads. */
+    val toolResults: List<String> = emptyList(),
+    val expectedRevision: Long = 0L,
+    val resultingRevision: Long = 0L,
+    val applyDurationMs: Long = 0L,
+    val sourceTurnId: String? = null
+) {
+    companion object {
+        /** Cap durable trail length (oldest dropped). */
+        const val MAX_TRAIL_EVENTS: Int = 200
+    }
+}

@@ -1,7 +1,7 @@
 package com.intent.launcher.domain
 
 /** Schema version for safe migrations. Bump when wire format changes. */
-const val SCHEMA_VERSION: Int = 10
+const val SCHEMA_VERSION: Int = 11
 
 /** Soft-deleted entity kinds held in recoverable trash (tech-arch §9). */
 enum class TrashKind {
@@ -563,7 +563,12 @@ data class IntentionSnapshot(
      * Queued proactive interventions — at most one active (queued/shown) at a time.
      * Floater and Conversation share [QueuedIntervention.turnId] / [QueuedIntervention.jobId].
      */
-    val queuedInterventions: List<QueuedIntervention> = emptyList()
+    val queuedInterventions: List<QueuedIntervention> = emptyList(),
+    /**
+     * Gate F redacted builder decision trail (Ask/Propose/Pause/SelectApproaches/…).
+     * IDs and versions only — no chat dump, secrets, or private audio.
+     */
+    val decisionTrail: List<BuilderDecisionEvent> = emptyList()
 )
 
 sealed class FlowCommand {
@@ -1192,6 +1197,15 @@ sealed class FlowCommand {
         val intentionId: String,
         val nowEpochMs: Long,
         val exceptBlockId: String? = null
+    ) : FlowCommand()
+
+    /**
+     * Append a Gate F [BuilderDecisionEvent] to the durable decision trail.
+     * Not a user Undo target — audit hygiene only.
+     */
+    data class AppendDecisionEvent(
+        val event: BuilderDecisionEvent,
+        val nowEpochMs: Long
     ) : FlowCommand()
 }
 

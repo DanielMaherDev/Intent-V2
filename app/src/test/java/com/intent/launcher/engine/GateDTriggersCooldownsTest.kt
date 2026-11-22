@@ -59,7 +59,7 @@ class GateDTriggersCooldownsTest {
 
     @Test
     fun schemaIsTen_afterGateD1() {
-        assertEquals(10, SCHEMA_VERSION)
+        assertEquals(11, SCHEMA_VERSION)
         assertEquals(SCHEMA_VERSION, store.snapshot().schemaVersion)
     }
 

@@ -357,7 +357,7 @@ class GateEScenarioSuiteTest {
     fun gateway_policyAndContractsVersions_documented() {
         assertEquals("intent.policy.v1", CommandGateway.POLICY_VERSION)
         assertEquals("intent.contracts.v1", CommandGateway.CONTRACTS_VERSION)
-        assertEquals(10, SCHEMA_VERSION)
+        assertEquals(11, SCHEMA_VERSION)
     }
 
     // —— 2 Vague health goal ——
