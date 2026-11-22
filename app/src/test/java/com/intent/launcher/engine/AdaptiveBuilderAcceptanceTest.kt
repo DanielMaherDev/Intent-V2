@@ -1515,38 +1515,93 @@ class AdaptiveBuilderAcceptanceTest {
     @Test
     fun oc9_jobOffer_decideByDate_thenPause_noAutoAccept() {
         val id = AdaptiveBuilderFixtures.seedOtherCase(store, "job_offer", now)
-        val ask = AdaptiveBuilderEngine.suggestNextDecision(
-            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        var t = now
+        fun next(): BuilderDecision =
+            AdaptiveBuilderEngine.suggestNextDecision(
+                AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+            )
+        fun answerAsk(ask: BuilderDecision.Ask, value: String, factKey: String) {
+            AdaptiveBuilderEngine.applyDecision(store, ask, t, timeZone = tz)
+            t += 1
+            val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+            assertTrue(
+                AdaptiveBuilderEngine.answerQuestion(
+                    store,
+                    AnswerQuestion(
+                        questionId = ask.questionId,
+                        intentionId = id,
+                        normalizedValue = value,
+                        rawValue = value,
+                        modality = "FREE_TEXT",
+                        sourceTurnId = "turn-$factKey-$t",
+                        answeredAtEpochMs = t,
+                        idempotencyKey = "idem-$factKey-$t",
+                        expectedRevision = rev
+                    ),
+                    factKey = factKey,
+                    timeZone = tz
+                ).accepted
+            )
+            t += 1
+        }
+
+        val decideAsk = next()
+        assertTrue(decideAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE,
+            (decideAsk as BuilderDecision.Ask).purpose
         )
-        assertTrue(ask is BuilderDecision.Ask)
-        assertEquals(AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE, (ask as BuilderDecision.Ask).purpose)
-        assertTrue(ask.whyItMatters.contains("auto-accept", ignoreCase = true))
-        AdaptiveBuilderEngine.applyDecision(store, ask, now, timeZone = tz)
-        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
-        assertTrue(
-            AdaptiveBuilderEngine.answerQuestion(
-                store,
-                AnswerQuestion(
-                    questionId = ask.questionId,
-                    intentionId = id,
-                    normalizedValue = "In ten days",
-                    rawValue = "In ten days",
-                    modality = "FREE_TEXT",
-                    sourceTurnId = "turn-decide",
-                    answeredAtEpochMs = now + 1,
-                    idempotencyKey = "idem-decide",
-                    expectedRevision = rev
-                ),
-                factKey = AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE,
-                timeZone = tz
-            ).accepted
+        assertTrue(decideAsk.whyItMatters.contains("auto-accept", ignoreCase = true))
+        answerAsk(decideAsk, "In ten days", AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE)
+
+        val criteriaAsk = next()
+        assertTrue(criteriaAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_DECISION_CRITERIA,
+            (criteriaAsk as BuilderDecision.Ask).purpose
         )
-        val pause = AdaptiveBuilderEngine.suggestNextDecision(
-            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        answerAsk(criteriaAsk, "Pay / compensation", AdaptiveBuilderEngine.KEY_DECISION_CRITERIA)
+
+        val altsAsk = next()
+        assertTrue(altsAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_DECISION_ALTERNATIVES,
+            (altsAsk as BuilderDecision.Ask).purpose
         )
+        answerAsk(altsAsk, "Current role / job", AdaptiveBuilderEngine.KEY_DECISION_ALTERNATIVES)
+
+        val unknownsAsk = next()
+        assertTrue(unknownsAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_DECISION_UNKNOWNS,
+            (unknownsAsk as BuilderDecision.Ask).purpose
+        )
+        answerAsk(
+            unknownsAsk,
+            "Remote / hybrid policy",
+            AdaptiveBuilderEngine.KEY_DECISION_UNKNOWNS
+        )
+
+        val askSource = next()
+        assertTrue(askSource is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_COMPARISON_REFRESH,
+            (askSource as BuilderDecision.Ask).purpose
+        )
+        assertTrue(askSource.options.any { it.contains("Ask the source", ignoreCase = true) })
+        answerAsk(
+            askSource,
+            DecisionSupport.CHIP_ASK_SOURCE,
+            AdaptiveBuilderEngine.KEY_COMPARISON_REFRESH
+        )
+
+        val pause = next()
         assertTrue(pause is BuilderDecision.Pause)
-        assertTrue((pause as BuilderDecision.Pause).reason.contains("auto-accept", ignoreCase = true))
-        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        assertTrue(
+            (pause as BuilderDecision.Pause).reason.contains("auto-accept", ignoreCase = true) ||
+                pause.reason.contains("no auto-accept", ignoreCase = true)
+        )
+        AdaptiveBuilderEngine.applyDecision(store, pause, t, timeZone = tz)
         val snap = store.snapshot()
         assertTrue(snap.proposals.none { it.intentionId == id })
         assertTrue(snap.sessions.none { it.intentionId == id })

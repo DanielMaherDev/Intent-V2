@@ -261,6 +261,39 @@ object ConversationCoordinator {
             }
         }
 
+        // Decision shape: source-reported facts → update-comparison Ask (not auto-decide).
+        if (intention?.shapeTag == "decision") {
+            when {
+                DecisionSupport.looksLikeSourceReportedFact(trimmed) -> {
+                    val note = DecisionSupport.ingestSourceFact(
+                        store, intention, trimmed, nowEpochMs, registry
+                    )
+                    return SubmitResult(
+                        channel = Channel.FREE_TEXT,
+                        appliedChip = null,
+                        storedTranscript = trimmed,
+                        honestyNote = note,
+                        sourceLabel = sourceLabel
+                    )
+                }
+                DecisionSupport.looksLikeUpdateComparison(trimmed) ||
+                    DecisionSupport.conversationChips(registry).any {
+                        matchChip(trimmed, listOf(it)) != null
+                    } -> {
+                    val matched = matchChip(trimmed, DecisionSupport.conversationChips(registry))
+                        ?: trimmed
+                    DecisionSupport.onChip(store, intention, matched, nowEpochMs, registry)
+                    return SubmitResult(
+                        channel = Channel.FREE_TEXT,
+                        appliedChip = matched,
+                        storedTranscript = trimmed,
+                        honestyNote = "Decision support chip — comparison only, no auto-accept.",
+                        sourceLabel = sourceLabel
+                    )
+                }
+            }
+        }
+
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-free-user-$nowEpochMs",
@@ -468,7 +501,7 @@ object ConversationCoordinator {
         "marathon" -> MarathonScenario.conversationChips(registry)
         "business" -> BusinessScenario.conversationChips(registry)
         "move" -> MoveScenario.conversationChips(registry)
-        "decision" -> JobOfferScenario.conversationChips(registry)
+        "decision" -> DecisionSupport.conversationChips(registry)
         QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(registry)
         "app_use" -> AppUseReductionScenario.conversationChips(registry)
         "research" -> EuWorkSpainScenario.conversationChips(registry)
@@ -489,7 +522,14 @@ object ConversationCoordinator {
             "marathon" -> MarathonScenario.onChip(store, chip, nowEpochMs, registry)
             "business" -> BusinessScenario.onChip(store, chip, nowEpochMs, registry)
             "move" -> MoveScenario.onChip(store, chip, nowEpochMs, registry)
-            "decision" -> JobOfferScenario.onChip(store, chip, nowEpochMs, registry)
+            "decision" -> {
+                val target = intention ?: store.snapshot().intentions.firstOrNull {
+                    it.id == store.snapshot().activeIntentionId
+                }
+                if (target != null) {
+                    DecisionSupport.onChip(store, target, chip, nowEpochMs, registry)
+                }
+            }
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.onChip(store, chip, nowEpochMs, registry)
             "app_use" -> AppUseReductionScenario.onChip(store, chip, nowEpochMs, registry)
             "research" -> EuWorkSpainScenario.onChip(store, chip, nowEpochMs, registry)

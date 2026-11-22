@@ -46,6 +46,9 @@ object IntentionBuilder {
             looksLikeLegalResearch(t) -> "research"
             // Usage / Shorts caps — before language so “Instagram” ≠ Learn Spanish.
             CreatePathSeedHonesty.looksLikeUsageAppTimeSeed(t) -> "app_use"
+            // Time-limited decision (decide-by date) — before business so “offer”
+            // does not land as a startup exploration.
+            looksLikeTimeLimitedDecision(t) -> "decision"
             listOf("spanish", "language", "duolingo", "tutor", "french", "german")
                 .any { t.contains(it) } -> "language"
             listOf("marathon", "5k", "10k", "running", "long run", "race")
@@ -54,6 +57,24 @@ object IntentionBuilder {
                 .any { t.contains(it) } -> "business"
             else -> "other"
         }
+    }
+
+    /**
+     * Generic decide-by-date support: help decide under a deadline without assuming
+     * a particular outcome (accept/decline/etc.).
+     */
+    internal fun looksLikeTimeLimitedDecision(textLower: String): Boolean {
+        val t = textLower.lowercase()
+        val decide = t.contains("decide") || t.contains("whether to") ||
+            t.contains("should i") || t.contains("help me choose") ||
+            t.contains("make a decision")
+        val deadline = t.contains("deadline") || t.contains("due") ||
+            Regex("""\b\d+\s*days?\b""").containsMatchIn(t) ||
+            t.contains("ten days") || t.contains("two weeks") ||
+            t.contains("by friday") || t.contains("by monday")
+        val offerOrChoice = t.contains("offer") || t.contains("accept") ||
+            t.contains("decline") || t.contains("between") || t.contains("option")
+        return decide && (deadline || offerOrChoice)
     }
 
     /**
@@ -91,6 +112,7 @@ object IntentionBuilder {
             "business" -> "Explore a business idea"
             "research" -> "Work legally in Spain"
             "app_use" -> "Usage target"
+            "decision" -> "Make a decision by a date"
             else -> "New intention"
         }
 
@@ -199,6 +221,54 @@ object IntentionBuilder {
                         "Would you rather brainstorm opportunities, examine problems " +
                             "people already pay to solve, or test one idea quickly?",
                     choiceOptions = AdaptiveBuilderEngine.EXPLORATION_MODE_OPTIONS
+                )
+            )
+            "decision" -> listOf(
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE,
+                    question =
+                        "When exactly is the response due? INTENT helps you decide by " +
+                            "that date — it will not assume the answer is yes.",
+                    choiceOptions = listOf(
+                        "In about ten days",
+                        "This week",
+                        "This month"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_DECISION_CRITERIA,
+                    question =
+                        "What matters most for this decision: pay, work, flexibility, " +
+                            "growth, location, or something else?",
+                    choiceOptions = listOf(
+                        "Pay / compensation",
+                        "Remote flexibility",
+                        "Work / role fit",
+                        "Growth",
+                        "Location"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_DECISION_ALTERNATIVES,
+                    question =
+                        "Do you have another offer or a current role to compare against?",
+                    choiceOptions = listOf(
+                        "Current role / job",
+                        "Another offer",
+                        "No alternative yet"
+                    )
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_DECISION_UNKNOWNS,
+                    question =
+                        "What information is still missing? (Unknown information stays listed — " +
+                            "we can propose asking the source.)",
+                    choiceOptions = listOf(
+                        "Remote / hybrid policy",
+                        "Total compensation details",
+                        "Team / manager fit",
+                        "Nothing unknown right now"
+                    )
                 )
             )
             else -> listOf(
@@ -357,6 +427,7 @@ object IntentionBuilder {
         "business" to "Business",
         "research" to "Legal research",
         "app_use" to "App usage",
+        "decision" to "Time-limited decision",
         "other" to "Something else"
     )
 }

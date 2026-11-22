@@ -58,6 +58,12 @@ object AdaptiveBuilderEngine {
     const val KEY_LEASE_DEADLINE = "lease_deadline"
     const val KEY_NOTICE_STATUS = "notice_status"
     const val KEY_DECIDE_BY_DATE = "decide_by_date"
+    /** Generic decision support — criteria / alternatives / unknowns / refresh. */
+    const val KEY_DECISION_CRITERIA = "decision_criteria"
+    const val KEY_DECISION_ALTERNATIVES = "decision_alternatives"
+    const val KEY_DECISION_UNKNOWNS = "decision_unknowns"
+    const val KEY_DECISION_SOURCE_FACT = "decision_source_fact"
+    const val KEY_COMPARISON_REFRESH = "comparison_refresh"
 
     /** Unformed ambition / exploration — explore before execute (OTHER §8). */
     const val KEY_SKILLS_OR_INTERESTS = "skills_or_interests"
@@ -718,7 +724,10 @@ object AdaptiveBuilderEngine {
         )
     }
 
-    /** OC9 — capture decide-by date; never auto-accept an offer. */
+    /**
+     * Time-limited decision support — decide-by date, criteria, alternatives,
+     * unknowns, then pause. Never auto-accepts / declines for the user.
+     */
     private fun decisionCaseDecision(context: BuilderContext): BuilderDecision? {
         if (context.confirmedFacts.none { it.key == KEY_DECIDE_BY_DATE }) {
             return BuilderDecision.Ask(
@@ -726,19 +735,112 @@ object AdaptiveBuilderEngine {
                 expectedRevision = context.revision,
                 questionId = "q-decide-by-${context.intentionId}",
                 whyItMatters =
-                    "A decide-by date keeps comparison useful. INTENT will not auto-accept " +
-                        "or decline an offer.",
+                    "Confirm the exact decide-by date. INTENT helps you decide by then — " +
+                        "it will not auto-accept or decline for you.",
                 answerSchema = AnswerSchema.DATE_TIME,
                 purpose = KEY_DECIDE_BY_DATE,
-                blocksWhat = "offer_comparison",
+                blocksWhat = "decision_comparison",
                 priority = 90
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_DECISION_CRITERIA } &&
+            !hasUnresolvedPurpose(context, KEY_DECISION_CRITERIA)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-decision-criteria-${context.intentionId}",
+                whyItMatters =
+                    "Rank what matters most so comparison stays honest. Pick one primary " +
+                        "focus (or Other) — INTENT will not choose the outcome.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_DECISION_CRITERIA,
+                blocksWhat = "decision_comparison",
+                options = listOf(
+                    "Pay / compensation",
+                    "Remote flexibility",
+                    "Work / role fit",
+                    "Growth",
+                    "Location"
+                ),
+                priority = 85
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_DECISION_ALTERNATIVES } &&
+            !hasUnresolvedPurpose(context, KEY_DECISION_ALTERNATIVES)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-decision-alts-${context.intentionId}",
+                whyItMatters =
+                    "Side-by-side comparison needs at least one alternative " +
+                        "(current role, another offer, or none yet).",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_DECISION_ALTERNATIVES,
+                blocksWhat = "decision_comparison",
+                options = listOf(
+                    "Current role / job",
+                    "Another offer",
+                    "No alternative yet"
+                ),
+                priority = 80
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_DECISION_UNKNOWNS } &&
+            !hasUnresolvedPurpose(context, KEY_DECISION_UNKNOWNS)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-decision-unknowns-${context.intentionId}",
+                whyItMatters =
+                    "List unknown information so we can propose asking the source — " +
+                        "do not invent missing facts.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_DECISION_UNKNOWNS,
+                blocksWhat = "decision_comparison",
+                options = listOf(
+                    "Remote / hybrid policy",
+                    "Total compensation details",
+                    "Team / manager fit",
+                    "Nothing unknown right now"
+                ),
+                priority = 75
+            )
+        }
+        val unknowns = context.confirmedFacts.firstOrNull { it.key == KEY_DECISION_UNKNOWNS }
+        val unknownsOpen = unknowns != null &&
+            !unknowns.text.contains("nothing unknown", ignoreCase = true) &&
+            !unknowns.normalizedValue.orEmpty().contains("nothing", ignoreCase = true)
+        if (unknownsOpen &&
+            context.confirmedFacts.none { it.key == KEY_COMPARISON_REFRESH } &&
+            !hasUnresolvedPurpose(context, KEY_COMPARISON_REFRESH)
+        ) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-ask-source-${context.intentionId}",
+                whyItMatters =
+                    "Unknown information is still open. Propose asking the source, " +
+                        "or keep comparing with what you know — INTENT will not decide.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_COMPARISON_REFRESH,
+                blocksWhat = "decision_review",
+                options = listOf(
+                    DecisionSupport.CHIP_ASK_SOURCE,
+                    DecisionSupport.CHIP_UPDATE_COMPARISON,
+                    DecisionSupport.CHIP_DISCUSS_FLEXIBILITY
+                ),
+                priority = 70
             )
         }
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason =
-                "Decide-by date recorded. Comparison stays open — no auto-accept of the offer.",
+                "Decide-by date and comparison inputs are recorded. Decision review stays " +
+                    "open — no auto-accept or decline.",
             resumeCue = "Continue discussion"
         )
     }

@@ -195,7 +195,9 @@ class AdaptiveCreateHonestyTest {
     @Test
     fun oc9_jobOfferSeed_agentFramesDecideByDate_notAutoAccept() {
         val description = "Help me decide whether to accept a job offer. I have ten days."
+        assertTrue(CreatePathSeedHonesty.looksLikeTimeLimitedDecisionSeed(description))
         assertTrue(CreatePathSeedHonesty.looksLikeJobOfferDecideSeed(description))
+        assertEquals("decision", IntentionBuilder.suggestShape(description))
 
         CreateIntentionChat.begin(store, now + 1, registry)
         val result = CreateIntentionChat.submitUtterance(
@@ -214,7 +216,8 @@ class AdaptiveCreateHonestyTest {
             (t.contains("decide") || t.contains("decision")) &&
                 (t.contains("deadline") || t.contains("due") || t.contains("date")) &&
                 (t.contains("not assume") || t.contains("auto-accept") ||
-                    t.contains("not auto") || t.contains("will not accept"))
+                    t.contains("not auto") || t.contains("will not accept") ||
+                    t.contains("particular outcome"))
         }
         assertNotNull(
             "Agent must frame decide-by-date (help decide, not auto-accept), got: " +
@@ -230,7 +233,25 @@ class AdaptiveCreateHonestyTest {
         assertTrue(
             text.contains("not assume", ignoreCase = true) ||
                 text.contains("auto-accept", ignoreCase = true) ||
+                text.contains("particular outcome", ignoreCase = true) ||
                 text.contains("will not", ignoreCase = true)
+        )
+        val shape = store.snapshot().intentions
+            .firstOrNull { it.id == CreateIntentionChat.SESSION_INTENTION_ID }?.shapeTag
+        assertEquals("decision", shape)
+    }
+
+    @Test
+    fun liveProseWithDecideOnly_stillNeedsHonestyAppend() {
+        assertFalse(
+            CreatePathSeedHonesty.liveProseHasDecisionHonesty(
+                "To help you decide, what matters most: salary or culture?"
+            )
+        )
+        assertTrue(
+            CreatePathSeedHonesty.liveProseHasDecisionHonesty(
+                "I'll help you decide by the deadline — not assume the answer is yes or auto-accept."
+            )
         )
     }
 

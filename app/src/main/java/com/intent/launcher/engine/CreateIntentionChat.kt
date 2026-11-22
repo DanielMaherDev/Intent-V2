@@ -524,8 +524,9 @@ object CreateIntentionChat {
                     " Measurement honesty required: UsageStats package foreground only " +
                         "when usage access is granted; cannot identify Shorts/Reels; " +
                         "offer track package time / manual Shorts log / both; never claim exact Shorts minutes."
-                CreatePathSeedHonesty.Kind.JOB_OFFER_DECIDE ->
-                    " Frame decide-by-date: help decide, never auto-accept; deadline matters."
+                CreatePathSeedHonesty.Kind.TIME_LIMITED_DECISION ->
+                    " Frame decide-by-date: help decide by a deadline; never auto-accept " +
+                        "or assume the outcome; ask criteria that matter."
                 null -> ""
             }
             val pack = ContextAssembler.assemble(
@@ -779,6 +780,18 @@ object CreateIntentionChat {
                 store = store,
                 intentionId = intentionId,
                 factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+
+        // Time-limited decision create → AdaptiveBuilder decide-by / criteria Asks.
+        if (shapeTag == "decision") {
+            return bridgeDecisionAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                freeText = freeText,
                 nowEpochMs = nowEpochMs,
                 timeZone = timeZone
             )
@@ -1115,6 +1128,98 @@ object CreateIntentionChat {
      *
      * @return always null (no pending proposal; Pause leaves discovery resumable)
      */
+    private fun bridgeDecisionAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        freeText: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "decision", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveDecisionFact(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        val decideBy = factAnswers[AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE]
+            ?.trim().orEmpty().ifBlank {
+                // Seed text often already carries “ten days” / deadline language.
+                when {
+                    Regex("""(?i)\b\d+\s*days?\b""").containsMatchIn(freeText) ||
+                        freeText.contains("ten days", ignoreCase = true) ->
+                        freeText.trim().ifBlank { "In ten days" }
+                    else -> ""
+                }
+            }
+        saveDecisionFact(AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE, decideBy, "decide-by")
+        saveDecisionFact(
+            AdaptiveBuilderEngine.KEY_DECISION_CRITERIA,
+            factAnswers[AdaptiveBuilderEngine.KEY_DECISION_CRITERIA]?.trim().orEmpty(),
+            "criteria"
+        )
+        saveDecisionFact(
+            AdaptiveBuilderEngine.KEY_DECISION_ALTERNATIVES,
+            factAnswers[AdaptiveBuilderEngine.KEY_DECISION_ALTERNATIVES]?.trim().orEmpty(),
+            "alts"
+        )
+        saveDecisionFact(
+            AdaptiveBuilderEngine.KEY_DECISION_UNKNOWNS,
+            factAnswers[AdaptiveBuilderEngine.KEY_DECISION_UNKNOWNS]?.trim().orEmpty(),
+            "unknowns"
+        )
+
+        // Advance: surface next Ask (criteria / alternatives / unknowns / ask-source)
+        // or Pause — never Propose an accept/decline.
+        repeat(8) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> return null
+                is BuilderDecision.Propose -> return null
+                is BuilderDecision.Ask -> return null
+                else -> Unit
+            }
+        }
+        return null
+    }
+
     private fun bridgeResearchAfterCommit(
         store: IntentionFlowStore,
         intentionId: String,
