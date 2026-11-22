@@ -15,11 +15,11 @@ android {
         versionName = "0.0.199"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Live OpenAI key wiring — never commit secrets or print values.
-        // Canonical Cursor / CI secret name: OPENAPI_GENERAL
-        // Fallback secret name: OPENAI_GENERAL (same value when OPENAPI_GENERAL is blank)
+        // Preferred secret: OPENAI_GENERAL. Legacy alias: OPENAPI_GENERAL.
+        // When both are non-blank, prefer OPENAI_GENERAL (Cloud Agent may inject both).
         // Resolution order (first non-blank wins):
-        //   1) env OPENAPI_GENERAL, else env OPENAI_GENERAL (Cloud Agent / CI)
-        //   2) gitignored local.properties OPENAPI_GENERAL=..., else OPENAI_GENERAL=...
+        //   1) env OPENAI_GENERAL, else env OPENAPI_GENERAL (Cloud Agent / CI)
+        //   2) gitignored local.properties OPENAI_GENERAL=..., else OPENAPI_GENERAL=...
         //   3) -Popenapi.general=...
         // Raw key is embedded into BuildConfig ONLY when
         //   -Pintent.embed.openai.key=true
@@ -45,12 +45,12 @@ android {
             candidates.firstOrNull { it.isNotEmpty() }.orEmpty()
 
         val fromEnv = firstNonBlank(
-            System.getenv("OPENAPI_GENERAL").orEmpty().trim(),
-            System.getenv("OPENAI_GENERAL").orEmpty().trim()
+            System.getenv("OPENAI_GENERAL").orEmpty().trim(),
+            System.getenv("OPENAPI_GENERAL").orEmpty().trim()
         )
         val fromLocal = firstNonBlank(
-            localProps["OPENAPI_GENERAL"].orEmpty().trim(),
-            localProps["OPENAI_GENERAL"].orEmpty().trim()
+            localProps["OPENAI_GENERAL"].orEmpty().trim(),
+            localProps["OPENAPI_GENERAL"].orEmpty().trim()
         )
         val fromProp = (project.findProperty("openapi.general") as? String).orEmpty().trim()
         val resolvedSecret = when {
