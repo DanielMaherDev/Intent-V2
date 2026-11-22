@@ -1073,15 +1073,28 @@ class LauncherViewModel(
                 nowEpochMs = now
             )
         )
-        // §8.1 — project freshness reconfirm (or next Ask) when opening Intention Space.
+        projectPendingAskForIntention(intentionId, now)
+        refresh()
+    }
+
+    /**
+     * Home **Continue exploring** / open active intention — same §8.1 projection as
+     * the drawer path so freshness reconfirm is not drawer-only.
+     */
+    fun openActiveIntentionSpace() {
+        val id = activeIntention()?.id ?: return
+        projectPendingAskForIntention(id, System.currentTimeMillis())
+        refresh()
+    }
+
+    private fun projectPendingAskForIntention(intentionId: String, nowEpochMs: Long) {
         if (store.snapshot().adaptiveBuilderStates.any { it.intentionId == intentionId }) {
             AdaptiveBuilderEngine.projectPendingAsk(
                 store = store,
                 intentionId = intentionId,
-                nowEpochMs = now
+                nowEpochMs = nowEpochMs
             )
         }
-        refresh()
     }
 
     /** OS-141 — breadcrumb / child navigation from Intention Space only. */
@@ -1185,11 +1198,7 @@ class LauncherViewModel(
         PlayStoreDeepLink.forPackage(packageName, label)
 
     fun conversationChips(): List<String> =
-        ConversationCoordinator.chipsForIntention(
-            activeIntention(),
-            capabilityRegistry,
-            store = store
-        )
+        ConversationCoordinator.chipsForIntention(activeIntention(), capabilityRegistry)
 
     fun onConversationChip(chip: String) {
         val now = System.currentTimeMillis()

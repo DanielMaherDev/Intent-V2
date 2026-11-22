@@ -28,9 +28,11 @@ import java.util.TimeZone
  *
  * Structural answers always go through [IntentionBuilder] / [AnswerBuilderPrompt].
  * Language create surfaces AdaptiveBuilderEngine motivation Ask (chips + Other)
- * after minutes + method, before Confirm → [bridgeAdaptiveBuilderAfterCommit]
- * Propose. Confirm→Propose still works once motivation is answered. When live
- * OpenAI is opted in, prose may be enriched; otherwise honest local heuristics.
+ * after minutes + method, then the engine’s next consequential Ask (typically
+ * move/deadline estimate) before Confirm → [bridgeAdaptiveBuilderAfterCommit]
+ * Propose. Confirm→Propose still works once those Asks are answered or deferred.
+ * When live OpenAI is opted in, prose may be enriched; otherwise honest local
+ * heuristics.
  */
 object CreateIntentionChat {
 
@@ -329,6 +331,23 @@ object CreateIntentionChat {
                         userTurnAlreadyPosted = true
                     )
                 }
+                if (pendingMoveEstimateAsk(store) != null) {
+                    if (looksLikeConfirm(trimmed) || looksLikeKeepDiscussing(trimmed)) {
+                        return SubmitResult(
+                            false,
+                            "Answer the timing question first (or Not sure / Skip).",
+                            sourceLabel
+                        )
+                    }
+                    return answerCreateMoveEstimate(
+                        store = store,
+                        raw = trimmed,
+                        modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                        nowEpochMs = nowEpochMs,
+                        sourceLabel = sourceLabel,
+                        userTurnAlreadyPosted = true
+                    )
+                }
                 return if (looksLikeConfirm(trimmed)) {
                     confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
                 } else if (looksLikeKeepDiscussing(trimmed)) {
@@ -397,6 +416,25 @@ object CreateIntentionChat {
                     )
                 }
                 return answerCreateMotivation(
+                    store = store,
+                    raw = trimmed,
+                    modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                    nowEpochMs = nowEpochMs,
+                    sourceLabel = sourceLabel,
+                    userTurnAlreadyPosted = true
+                )
+            }
+            if (pendingMoveEstimateAsk(store) != null) {
+                if (trimmed.contains("Confirm", ignoreCase = true) ||
+                    trimmed.contains("Keep discussing", ignoreCase = true)
+                ) {
+                    return SubmitResult(
+                        false,
+                        "Answer the timing question first (or Not sure / Skip).",
+                        sourceLabel
+                    )
+                }
+                return answerCreateMoveEstimate(
                     store = store,
                     raw = trimmed,
                     modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
@@ -1002,6 +1040,24 @@ object CreateIntentionChat {
             val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
             if (next is BuilderDecision.Ask &&
                 next.purpose == AdaptiveBuilderEngine.KEY_MOTIVATION
+            ) {
+                AdaptiveBuilderEngine.applyDecision(store, next, t, timeZone = timeZone)
+                return null
+            }
+        }
+
+        // Safety net: motivation answered but move/deadline Ask never surfaced
+        // (create free text had no relative phrase). Project engine Ask before Propose.
+        if (shapeTag == "language" &&
+            hasKey(AdaptiveBuilderEngine.KEY_MOTIVATION) &&
+            !hasKey(AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE) &&
+            pendingMoveEstimateAsk(store, intentionId) == null
+        ) {
+            val ctx = AdaptiveBuilderEngine.projectContext(store.snapshot(), intentionId, t, timeZone)
+                ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            if (next is BuilderDecision.Ask &&
+                next.purpose == AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE
             ) {
                 AdaptiveBuilderEngine.applyDecision(store, next, t, timeZone = timeZone)
                 return null
@@ -1911,8 +1967,9 @@ object CreateIntentionChat {
     }
 
     /**
-     * Answer the in-create motivation Ask without advancing to move Ask /
-     * OfferApproaches — Confirm card comes next; bridge still Proposes after Confirm.
+     * Answer the in-create motivation Ask. When the engine’s next move is a
+     * move/deadline Ask (and create free text did not already carry a relative
+     * phrase), surface that Ask before Confirm. Otherwise Confirm → bridge.
      */
     private fun answerCreateMotivation(
         store: IntentionFlowStore,
@@ -1970,13 +2027,9 @@ object CreateIntentionChat {
                     expectedRevision = state.revision
                 )
                 deactivatePriorBuilderCards(store, nowEpochMs + 2)
-                postAgent(
-                    store,
-                    nowEpochMs + 3,
-                    "Does this look right? Confirm to save the intention, or keep discussing."
+                return projectConfirmAfterCreateAsk(
+                    store, nowEpochMs + 3, sourceLabel, "Motivation deferred — ready to confirm."
                 )
-                projectConfirmCard(store, nowEpochMs + 4)
-                return SubmitResult(true, "Motivation deferred — ready to confirm.", sourceLabel)
             }
             is ChoiceOptions.Selection.Chosen,
             is ChoiceOptions.Selection.FreeText -> {
@@ -2016,17 +2069,215 @@ object CreateIntentionChat {
                 if (!apply.accepted) {
                     return SubmitResult(false, apply.reason, sourceLabel)
                 }
-                // Do not auto-advance to move Ask — Confirm → bridge → Propose.
                 deactivatePriorBuilderCards(store, nowEpochMs + 2)
-                postAgent(
-                    store,
-                    nowEpochMs + 3,
-                    "Does this look right? Confirm to save the intention, or keep discussing."
+                if (surfaceMoveEstimateAskAfterMotivation(store, nowEpochMs + 3, timeZone)) {
+                    return SubmitResult(
+                        true,
+                        "Motivation recorded — move timing ask projected.",
+                        sourceLabel
+                    )
+                }
+                return projectConfirmAfterCreateAsk(
+                    store, nowEpochMs + 3, sourceLabel, "Motivation recorded — ready to confirm."
                 )
-                projectConfirmCard(store, nowEpochMs + 4)
-                return SubmitResult(true, "Motivation recorded — ready to confirm.", sourceLabel)
             }
         }
+    }
+
+    private fun pendingMoveEstimateAsk(
+        store: IntentionFlowStore,
+        intentionId: String = SESSION_INTENTION_ID
+    ): String? {
+        val state = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId } ?: return null
+        val qid = state.currentQuestionId ?: return null
+        val question = store.snapshot().openQuestions.firstOrNull { it.id == qid } ?: return null
+        if (question.purpose != AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE) return null
+        if (question.state == OpenQuestionState.ANSWERED) return null
+        return qid
+    }
+
+    /**
+     * After motivation: if create free text already carried a relative timing
+     * phrase, anchor it as [KEY_MOVE_ESTIMATE] and skip a duplicate Ask.
+     * Otherwise project the engine’s move/deadline Ask when ranked next.
+     * @return true when a move Ask card was projected
+     */
+    private fun surfaceMoveEstimateAskAfterMotivation(
+        store: IntentionFlowStore,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): Boolean {
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == SESSION_INTENTION_ID &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+        if (hasKey(AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE)) return false
+        if (pendingMoveEstimateAsk(store) != null) return false
+
+        val freeText = store.snapshot().builderDraft.freeText
+        if (RelativeDateAnchoring.looksRelative(freeText)) {
+            fun rev(): Long =
+                store.snapshot().adaptiveBuilderStates
+                    .firstOrNull { it.intentionId == SESSION_INTENTION_ID }?.revision ?: 0L
+            val movePhrase = extractRelativePhrase(freeText) ?: freeText.trim()
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = SESSION_INTENTION_ID,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-move-preconfirm-$SESSION_INTENTION_ID",
+                        text = movePhrase,
+                        key = AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE,
+                        rawUtterance = freeText,
+                        approximate = true
+                    ),
+                    sourceTurnId = "turn-create-preconfirm-move-$nowEpochMs"
+                ),
+                nowEpochMs,
+                timeZone = timeZone
+            )
+            return false
+        }
+
+        val ctx = AdaptiveBuilderEngine.projectContext(
+            store.snapshot(), SESSION_INTENTION_ID, nowEpochMs, timeZone
+        ) ?: return false
+        val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, nowEpochMs, timeZone)
+        if (next !is BuilderDecision.Ask ||
+            next.purpose != AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE
+        ) {
+            return false
+        }
+        val applied = AdaptiveBuilderEngine.applyDecision(
+            store, next, nowEpochMs + 1, timeZone = timeZone
+        )
+        return applied.accepted
+    }
+
+    /** Answer in-create move/deadline Ask, then Confirm. */
+    private fun answerCreateMoveEstimate(
+        store: IntentionFlowStore,
+        raw: String,
+        modality: String,
+        nowEpochMs: Long,
+        sourceLabel: String,
+        userTurnAlreadyPosted: Boolean,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): SubmitResult {
+        val qid = pendingMoveEstimateAsk(store)
+            ?: return SubmitResult(false, "No move estimate ask pending.", sourceLabel)
+        val question = store.snapshot().openQuestions.firstOrNull { it.id == qid }
+            ?: return SubmitResult(false, "Move estimate question missing.", sourceLabel)
+        val state = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == SESSION_INTENTION_ID }
+            ?: return SubmitResult(false, "No adaptive builder state.", sourceLabel)
+
+        when (val sel = ChoiceOptions.resolveSelection(raw, question.optionIds)) {
+            ChoiceOptions.Selection.Empty ->
+                return SubmitResult(false, "Empty answer.", sourceLabel)
+            ChoiceOptions.Selection.NeedsFreeText -> {
+                if (!userTurnAlreadyPosted) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-create-move-other-$nowEpochMs",
+                            intentionId = SESSION_INTENTION_ID,
+                            role = "user",
+                            text = raw,
+                            nowEpochMs = nowEpochMs,
+                            modality = modality
+                        )
+                    )
+                }
+                postAgent(
+                    store,
+                    nowEpochMs + 1,
+                    "Type an approximate date or relative timing below."
+                )
+                return SubmitResult(
+                    ok = true,
+                    honestyNote = "Awaiting free-text timing.",
+                    sourceLabel = sourceLabel
+                )
+            }
+            ChoiceOptions.Selection.NotSure,
+            ChoiceOptions.Selection.Skip -> {
+                AdaptiveAnswerPath.deferQuestion(
+                    store = store,
+                    intentionId = SESSION_INTENTION_ID,
+                    questionId = qid,
+                    label = raw,
+                    modality = modality,
+                    nowEpochMs = nowEpochMs + 1,
+                    expectedRevision = state.revision
+                )
+                deactivatePriorBuilderCards(store, nowEpochMs + 2)
+                return projectConfirmAfterCreateAsk(
+                    store, nowEpochMs + 3, sourceLabel, "Move timing deferred — ready to confirm."
+                )
+            }
+            is ChoiceOptions.Selection.Chosen,
+            is ChoiceOptions.Selection.FreeText -> {
+                val value = when (sel) {
+                    is ChoiceOptions.Selection.Chosen -> sel.value
+                    is ChoiceOptions.Selection.FreeText -> sel.value
+                    else -> raw
+                }
+                if (!userTurnAlreadyPosted) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-create-move-user-$nowEpochMs",
+                            intentionId = SESSION_INTENTION_ID,
+                            role = "user",
+                            text = value,
+                            nowEpochMs = nowEpochMs,
+                            modality = modality
+                        )
+                    )
+                }
+                val apply = AdaptiveBuilderEngine.answerQuestion(
+                    store,
+                    AnswerQuestion(
+                        questionId = qid,
+                        intentionId = SESSION_INTENTION_ID,
+                        normalizedValue = value,
+                        rawValue = value,
+                        modality = modality,
+                        sourceTurnId = "turn-create-move-ans-$nowEpochMs",
+                        answeredAtEpochMs = nowEpochMs + 1,
+                        idempotencyKey = "idem-create-move-$qid-${value.hashCode()}",
+                        expectedRevision = state.revision
+                    ),
+                    factKey = AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE,
+                    timeZone = timeZone
+                )
+                if (!apply.accepted) {
+                    return SubmitResult(false, apply.reason, sourceLabel)
+                }
+                deactivatePriorBuilderCards(store, nowEpochMs + 2)
+                return projectConfirmAfterCreateAsk(
+                    store, nowEpochMs + 3, sourceLabel, "Move timing recorded — ready to confirm."
+                )
+            }
+        }
+    }
+
+    private fun projectConfirmAfterCreateAsk(
+        store: IntentionFlowStore,
+        nowEpochMs: Long,
+        sourceLabel: String,
+        honestyNote: String
+    ): SubmitResult {
+        postAgent(
+            store,
+            nowEpochMs,
+            "Does this look right? Confirm to save the intention, or keep discussing."
+        )
+        projectConfirmCard(store, nowEpochMs + 1)
+        return SubmitResult(true, honestyNote, sourceLabel)
     }
 
     private fun projectNextPromptCard(store: IntentionFlowStore, nowEpochMs: Long) {
