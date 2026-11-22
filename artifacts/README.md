@@ -1,5 +1,5 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.216.apk`](./INTENT-v0.0.216.apk) — generic conditional-process resume after research Pause (employer handling → researching status → Applies/Already done/Not sure → Review plan Propose). Based on tip 0.0.212 (#135).
+Latest sideload APK (this branch): [`INTENT-v0.0.217.apk`](./INTENT-v0.0.217.apk) — OC4 habit/check-in measurement honesty on create (baseline Count, craving, evening check-in; no cessation-from-task). Based on tip 0.0.216 (#138). Auto-merge.
 
 Do not overwrite lower version APKs.

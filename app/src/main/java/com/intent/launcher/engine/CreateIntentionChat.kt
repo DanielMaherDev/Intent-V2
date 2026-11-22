@@ -512,7 +512,7 @@ object CreateIntentionChat {
             "Next I’ll ask one useful question at a time in this chat."
         if (seedHonesty != null) {
             // Agent must surface measurement / decide-by-date honesty — do not
-            // rely on the user typing it via Other (OC5 / OC9).
+            // rely on the user typing it via Other (OC4 / OC5 / OC9).
             prose = "$prose\n\n${seedHonesty.agentNote}"
         }
 
@@ -521,6 +521,10 @@ object CreateIntentionChat {
         if (live && client != null && !apiKey.isNullOrBlank()) {
             liveAttempted = true
             val honestyHint = when (seedHonesty?.kind) {
+                CreatePathSeedHonesty.Kind.HABIT_CHECKIN ->
+                    " Habit check-in honesty: self-report count and optional craving only; " +
+                        "no quit date forced; a checked task does not prove cessation; " +
+                        "an unreported day is not zero."
                 CreatePathSeedHonesty.Kind.USAGE_APP_TIME ->
                     " Measurement honesty required: UsageStats package foreground only " +
                         "when usage access is granted; cannot identify Shorts/Reels; " +
@@ -784,6 +788,17 @@ object CreateIntentionChat {
         // OC7 — finite move: lease / housing / notice → waiting Pause + project board.
         if (shapeTag == "move") {
             return bridgeMoveAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+
+        // OC4 — habit / check-in: baseline + cadence → Pause (no cessation claim).
+        if (shapeTag == "cessation") {
+            return bridgeHabitCheckInAfterCommit(
                 store = store,
                 intentionId = intentionId,
                 factAnswers = factAnswers,
@@ -1075,6 +1090,88 @@ object CreateIntentionChat {
         return store.snapshot().proposals.firstOrNull {
             it.intentionId == intentionId && it.status == ProposalStatus.PENDING
         }?.id
+    }
+
+    /**
+     * OC4 — map create habit answers onto AdaptiveBuilder keys, then Pause —
+     * never invents a smoke-free streak or treats an unreported day as zero.
+     */
+    private fun bridgeHabitCheckInAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "cessation", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveHabitFact(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        saveHabitFact(
+            AdaptiveBuilderEngine.KEY_HABIT_BASELINE,
+            factAnswers[AdaptiveBuilderEngine.KEY_HABIT_BASELINE]?.trim().orEmpty(),
+            "habit-baseline"
+        )
+        saveHabitFact(
+            "craving_with_checkin",
+            factAnswers["craving_with_checkin"]?.trim().orEmpty(),
+            "craving"
+        )
+        saveHabitFact(
+            "check_in_cadence",
+            factAnswers["check_in_cadence"]?.trim().orEmpty(),
+            "checkin"
+        )
+
+        repeat(6) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> return null
+                is BuilderDecision.Propose -> return null
+                is BuilderDecision.Ask -> return null
+                else -> Unit
+            }
+        }
+        return null
     }
 
     /**

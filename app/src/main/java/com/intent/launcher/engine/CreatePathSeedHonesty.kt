@@ -4,6 +4,10 @@ package com.intent.launcher.engine
  * Offline / on-device create-path honesty for seeds that would otherwise land as
  * “something else” without measurement or decide-by-date framing.
  *
+ * OC4 — habit change with self-report count / craving check-in: baseline and
+ * evening check-ins are SAID only. A checked task does not prove cessation;
+ * an unreported day is not zero.
+ *
  * OC5 — Instagram / YouTube Shorts / app-time under N minutes: UsageStats can
  * measure package foreground when usage access is granted; it cannot identify
  * Shorts/Reels. Never claim exact Shorts minutes.
@@ -22,6 +26,7 @@ package com.intent.launcher.engine
 object CreatePathSeedHonesty {
 
     enum class Kind {
+        HABIT_CHECKIN,
         USAGE_APP_TIME,
         CONNECTED_METRIC,
         TIME_LIMITED_DECISION,
@@ -39,9 +44,16 @@ object CreatePathSeedHonesty {
     )
 
     const val PROMPT_USAGE_MEASUREMENT = "usage_measurement"
+    const val PROMPT_HABIT_START = "habit_start"
     const val PROMPT_RATING_BASELINE = AdaptiveBuilderEngine.KEY_RATING_BASELINE
     const val PROMPT_USAGE_ACCESS = "usage_access"
     const val PROMPT_USAGE_INTERVENTION = "usage_intervention"
+
+    const val HABIT_AGENT_NOTE =
+        "We can start without choosing a quit date today. A short daily check-in can " +
+            "record count and, if useful, craving intensity (self-report only). " +
+            "A checked task does not prove cessation, and an unreported day is not " +
+            "the same as zero — missing stays missing."
 
     const val USAGE_AGENT_NOTE =
         "With Android usage access, I can measure time spent in Instagram and YouTube " +
@@ -85,6 +97,12 @@ object CreatePathSeedHonesty {
         "Track package time automatically",
         "Log Shorts time myself",
         "Use both"
+    )
+
+    val HABIT_START_OPTIONS: List<String> = listOf(
+        "Track a baseline",
+        "Discuss approaches",
+        "Both"
     )
 
     val USAGE_ACCESS_OPTIONS: List<String> = listOf(
@@ -147,6 +165,18 @@ object CreatePathSeedHonesty {
         return baseline && noInvent
     }
 
+    fun liveProseStatesHabitCheckInHonesty(text: String): Boolean {
+        val t = text.lowercase()
+        val checkIn =
+            t.contains("check-in") || t.contains("check in") || t.contains("baseline") ||
+                t.contains("craving")
+        val noFalseCessation =
+            t.contains("cessation") || t.contains("unreported") ||
+                t.contains("does not prove") || t.contains("not the same as zero") ||
+                t.contains("missing stays missing")
+        return checkIn && noFalseCessation
+    }
+
     fun liveProseStatesFiniteMoveHonesty(text: String): Boolean {
         val t = text.lowercase()
         val waiting = t.contains("waiting on someone") || t.contains("waiting on landlord")
@@ -160,6 +190,7 @@ object CreatePathSeedHonesty {
     /** Merge live model prose with required seed honesty — never drop on casual product mentions. */
     fun mergeLiveProseWithSeedHonesty(formatted: String, honesty: Honesty): String {
         val already = when (honesty.kind) {
+            Kind.HABIT_CHECKIN -> liveProseStatesHabitCheckInHonesty(formatted)
             Kind.USAGE_APP_TIME -> liveProseStatesUsageHonesty(formatted)
             Kind.CONNECTED_METRIC -> liveProseStatesConnectedMetricHonesty(formatted)
             Kind.TIME_LIMITED_DECISION -> liveProseHasDecisionHonesty(formatted)
@@ -180,6 +211,16 @@ object CreatePathSeedHonesty {
                 firstChoicePromptId = PROMPT_USAGE_MEASUREMENT,
                 firstChoiceQuestion =
                     "How should we measure Instagram / YouTube time for this intention?"
+            )
+        }
+        if (looksLikeHabitCheckInSeed(trimmed)) {
+            return Honesty(
+                kind = Kind.HABIT_CHECKIN,
+                agentNote = HABIT_AGENT_NOTE,
+                firstChoiceOptions = HABIT_START_OPTIONS,
+                firstChoicePromptId = PROMPT_HABIT_START,
+                firstChoiceQuestion =
+                    "Would you rather track a baseline, discuss approaches, or do both?"
             )
         }
         if (looksLikeConnectedMetricSeed(trimmed)) {
@@ -205,6 +246,29 @@ object CreatePathSeedHonesty {
             )
         }
         return null
+    }
+
+    /**
+     * Habit-change seeds that need count/craving check-in honesty (not app-time).
+     * Generic: nicotine / smoking cues, or reduce/quit + daily-count language —
+     * not tied to one intention title.
+     */
+    fun looksLikeHabitCheckInSeed(text: String): Boolean {
+        val t = text.lowercase()
+        if (looksLikeUsageAppTimeSeed(t)) return false
+        val nicotineOrSmoke =
+            t.contains("smoke") || t.contains("smoking") || t.contains("cigarette") ||
+                t.contains("cig ") || t.contains("vape") || t.contains("nicotine") ||
+                t.contains("tobacco")
+        if (nicotineOrSmoke) return true
+        val reduceOrQuit =
+            t.contains("quit") || t.contains("reduce") || t.contains("cut down") ||
+                t.contains("cut back") || t.contains("fewer")
+        val dailyCountCue =
+            t.contains("a day") || t.contains("per day") || t.contains("daily") ||
+                t.contains("craving") || t.contains("check-in") || t.contains("check in") ||
+                Regex("""\b\d+\s*(a|/)\s*day\b""").containsMatchIn(t)
+        return reduceOrQuit && dailyCountCue
     }
 
     fun looksLikeUsageAppTimeSeed(text: String): Boolean {

@@ -12,7 +12,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * OC5 / OC9 — on-device create path must surface honesty from the **agent**,
+ * OC4 / OC5 / OC6 / OC9 — on-device create path must surface honesty from the **agent**,
  * not rely on the user typing it via Other.
  */
 class AdaptiveCreateHonestyTest {
@@ -27,6 +27,60 @@ class AdaptiveCreateHonestyTest {
     @Before
     fun setUp() {
         store = IntentionFlowStore(tmp.newFile("flow-create-honesty.json"))
+    }
+
+    @Test
+    fun oc4_habitSeed_agentStatesCheckInHonesty_noCessationClaim() {
+        val description =
+            "I smoke about eight cigarettes a day and want to quit, but I don't have a quit date."
+        assertTrue(CreatePathSeedHonesty.looksLikeHabitCheckInSeed(description))
+        assertEquals("cessation", IntentionBuilder.suggestShape(description))
+
+        CreateIntentionChat.begin(store, now + 1, registry)
+        val result = CreateIntentionChat.submitUtterance(
+            store = store,
+            text = description,
+            nowEpochMs = now + 10,
+            registry = registry
+        )
+        assertTrue(result.ok)
+
+        val agentTurns = store.snapshot().turns.filter {
+            it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID && it.role == "agent"
+        }
+        val honestyTurn = agentTurns.firstOrNull { turn ->
+            val t = turn.text.lowercase()
+            (t.contains("check-in") || t.contains("check in") || t.contains("baseline")) &&
+                (t.contains("cessation") || t.contains("unreported") ||
+                    t.contains("does not prove"))
+        }
+        assertNotNull(
+            "Agent must state habit check-in honesty (no cessation-from-task), got: " +
+                agentTurns.map { it.text.take(140) },
+            honestyTurn
+        )
+        val text = honestyTurn!!.text
+        assertTrue(
+            text.contains("cessation", ignoreCase = true) ||
+                text.contains("does not prove", ignoreCase = true)
+        )
+        assertTrue(
+            text.contains("unreported", ignoreCase = true) ||
+                text.contains("not the same as zero", ignoreCase = true) ||
+                text.contains("missing", ignoreCase = true)
+        )
+        assertFalse(text.contains("you have quit", ignoreCase = true))
+        assertFalse(text.contains("smoke-free streak", ignoreCase = true))
+
+        val choice = store.snapshot().turns
+            .flatMap { it.blocks }
+            .mapNotNull { BuilderAnswerCard.decode(it) as? BuilderAnswerCard.Decoded.Choice }
+            .lastOrNull()
+        assertNotNull(choice)
+        assertTrue(
+            choice!!.options.any { it.contains("baseline", ignoreCase = true) } ||
+                choice.options.any { it.contains("Both", ignoreCase = true) }
+        )
     }
 
     @Test
@@ -331,5 +385,7 @@ class AdaptiveCreateHonestyTest {
         assertFalse(agentText.contains("usage access", ignoreCase = true))
         assertFalse(agentText.contains("Chess.com", ignoreCase = true))
         assertFalse(agentText.contains("partner rating", ignoreCase = true))
+        assertFalse(agentText.contains("cessation", ignoreCase = true))
+        assertFalse(agentText.contains("unreported day", ignoreCase = true))
     }
 }

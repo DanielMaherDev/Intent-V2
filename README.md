@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.212** (this branch) · based on tip **v0.0.207** (#133) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.217** (this branch) · based on tip **v0.0.216** (#138) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.212** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.212.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.217.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.217:** Adaptive create-path habit/check-in honesty — OC4 seeds classify as `cessation` (not “something else”); agent states count/craving self-report limits (checked task ≠ cessation; unreported ≠ zero); Count wheel + craving include + evening check-in; bridge → AdaptiveBuilder Pause. JVM `AdaptiveCreateHonestyTest` OC4. SCHEMA 10 stamp-compatible. Based on tip **0.0.216** (#138). Auto-merge.
 - **v0.0.212:** OC6 connected-metric / provenance — Chess.com (and generic partner rating) create routes to `chess` + baseline honesty chips; practice preference kept distinct from rating; `other` Intention Space no longer shows Spanish default facts. JVM `AdaptiveCreateHonestyTest` + acceptance. Hold merge.
 - **v0.0.186:** Adaptive create-path seed honesty — OC5 Instagram/YouTube Shorts agent states UsageStats package≠Shorts identity + usage-access + measurement choices; OC9 job-offer agent frames decide-by-date (help decide, not auto-accept). JVM `AdaptiveCreateHonestyTest`. SCHEMA 10 stamp-compatible. Rebased onto tip **0.0.176** (#122); rebump from invalid 0.0.175. Hold merge.
 - **v0.0.167:** DESIGN_SPEC redesign slice — empty Home (S-HOME-EMPTY), brand tokens `#5C4DFF` / paper `#F6F4F0`, diamond wordmark; Discuss **Cancel** while waiting for the model (§8.9 surface). Spec at `docs/design/intent-redesign-2026-11/`. Rebased onto tip **0.0.166** (#111 SessionMetaGrid); does not touch ProposalReview 4-cell grid.
