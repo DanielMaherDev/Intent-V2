@@ -52,6 +52,13 @@ object AdaptiveBuilderEngine {
 
     /** OC3 / OC4 / OC5 / OC6 / OC7 / OC9 honesty keys. */
     const val KEY_RACE_STATUS = "race_status"
+    /** How runs/sessions are recorded in the first phase (manual / app / choose race). */
+    const val KEY_ACTIVITY_LOG_METHOD = "activity_log_method"
+    /**
+     * Self-reported timed activity (run, walk, practice session). One ACTIVE entry;
+     * corrections use [CorrectFact] rather than a second run.
+     */
+    const val KEY_ACTIVITY_REPORT = "activity_report"
     const val KEY_HABIT_BASELINE = "habit_baseline"
     const val KEY_USAGE_MEASUREMENT = "usage_measurement"
     const val KEY_RATING_BASELINE = "rating_baseline"
@@ -89,6 +96,13 @@ object AdaptiveBuilderEngine {
         "Validate with a few potential customers",
         "Keep exploring",
         "Drop it"
+    )
+
+    private val ACTIVITY_DURATION_REGEX = Regex(
+        """(?i)(?:\b(?:ran|run|jogged|jog|walked|walk|trained|cycled|swam|workout|worked\s*out)\b[^\d]{0,40})?(\d{1,3})\s*(?:minutes?|mins?|min)\b"""
+    )
+    private val ACTIVITY_CORRECTION_PREFIX = Regex(
+        """(?i)^\s*(?:actually|i\s*meant|correction|sorry[, ]*|wait[, ]*|no[, ]*)"""
     )
 
     /** Chips for motivation Ask (Other appended by [BuilderAnswerCard]). */
@@ -659,12 +673,32 @@ object AdaptiveBuilderEngine {
                 priority = 80
             )
         }
+        if (context.confirmedFacts.none { it.key == KEY_ACTIVITY_LOG_METHOD }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-activity-log-${context.intentionId}",
+                whyItMatters =
+                    "First phase needs an honest way to record runs — choose a race, " +
+                        "connect an installed running app only if available, or log manually. " +
+                        "No fabricated race date or multi-month workout plan.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_ACTIVITY_LOG_METHOD,
+                blocksWhat = "activity_tracking",
+                options = listOf(
+                    "Choose race",
+                    "Log runs manually",
+                    "Connect an installed running app"
+                ),
+                priority = 75
+            )
+        }
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
             expectedRevision = context.revision,
             reason =
-                "First phase stays open: race choice, baseline, and available days. " +
-                    "No eight-month workout plan invented.",
+                "First phase: race choice, baseline, and consistency on available days. " +
+                    "Log runs with the method you chose. No eight-month workout plan invented.",
             resumeCue = "Continue discussion"
         )
     }
@@ -1282,6 +1316,126 @@ object AdaptiveBuilderEngine {
             sourceTurnId = decision.sourceTurnId
         )
         return ApplyResult(true, "ok", validation.decisionKind, store.snapshot())
+    }
+
+    /** Minutes from a self-reported timed activity or correction utterance, if any. */
+    fun parseActivityDurationMinutes(utterance: String): Int? {
+        val match = ACTIVITY_DURATION_REGEX.find(utterance.trim()) ?: return null
+        val minutes = match.groupValues.getOrNull(1)?.toIntOrNull() ?: return null
+        return minutes.takeIf { it in 1..600 }
+    }
+
+    /**
+     * True when free-text should SaveFact / CorrectFact a timed activity report
+     * instead of falling through to live Discuss prose.
+     */
+    fun shouldHandleActivityReport(
+        store: IntentionFlowStore,
+        intentionId: String,
+        utterance: String
+    ): Boolean {
+        val minutes = parseActivityDurationMinutes(utterance) ?: return false
+        val hasActive = store.snapshot().facts.any {
+            it.intentionId == intentionId &&
+                it.key == KEY_ACTIVITY_REPORT &&
+                it.status == FactStatus.ACTIVE
+        }
+        if (hasActive && ACTIVITY_CORRECTION_PREFIX.containsMatchIn(utterance)) return true
+        if (hasActive && utterance.trim().matches(Regex("""(?i)^\s*(?:actually[, ]+)?\d{1,3}\s*(?:minutes?|mins?|min)?\.?\s*$"""))) {
+            return true
+        }
+        // Fresh report: verb + duration (ran/walked/…) or explicit “for N minutes”.
+        val lower = utterance.lowercase()
+        val hasVerb = listOf(
+            "ran", "run", "jog", "walk", "train", "cycle", "swam", "workout", "worked out"
+        ).any { lower.contains(it) }
+        return hasVerb && minutes > 0
+    }
+
+    /**
+     * Record a self-reported timed activity, or [CorrectFact] the ACTIVE report
+     * when the user corrects duration (e.g. 20 → 25 minutes). Generic across
+     * physical-training / practice intentions — not marathon-title-specific.
+     */
+    fun recordOrCorrectActivityReport(
+        store: IntentionFlowStore,
+        intentionId: String,
+        utterance: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        sourceTurnId: String? = null
+    ): ApplyResult {
+        val minutes = parseActivityDurationMinutes(utterance)
+            ?: return ApplyResult(
+                false,
+                "No activity duration found to record.",
+                "SaveFact",
+                store.snapshot()
+            )
+        val text = "$minutes minutes"
+        val rev = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+        val prior = store.snapshot().facts.firstOrNull {
+            it.intentionId == intentionId &&
+                it.key == KEY_ACTIVITY_REPORT &&
+                it.status == FactStatus.ACTIVE
+        }
+        val turn = sourceTurnId ?: "turn-activity-$intentionId-$nowEpochMs"
+        if (prior != null) {
+            return applyDecision(
+                store,
+                BuilderDecision.CorrectFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev,
+                    existingFactId = prior.id,
+                    replacement = FactDraft(
+                        factId = "fact-activity-corrected-$intentionId-$nowEpochMs",
+                        text = text,
+                        key = KEY_ACTIVITY_REPORT,
+                        rawUtterance = utterance.trim(),
+                        normalizedValue = minutes.toString()
+                    ),
+                    sourceTurnId = turn
+                ),
+                nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+        // Ensure adaptive state exists so Discuss can CorrectFact later.
+        if (store.snapshot().adaptiveBuilderStates.none { it.intentionId == intentionId }) {
+            val intention = store.snapshot().intentions.firstOrNull { it.id == intentionId }
+            store.apply(
+                FlowCommand.SetAdaptiveBuilderState(
+                    state = AdaptiveBuilderState(
+                        intentionId = intentionId,
+                        revision = 0L,
+                        typeFacets = facetsForShape(intention?.shapeTag ?: "other"),
+                        lifecycleHint = "discovery",
+                        updatedAtEpochMs = nowEpochMs
+                    ),
+                    nowEpochMs = nowEpochMs
+                )
+            )
+        }
+        val revAfter = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+        return applyDecision(
+            store,
+            BuilderDecision.SaveFact(
+                intentionId = intentionId,
+                expectedRevision = revAfter,
+                factDraft = FactDraft(
+                    factId = "fact-activity-$intentionId-$nowEpochMs",
+                    text = text,
+                    key = KEY_ACTIVITY_REPORT,
+                    rawUtterance = utterance.trim(),
+                    normalizedValue = minutes.toString()
+                ),
+                sourceTurnId = turn
+            ),
+            nowEpochMs,
+            timeZone = timeZone
+        )
     }
 
     /**

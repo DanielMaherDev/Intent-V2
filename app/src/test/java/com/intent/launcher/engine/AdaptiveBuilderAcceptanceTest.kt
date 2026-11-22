@@ -1270,14 +1270,44 @@ class AdaptiveBuilderAcceptanceTest {
                 timeZone = tz
             ).accepted
         )
-        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+        val logAsk = AdaptiveBuilderEngine.suggestNextDecision(
             AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(logAsk is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_ACTIVITY_LOG_METHOD,
+            (logAsk as BuilderDecision.Ask).purpose
+        )
+        assertTrue(logAsk.options.any { it.contains("Log runs manually", ignoreCase = true) })
+        assertTrue(logAsk.options.any { it.contains("Choose race", ignoreCase = true) })
+        AdaptiveBuilderEngine.applyDecision(store, logAsk, now + 2, timeZone = tz)
+        val rev2 = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 3, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = logAsk.questionId,
+                    intentionId = id,
+                    normalizedValue = "Log runs manually",
+                    rawValue = "Log runs manually",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-log",
+                    answeredAtEpochMs = now + 3,
+                    idempotencyKey = "idem-log",
+                    expectedRevision = rev2
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_ACTIVITY_LOG_METHOD,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 4, tz)!!, now + 4, tz
         )
         assertTrue(pause is BuilderDecision.Pause)
         assertTrue((pause as BuilderDecision.Pause).reason.contains("eight-month", ignoreCase = true) ||
             pause.reason.contains("No eight-month", ignoreCase = true) ||
             pause.reason.contains("first phase", ignoreCase = true))
-        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 5, timeZone = tz)
         val snap = store.snapshot()
         assertTrue(snap.proposals.none { it.intentionId == id })
         assertTrue(snap.sessions.none { it.intentionId == id })
@@ -1287,6 +1317,54 @@ class AdaptiveBuilderAcceptanceTest {
                     it.text.contains("taper", ignoreCase = true)
             }
         )
+    }
+
+    @Test
+    fun oc3_activityReport_correctFact_updatesSameEntry_notSecondRun() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "marathon", now)
+        assertTrue(
+            AdaptiveBuilderEngine.shouldHandleActivityReport(
+                store, id, "I ran for 20 minutes today."
+            )
+        )
+        val save = AdaptiveBuilderEngine.recordOrCorrectActivityReport(
+            store = store,
+            intentionId = id,
+            utterance = "I ran for 20 minutes today.",
+            nowEpochMs = now + 10,
+            timeZone = tz
+        )
+        assertTrue(save.reason, save.accepted)
+        val prior = store.snapshot().facts.single {
+            it.intentionId == id &&
+                it.key == AdaptiveBuilderEngine.KEY_ACTIVITY_REPORT &&
+                it.status == FactStatus.ACTIVE
+        }
+        assertEquals("20 minutes", prior.text)
+        assertTrue(
+            AdaptiveBuilderEngine.shouldHandleActivityReport(
+                store, id, "Actually, 25 minutes."
+            )
+        )
+        val correct = AdaptiveBuilderEngine.recordOrCorrectActivityReport(
+            store = store,
+            intentionId = id,
+            utterance = "Actually, 25 minutes.",
+            nowEpochMs = now + 20,
+            timeZone = tz
+        )
+        assertTrue(correct.reason, correct.accepted)
+        val active = store.snapshot().facts.filter {
+            it.intentionId == id && it.key == AdaptiveBuilderEngine.KEY_ACTIVITY_REPORT
+        }
+        assertEquals(2, active.size)
+        assertEquals(FactStatus.CORRECTED, active.first { it.id == prior.id }.status)
+        assertEquals(
+            FactStatus.ACTIVE,
+            active.first { it.id != prior.id }.status
+        )
+        assertEquals("25 minutes", active.first { it.status == FactStatus.ACTIVE }.text)
+        assertEquals(prior.id, active.first { it.status == FactStatus.ACTIVE }.supersedesFactId)
     }
 
     // —— OC4 Habit — baseline then pause; no cessation-from-task claim ——

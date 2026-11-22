@@ -186,21 +186,25 @@ object IntentionBuilder {
             )
             "marathon" -> listOf(
                 Prompt(
-                    id = "focus_area",
-                    question = "What part of prep matters most right now?",
+                    id = AdaptiveBuilderEngine.KEY_RACE_STATUS,
+                    question =
+                        "Do you already have a race and date, or is the event still to be chosen?",
                     choiceOptions = listOf(
-                        "Building base mileage",
-                        "Long-run stamina",
-                        "Speed work",
-                        "Recovery / injury care"
+                        "Race chosen with date",
+                        "Event still to choose",
+                        "Not sure"
                     )
                 ),
                 Prompt(
-                    id = "available_time",
-                    question = "How many minutes can you train in a typical week?",
-                    quantityChoices = (1..180).toList(),
-                    quantityUnitLabel = "minutes per week",
-                    quantitySummaryTemplate = "{value} {unit}"
+                    id = AdaptiveBuilderEngine.KEY_ACTIVITY_LOG_METHOD,
+                    question =
+                        "For the first phase, how should we record runs? " +
+                            "Connect an app only if one is installed — otherwise log manually.",
+                    choiceOptions = listOf(
+                        "Choose race",
+                        "Log runs manually",
+                        "Connect an installed running app"
+                    )
                 )
             )
             "business" -> listOf(
