@@ -336,7 +336,12 @@ object CreateIntentionChat {
             }
         }
 
-        val prompt = IntentionBuilder.nextPrompt(draft)
+        // Prefer the active in-chat card prompt id (e.g. OC5 usage_measurement)
+        // over nextPrompt, which only knows IntentionBuilder missing-fact ids.
+        val activeChoice = latestActiveBuilderCard(store)?.let { BuilderAnswerCard.decode(it) }
+            as? BuilderAnswerCard.Decoded.Choice
+        val promptId = activeChoice?.promptId
+            ?: IntentionBuilder.nextPrompt(draft)?.id
             ?: return confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
 
         if (ChoiceOptions.isOther(trimmed)) {
@@ -352,7 +357,7 @@ object CreateIntentionChat {
             )
         }
 
-        IntentionBuilder.answerPrompt(store, prompt.id, trimmed, nowEpochMs + 1, registry)
+        IntentionBuilder.answerPrompt(store, promptId, trimmed, nowEpochMs + 1, registry)
         deactivatePriorBuilderCards(store, nowEpochMs + 1)
         return afterAnswer(store, nowEpochMs + 2, registry, sourceLabel)
     }
@@ -418,20 +423,35 @@ object CreateIntentionChat {
             draft.shapeTag ?: draft.suggestedShapeTag
         )
         var liveAttempted = false
+        val seedHonesty = CreatePathSeedHonesty.forDescription(description)
         var prose = "I’ve treated this as a ${shapeLabel.lowercase()} intention. " +
             "Next I’ll ask one useful question at a time in this chat."
+        if (seedHonesty != null) {
+            // Agent must surface measurement / decide-by-date honesty — do not
+            // rely on the user typing it via Other (OC5 / OC9).
+            prose = "$prose\n\n${seedHonesty.agentNote}"
+        }
 
         val live = registry.canUseLiveLlm()
         val apiKey = access.resolveApiKey()
         if (live && client != null && !apiKey.isNullOrBlank()) {
             liveAttempted = true
+            val honestyHint = when (seedHonesty?.kind) {
+                CreatePathSeedHonesty.Kind.USAGE_APP_TIME ->
+                    " Measurement honesty required: UsageStats package foreground only " +
+                        "when usage access is granted; cannot identify Shorts/Reels; " +
+                        "offer track package time / manual Shorts log / both; never claim exact Shorts minutes."
+                CreatePathSeedHonesty.Kind.JOB_OFFER_DECIDE ->
+                    " Frame decide-by-date: help decide, never auto-accept; deadline matters."
+                null -> ""
+            }
             val pack = ContextAssembler.assemble(
                 snapshot = store.snapshot(),
                 intention = store.snapshot().intentions.firstOrNull { it.id == SESSION_INTENTION_ID },
                 registry = registry,
                 nowEpochMs = nowEpochMs
             ) + "\nCreate-intention mode: ask consequential discovery questions one at a time. " +
-                "Do not invent a full plan. Do not claim observed app progress."
+                "Do not invent a full plan. Do not claim observed app progress.$honestyHint"
             when (
                 val outcome = client.complete(
                     apiKey = apiKey,
@@ -440,7 +460,22 @@ object CreateIntentionChat {
                 )
             ) {
                 is OpenAiDiscussClient.Outcome.Success -> {
-                    prose = OpenAiDiscussClient.formatAgentTurn(outcome.completion)
+                    // Keep seed honesty visible even if the model rewrites prose.
+                    val formatted = OpenAiDiscussClient.formatAgentTurn(outcome.completion)
+                    prose = if (seedHonesty != null &&
+                        !formatted.contains("Shorts", ignoreCase = true) &&
+                        seedHonesty.kind == CreatePathSeedHonesty.Kind.USAGE_APP_TIME
+                    ) {
+                        "$formatted\n\n${seedHonesty.agentNote}"
+                    } else if (seedHonesty != null &&
+                        seedHonesty.kind == CreatePathSeedHonesty.Kind.JOB_OFFER_DECIDE &&
+                        !formatted.contains("auto-accept", ignoreCase = true) &&
+                        !formatted.contains("decide", ignoreCase = true)
+                    ) {
+                        "$formatted\n\n${seedHonesty.agentNote}"
+                    } else {
+                        formatted
+                    }
                 }
                 is OpenAiDiscussClient.Outcome.Failure -> {
                     prose = "$prose\n\n(${outcome.honestMessage})"
@@ -451,7 +486,14 @@ object CreateIntentionChat {
         }
 
         postAgent(store, nowEpochMs + 3, prose)
-        projectNextPromptCard(store, nowEpochMs + 4)
+        if (seedHonesty?.firstChoicePromptId != null &&
+            seedHonesty.firstChoiceOptions.isNotEmpty() &&
+            seedHonesty.firstChoiceQuestion != null
+        ) {
+            projectSeedHonestyChoiceCard(store, nowEpochMs + 4, seedHonesty)
+        } else {
+            projectNextPromptCard(store, nowEpochMs + 4)
+        }
         return SubmitResult(
             ok = true,
             honestyNote = start.note,
@@ -931,6 +973,37 @@ object CreateIntentionChat {
             m.contains("not yet") || m.isBlank() -> listOf("approach-other")
             else -> listOf("approach-other")
         }
+    }
+
+    private fun projectSeedHonestyChoiceCard(
+        store: IntentionFlowStore,
+        nowEpochMs: Long,
+        honesty: CreatePathSeedHonesty.Honesty
+    ) {
+        val promptId = honesty.firstChoicePromptId ?: return
+        val question = honesty.firstChoiceQuestion ?: return
+        deactivatePriorBuilderCards(store, nowEpochMs)
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-create-card-$nowEpochMs",
+                intentionId = SESSION_INTENTION_ID,
+                role = "agent",
+                text = question,
+                nowEpochMs = nowEpochMs,
+                blocks = listOf(
+                    BuilderAnswerCard.choiceBlock(
+                        blockId = "block-create-choice-$nowEpochMs",
+                        title = question,
+                        body = "Pick one below, or choose Other and type your own answer.",
+                        spec = BuilderAnswerCard.ChoiceSpec(
+                            promptId = promptId,
+                            options = honesty.firstChoiceOptions,
+                            includeDeferral = false
+                        )
+                    )
+                )
+            )
+        )
     }
 
     private fun projectNextPromptCard(store: IntentionFlowStore, nowEpochMs: Long) {

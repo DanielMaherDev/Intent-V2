@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.167** (this branch) · based on tip **v0.0.166** (#111) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.186** (this branch) · based on tip **v0.0.176** (#122) · SCHEMA **10**.
 
 ## Build
 
@@ -8,12 +8,13 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.167** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/debug/app-debug.apk` → publish as `artifacts/INTENT-v0.0.167.apk`
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as `artifacts/INTENT-v0.0.186.apk`
 
 ## Scope
 
 Evolving-intention foundation on a brand-new HOME launcher — not the full INTENT vision, and not a reuse of intent-app / `com.intent.coach`.
 
+- **v0.0.186:** Adaptive create-path seed honesty — OC5 Instagram/YouTube Shorts agent states UsageStats package≠Shorts identity + usage-access + measurement choices; OC9 job-offer agent frames decide-by-date (help decide, not auto-accept). JVM `AdaptiveCreateHonestyTest`. SCHEMA 10 stamp-compatible. Rebased onto tip **0.0.176** (#122); rebump from invalid 0.0.175. Hold merge.
 - **v0.0.167:** DESIGN_SPEC redesign slice — empty Home (S-HOME-EMPTY), brand tokens `#5C4DFF` / paper `#F6F4F0`, diamond wordmark; Discuss **Cancel** while waiting for the model (§8.9 surface). Spec at `docs/design/intent-redesign-2026-11/`. Rebased onto tip **0.0.166** (#111 SessionMetaGrid); does not touch ProposalReview 4-cell grid.
 - **v0.0.163:** Adaptive builder Gates D–E + AVD defect fixes (#108).
 - **v0.0.161:** Adaptive builder Gates B–C domain core + Gate F JVM harness — typed source-linked Fact / OpenQuestion / Approach / AdaptiveBuilderState; BuilderDecision + validator; RelativeDateAnchoring; Conversation-callable AdaptiveBuilderEngine hooks; §8 scenarios 1/4/5/6/7/9 green. Does **not** change chat-first create UX (IV-189 / 0.0.160). SCHEMA 10 stamp-compatible. Based on tip **0.0.159** (#105).
