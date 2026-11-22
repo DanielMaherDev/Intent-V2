@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.HourglassBottom
@@ -278,7 +280,7 @@ fun AgentOneQuestionCard(
             if (model.multiSelect && onConfirmMulti != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 IntentPrimaryButton(
-                    text = "Continue with selection",
+                    text = "Done",
                     onClick = onConfirmMulti
                 )
             }
@@ -1067,8 +1069,8 @@ private fun RadioOptionRow(
     ) {
         Icon(
             imageVector = when {
-                multiSelect && selected -> Icons.Outlined.Check
-                multiSelect -> Icons.Outlined.RadioButtonUnchecked
+                multiSelect && selected -> Icons.Outlined.CheckBox
+                multiSelect -> Icons.Outlined.CheckBoxOutlineBlank
                 selected -> Icons.Outlined.RadioButtonChecked
                 else -> Icons.Outlined.RadioButtonUnchecked
             },

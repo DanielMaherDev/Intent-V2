@@ -1,6 +1,6 @@
 # Intent-V2
 
-Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.223** (this branch) · based on tip **v0.0.222** (#141) · SCHEMA **10**.
+Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.226** (this branch) · based on tip **v0.0.225** (#144) · SCHEMA **10**.
 
 ## Build
 
@@ -8,10 +8,11 @@ Greenfield INTENT HOME launcher (`com.intent.launcher`) **v0.0.223** (this branc
 ./gradlew :app:assembleRelease :app:testDebugUnitTest
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk` → publish as [`artifacts/INTENT-v0.0.225.apk`](artifacts/INTENT-v0.0.225.apk)
+APK: `app/build/outputs/apk/release/app-release.apk` → publish as [`artifacts/INTENT-v0.0.226.apk`](artifacts/INTENT-v0.0.226.apk)
 
 ## Scope
 
+- **v0.0.226:** OC6 practice Ask honors `MULTI_CHOICE` — create-path projects checkbox multi-select (Playing / Reviewing / Studying) with Done to submit the set; combination = multi-select, not a fourth mode. JVM `AdaptiveCreateHonestyTest.oc6_practicePreferenceAsk_isMultiChoice_dualSelectPersists` + `BuilderAnswerCardSchemasTest` / `AgentModuleProjectionTest` multi-choice coverage. Based on tip **0.0.225** (#144). Auto-merge when CI green.
 - **v0.0.223:** Discuss/active path surfaces **Small validation experiment** OfferAction after Choose an idea to validate — generic ambition policy (Ask for selected idea after Explore ideas) + AdaptiveAnswerPath, not BusinessScenario fixture-only. JVM `ambition_discussPath_chooseIdeaChip_surfacesValidationOfferAction` + OC8. SCHEMA 10 stamp-compatible. Based on tip **0.0.222** (#141). Auto-merge when CI green.
 - **v0.0.222:** Align `GateDOverlayInterruptTest` fallback assertion with redesign #110 companion-route copy (no overlay essay). JVM acceptance filter green on main tip 0.0.220 + this tip. Auto-merge when CI green.
 - **v0.0.219:** Lightweight errand / quick to-do path (OTHER §1) — create-chat diverts small errands off intention interview; reminder vs checklist chips; multi-item checklist children; Home empty-state shows errands with **Open list** / **Edit** / **Undo**. Generic for all errands (not milk-specific). JVM `ErrandCaptureTest` + `CreateIntentionChatTest.smallErrand_*`. Auto-merge when CI green.
