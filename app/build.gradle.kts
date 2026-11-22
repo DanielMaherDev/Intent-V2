@@ -11,14 +11,15 @@ android {
         applicationId = "com.intent.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 198
-        versionName = "0.0.198"
+        versionCode = 199
+        versionName = "0.0.199"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Live OpenAI key wiring — never commit secrets or print values.
         // Canonical Cursor / CI secret name: OPENAPI_GENERAL
-        // Resolution order (first non-blank wins for presence):
-        //   1) env OPENAPI_GENERAL (Cloud Agent / CI)
-        //   2) gitignored local.properties OPENAPI_GENERAL=...
+        // Fallback secret name: OPENAI_GENERAL (same value when OPENAPI_GENERAL is blank)
+        // Resolution order (first non-blank wins):
+        //   1) env OPENAPI_GENERAL, else env OPENAI_GENERAL (Cloud Agent / CI)
+        //   2) gitignored local.properties OPENAPI_GENERAL=..., else OPENAI_GENERAL=...
         //   3) -Popenapi.general=...
         // Raw key is embedded into BuildConfig ONLY when
         //   -Pintent.embed.openai.key=true
@@ -40,8 +41,17 @@ android {
         fun escapeBuildConfigString(raw: String): String =
             raw.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "").replace("\r", "")
 
-        val fromEnv = System.getenv("OPENAPI_GENERAL").orEmpty().trim()
-        val fromLocal = localProps["OPENAPI_GENERAL"].orEmpty().trim()
+        fun firstNonBlank(vararg candidates: String): String =
+            candidates.firstOrNull { it.isNotEmpty() }.orEmpty()
+
+        val fromEnv = firstNonBlank(
+            System.getenv("OPENAPI_GENERAL").orEmpty().trim(),
+            System.getenv("OPENAI_GENERAL").orEmpty().trim()
+        )
+        val fromLocal = firstNonBlank(
+            localProps["OPENAPI_GENERAL"].orEmpty().trim(),
+            localProps["OPENAI_GENERAL"].orEmpty().trim()
+        )
         val fromProp = (project.findProperty("openapi.general") as? String).orEmpty().trim()
         val resolvedSecret = when {
             fromEnv.isNotEmpty() -> fromEnv
