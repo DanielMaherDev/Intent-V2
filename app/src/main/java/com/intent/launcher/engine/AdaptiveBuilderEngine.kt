@@ -46,10 +46,13 @@ object AdaptiveBuilderEngine {
     const val KEY_EMPLOYMENT_ARRANGEMENT = "employment_arrangement"
     const val KEY_RESIDENCE_DURATION = "residence_duration"
 
-    /** OC3 / OC4 / OC5 / OC9 honesty keys. */
+    /** OC3 / OC4 / OC5 / OC6 / OC7 / OC9 honesty keys. */
     const val KEY_RACE_STATUS = "race_status"
     const val KEY_HABIT_BASELINE = "habit_baseline"
     const val KEY_USAGE_MEASUREMENT = "usage_measurement"
+    const val KEY_RATING_BASELINE = "rating_baseline"
+    const val KEY_LEASE_DEADLINE = "lease_deadline"
+    const val KEY_NOTICE_STATUS = "notice_status"
     const val KEY_DECIDE_BY_DATE = "decide_by_date"
 
     data class ApplyResult(
@@ -194,6 +197,18 @@ object AdaptiveBuilderEngine {
         // —— OC9: time-limited decision — decide-by date, never auto-accept ——
         if (context.typeFacets.contains("decision")) {
             decisionCaseDecision(context)?.let { return it }
+        }
+
+        // —— OC6: connected metric — manual/provider baseline honesty, no invented ratings ——
+        if (context.typeFacets.contains("connected_metric")) {
+            connectedMetricDecision(context)?.let { return it }
+        }
+
+        // —— OC7: finite move project — constraints + waiting, no invented secured plan ——
+        if (context.typeFacets.contains("dated_outcome") &&
+            context.typeFacets.contains("conditional_process")
+        ) {
+            finiteMoveProjectDecision(context)?.let { return it }
         }
 
         val hasSelectedApproaches =
@@ -498,6 +513,88 @@ object AdaptiveBuilderEngine {
             expectedRevision = context.revision,
             reason =
                 "Decide-by date recorded. Comparison stays open — no auto-accept of the offer.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /**
+     * OC6 — Chess.com / connected metric: ask baseline source honesty.
+     * Never invents a live rating, games, or lesson completion.
+     */
+    private fun connectedMetricDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_RATING_BASELINE }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-rating-baseline-${context.intentionId}",
+                whyItMatters =
+                    "Without a provider import, use a manual baseline. Do not invent a live " +
+                        "Chess.com rating from a stale or missing connection.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_RATING_BASELINE,
+                blocksWhat = "practice_routine",
+                options = listOf(
+                    "Use manual baseline (e.g. 900)",
+                    "Refresh from connected provider",
+                    "Not connected yet"
+                ),
+                priority = 85
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Baseline method recorded. Practice stays distinct from rating — no invented " +
+                    "games, lesson completion, or live rating claimed.",
+            resumeCue = "Continue discussion"
+        )
+    }
+
+    /**
+     * OC7 — Barcelona→Valencia move: capture lease deadline + notice, then pause with waiting.
+     * Never invents viewings or assumes a property is secured.
+     */
+    private fun finiteMoveProjectDecision(context: BuilderContext): BuilderDecision? {
+        if (context.confirmedFacts.none { it.key == KEY_LEASE_DEADLINE }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-lease-${context.intentionId}",
+                whyItMatters =
+                    "Lease end date shapes the critical path for search and notice — " +
+                        "no move plan assumes a place is already secured.",
+                answerSchema = AnswerSchema.DATE_TIME,
+                purpose = KEY_LEASE_DEADLINE,
+                blocksWhat = "move_project_board",
+                priority = 90
+            )
+        }
+        if (context.confirmedFacts.none { it.key == KEY_NOTICE_STATUS }) {
+            return BuilderDecision.Ask(
+                intentionId = context.intentionId,
+                expectedRevision = context.revision,
+                questionId = "q-notice-${context.intentionId}",
+                whyItMatters =
+                    "Notice and mover vs self-move change which steps are yours versus " +
+                        "waiting on landlords or appointments.",
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
+                purpose = KEY_NOTICE_STATUS,
+                blocksWhat = "move_project_board",
+                options = listOf(
+                    "Notice not given yet",
+                    "Notice given",
+                    "Not sure about movers yet"
+                ),
+                priority = 85
+            )
+        }
+        return BuilderDecision.Pause(
+            intentionId = context.intentionId,
+            expectedRevision = context.revision,
+            reason =
+                "Lease and notice facts saved. External steps stay waiting — no invented " +
+                    "viewings or secured-property plan.",
             resumeCue = "Continue discussion"
         )
     }

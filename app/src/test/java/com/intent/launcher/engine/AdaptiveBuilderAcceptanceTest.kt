@@ -28,7 +28,7 @@ import java.io.File
 
 /**
  * Gate F JVM harness — worksheet §8 scenarios 1, 2, 4, 5, 6, 7, 8, 9 (deterministic).
- * Fixtures + walks for companion other-cases (OC2–OC5, OC9) without inventing plans.
+ * Fixtures + walks for companion other-cases (OC2–OC7, OC9) without inventing plans.
  * Gate D/E paths: AnswerQuestion parity + PlanCompiler review fields.
  */
 class AdaptiveBuilderAcceptanceTest {
@@ -1010,6 +1010,138 @@ class AdaptiveBuilderAcceptanceTest {
         AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
         assertTrue(store.snapshot().proposals.none { it.intentionId == id })
         assertTrue(store.snapshot().sessions.none { it.intentionId == id })
+    }
+
+    // —— OC6 Chess — manual/provider baseline honesty, no invented ratings ——
+    @Test
+    fun oc6_chess_ratingBaselineAsk_thenPause_noInventedRating() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "chess", now)
+        val ask = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now, tz)!!, now, tz
+        )
+        assertTrue(ask is BuilderDecision.Ask)
+        assertEquals(AdaptiveBuilderEngine.KEY_RATING_BASELINE, (ask as BuilderDecision.Ask).purpose)
+        assertTrue(ask.whyItMatters.contains("invent", ignoreCase = true))
+        AdaptiveBuilderEngine.applyDecision(store, ask, now, timeZone = tz)
+        val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 1, tz)!!.revision
+        assertTrue(
+            AdaptiveBuilderEngine.answerQuestion(
+                store,
+                AnswerQuestion(
+                    questionId = ask.questionId,
+                    intentionId = id,
+                    normalizedValue = "Use manual baseline (e.g. 900)",
+                    rawValue = "Use manual baseline (e.g. 900)",
+                    modality = "TEXT_CHIP",
+                    sourceTurnId = "turn-rating",
+                    answeredAtEpochMs = now + 1,
+                    idempotencyKey = "idem-rating",
+                    expectedRevision = rev
+                ),
+                factKey = AdaptiveBuilderEngine.KEY_RATING_BASELINE,
+                timeZone = tz
+            ).accepted
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, now + 2, tz)!!, now + 2, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue(
+            (pause as BuilderDecision.Pause).reason.contains("invented", ignoreCase = true) ||
+                pause.reason.contains("live rating", ignoreCase = true)
+        )
+        AdaptiveBuilderEngine.applyDecision(store, pause, now + 3, timeZone = tz)
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("your rating is now", ignoreCase = true) ||
+                    it.text.contains("you won", ignoreCase = true)
+            }
+        )
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
+    }
+
+    // —— OC7 Move — lease/notice then waiting pause, no invented secured plan ——
+    @Test
+    fun oc7_move_leaseAndNotice_thenWaitingPause_noInventedPlan() {
+        val id = AdaptiveBuilderFixtures.seedOtherCase(store, "move", now)
+        var t = now
+        fun next(): BuilderDecision =
+            AdaptiveBuilderEngine.suggestNextDecision(
+                AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+            )
+        fun answerAsk(ask: BuilderDecision.Ask, text: String, key: String, suffix: String) {
+            assertTrue(
+                AdaptiveBuilderEngine.applyDecision(store, ask, t, timeZone = tz).accepted
+            )
+            t += 1
+            val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+            assertTrue(
+                AdaptiveBuilderEngine.answerQuestion(
+                    store,
+                    AnswerQuestion(
+                        questionId = ask.questionId,
+                        intentionId = id,
+                        normalizedValue = text,
+                        rawValue = text,
+                        modality = "FREE_TEXT",
+                        sourceTurnId = "turn-$suffix",
+                        answeredAtEpochMs = t,
+                        idempotencyKey = "idem-$suffix",
+                        expectedRevision = rev
+                    ),
+                    factKey = key,
+                    timeZone = tz
+                ).accepted
+            )
+            t += 5
+        }
+
+        val lease = next()
+        assertTrue(lease is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_LEASE_DEADLINE,
+            (lease as BuilderDecision.Ask).purpose
+        )
+        answerAsk(lease, "Lease ends in six weeks", AdaptiveBuilderEngine.KEY_LEASE_DEADLINE, "lease")
+
+        val notice = next()
+        assertTrue(notice is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_NOTICE_STATUS,
+            (notice as BuilderDecision.Ask).purpose
+        )
+        answerAsk(
+            notice,
+            "Notice not given yet",
+            AdaptiveBuilderEngine.KEY_NOTICE_STATUS,
+            "notice"
+        )
+
+        val pause = next()
+        assertTrue("expected waiting Pause, got $pause", pause is BuilderDecision.Pause)
+        val pauseDec = pause as BuilderDecision.Pause
+        assertTrue(pauseDec.reason.contains("waiting", ignoreCase = true))
+        assertTrue(
+            pauseDec.reason.contains("invented", ignoreCase = true) ||
+                pauseDec.reason.contains("secured", ignoreCase = true)
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, pauseDec, t, timeZone = tz).accepted
+        )
+        val snap = store.snapshot()
+        assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertEquals(2, AdaptiveBuilderEngine.activeFacts(snap, id).size)
+        assertFalse(
+            snap.turns.any {
+                it.text.contains("viewing booked", ignoreCase = true) ||
+                    it.text.contains("you have a flat", ignoreCase = true)
+            }
+        )
     }
 
     // —— OC9 Job offer — decide-by date, no auto-accept ——
