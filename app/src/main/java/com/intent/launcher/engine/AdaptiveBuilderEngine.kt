@@ -57,6 +57,13 @@ object AdaptiveBuilderEngine {
     const val KEY_NOTICE_STATUS = "notice_status"
     const val KEY_DECIDE_BY_DATE = "decide_by_date"
 
+    /** Chips for motivation Ask (Other appended by [BuilderAnswerCard]). */
+    val MOTIVATION_OPTIONS: List<String> = listOf(
+        "Moving or travel",
+        "Work or school",
+        "Everyday conversations"
+    )
+
     data class ApplyResult(
         val accepted: Boolean,
         val reason: String,
@@ -294,9 +301,10 @@ object AdaptiveBuilderEngine {
                 expectedRevision = context.revision,
                 questionId = "q-motivation-${context.intentionId}",
                 whyItMatters = "Motivation shapes urgency and which practice to prioritize first.",
-                answerSchema = AnswerSchema.FREE_TEXT,
+                answerSchema = AnswerSchema.SINGLE_CHOICE,
                 purpose = KEY_MOTIVATION,
                 blocksWhat = "move_estimate",
+                options = MOTIVATION_OPTIONS,
                 priority = 80
             )
         }

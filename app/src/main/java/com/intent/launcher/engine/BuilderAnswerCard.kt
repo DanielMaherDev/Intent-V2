@@ -224,7 +224,7 @@ object BuilderAnswerCard {
     /** Project a schema-aware in-chat card from a builder Ask decision. */
     fun blockForAsk(decision: BuilderDecision.Ask, nowEpochMs: Long = 0L): ResponseBlock {
         val blockId = "block-ask-${decision.questionId}"
-        val title = decision.purpose.ifBlank { "Question" }
+        val title = askTitle(decision)
         val body = decision.whyItMatters
         return when (decision.answerSchema) {
             AnswerSchema.NUMBER, AnswerSchema.DURATION -> quantityBlock(
@@ -288,11 +288,25 @@ object BuilderAnswerCard {
                 spec = ChoiceSpec(
                     promptId = decision.questionId,
                     options = decision.options,
-                    includeDeferral = true
+                    // Motivation create walk: chips + Other (no Not sure/Skip clutter).
+                    includeDeferral = decision.purpose != AdaptiveBuilderEngine.KEY_MOTIVATION
                 )
             )
         }
     }
+
+    private fun askTitle(decision: BuilderDecision.Ask): String =
+        when (decision.purpose) {
+            AdaptiveBuilderEngine.KEY_MOTIVATION ->
+                "What brings this language into focus for you?"
+            AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE ->
+                "Which language are you focusing on?"
+            AdaptiveBuilderEngine.KEY_MOVE_ESTIMATE ->
+                "When do you expect the move or deadline?"
+            AdaptiveBuilderEngine.KEY_PRACTICE_FREQUENCY ->
+                "How often can you practise?"
+            else -> decision.purpose.ifBlank { "Question" }
+        }
 
     fun decode(block: ResponseBlock): Decoded? {
         if (!block.active) return null

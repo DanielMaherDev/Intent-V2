@@ -2,6 +2,7 @@ package com.intent.launcher.engine
 
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AdaptiveBuilderState
+import com.intent.launcher.domain.AnswerQuestion
 import com.intent.launcher.domain.ApproachActor
 import com.intent.launcher.domain.ApproachDraft
 import com.intent.launcher.domain.BuilderDecision
@@ -10,6 +11,7 @@ import com.intent.launcher.domain.FactDraft
 import com.intent.launcher.domain.FactStatus
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
+import com.intent.launcher.domain.OpenQuestionState
 import com.intent.launcher.domain.ProposalStatus
 import com.intent.launcher.domain.RelativeDateAnchoring
 import com.intent.launcher.domain.ResponseBlock
@@ -22,10 +24,10 @@ import java.util.TimeZone
  * in-chat cards (NumberWheel / chips+Other) — not a disconnected Builder wizard.
  *
  * Structural answers always go through [IntentionBuilder] / [AnswerBuilderPrompt].
- * After Confirm, [bridgeAdaptiveBuilderAfterCommit] remaps draft prompt ids onto
- * AdaptiveBuilder engine keys + approaches so §8.4 Propose/Review is reachable
- * without fixtures-only shortcuts. When live OpenAI is opted in, prose may be
- * enriched; otherwise the path stays honest local heuristics.
+ * Language create surfaces AdaptiveBuilderEngine motivation Ask (chips + Other)
+ * after minutes + method, before Confirm → [bridgeAdaptiveBuilderAfterCommit]
+ * Propose. Confirm→Propose still works once motivation is answered. When live
+ * OpenAI is opted in, prose may be enriched; otherwise honest local heuristics.
  */
 object CreateIntentionChat {
 
@@ -264,6 +266,23 @@ object CreateIntentionChat {
                 }
             }
             draft.phase == BuilderPhase.CONFIRM -> {
+                if (pendingMotivationAsk(store) != null) {
+                    if (looksLikeConfirm(trimmed) || looksLikeKeepDiscussing(trimmed)) {
+                        return SubmitResult(
+                            false,
+                            "Answer why this language matters first (chips or Other).",
+                            sourceLabel
+                        )
+                    }
+                    return answerCreateMotivation(
+                        store = store,
+                        raw = trimmed,
+                        modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                        nowEpochMs = nowEpochMs,
+                        sourceLabel = sourceLabel,
+                        userTurnAlreadyPosted = true
+                    )
+                }
                 return if (looksLikeConfirm(trimmed)) {
                     confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
                 } else if (looksLikeKeepDiscussing(trimmed)) {
@@ -321,6 +340,25 @@ object CreateIntentionChat {
         )
 
         if (draft.phase == BuilderPhase.CONFIRM) {
+            if (pendingMotivationAsk(store) != null) {
+                if (trimmed.contains("Confirm", ignoreCase = true) ||
+                    trimmed.contains("Keep discussing", ignoreCase = true)
+                ) {
+                    return SubmitResult(
+                        false,
+                        "Answer why this language matters first (chips or Other).",
+                        sourceLabel
+                    )
+                }
+                return answerCreateMotivation(
+                    store = store,
+                    raw = trimmed,
+                    modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                    nowEpochMs = nowEpochMs,
+                    sourceLabel = sourceLabel,
+                    userTurnAlreadyPosted = true
+                )
+            }
             return when {
                 trimmed.contains("Confirm", ignoreCase = true) ->
                     confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
@@ -585,6 +623,10 @@ object CreateIntentionChat {
         val draft = store.snapshot().builderDraft
         return when (draft.phase) {
             BuilderPhase.CONFIRM -> {
+                // Gate C2: language minutes+method → engine motivation Ask before Confirm/Propose.
+                if (surfaceMotivationAskBeforeConfirm(store, nowEpochMs)) {
+                    return SubmitResult(true, "Motivation ask projected.", sourceLabel)
+                }
                 postAgent(
                     store,
                     nowEpochMs,
@@ -816,6 +858,23 @@ object CreateIntentionChat {
             t += 1
         }
 
+        // Safety net: if Confirm raced past pre-Confirm motivation Ask, surface it
+        // here instead of OfferApproaches → Propose (Gate C2 ranking walk).
+        if (shapeTag == "language" &&
+            !hasKey(AdaptiveBuilderEngine.KEY_MOTIVATION) &&
+            pendingMotivationAsk(store, intentionId) == null
+        ) {
+            val ctx = AdaptiveBuilderEngine.projectContext(store.snapshot(), intentionId, t, timeZone)
+                ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            if (next is BuilderDecision.Ask &&
+                next.purpose == AdaptiveBuilderEngine.KEY_MOTIVATION
+            ) {
+                AdaptiveBuilderEngine.applyDecision(store, next, t, timeZone = timeZone)
+                return null
+            }
+        }
+
         val hasSelected = store.snapshot().approaches.any {
             it.intentionId == intentionId &&
                 it.status == com.intent.launcher.domain.ApproachStatus.SELECTED
@@ -1004,6 +1063,206 @@ object CreateIntentionChat {
                 )
             )
         )
+    }
+
+    /**
+     * After language minutes+method, mint engine motivation Ask (chips + Other)
+     * before the Confirm card so AVD can capture consequence ranking.
+     * @return true when an Ask was projected (caller should not show Confirm yet)
+     */
+    private fun surfaceMotivationAskBeforeConfirm(
+        store: IntentionFlowStore,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Boolean {
+        val draft = store.snapshot().builderDraft
+        val shape = draft.shapeTag ?: draft.suggestedShapeTag
+        if (shape != "language") return false
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == SESSION_INTENTION_ID &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        if (hasKey(AdaptiveBuilderEngine.KEY_MOTIVATION)) return false
+        if (pendingMotivationAsk(store) != null) return false
+
+        ensureAdaptiveBuilderState(store, SESSION_INTENTION_ID, shape, nowEpochMs)
+
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == SESSION_INTENTION_ID }?.revision ?: 0L
+
+        // Engine motivation Ask requires target_language (inferred from create text).
+        if (!hasKey(AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE)) {
+            val lang = inferTargetLanguage(draft.freeText) ?: "Spanish"
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = SESSION_INTENTION_ID,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-pre-lang-$SESSION_INTENTION_ID",
+                        text = lang,
+                        key = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
+                        rawUtterance = draft.freeText.ifBlank { lang },
+                        normalizedValue = lang
+                    ),
+                    sourceTurnId = "turn-create-pre-language-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        val ctx = AdaptiveBuilderEngine.projectContext(
+            store.snapshot(), SESSION_INTENTION_ID, t, timeZone
+        ) ?: return false
+        val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+        if (next !is BuilderDecision.Ask ||
+            next.purpose != AdaptiveBuilderEngine.KEY_MOTIVATION
+        ) {
+            return false
+        }
+        deactivatePriorBuilderCards(store, t)
+        val applied = AdaptiveBuilderEngine.applyDecision(store, next, t + 1, timeZone = timeZone)
+        return applied.accepted
+    }
+
+    private fun pendingMotivationAsk(
+        store: IntentionFlowStore,
+        intentionId: String = SESSION_INTENTION_ID
+    ): String? {
+        val state = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId } ?: return null
+        val qid = state.currentQuestionId ?: return null
+        val question = store.snapshot().openQuestions.firstOrNull { it.id == qid } ?: return null
+        if (question.purpose != AdaptiveBuilderEngine.KEY_MOTIVATION) return null
+        if (question.state == OpenQuestionState.ANSWERED) return null
+        return qid
+    }
+
+    /**
+     * Answer the in-create motivation Ask without advancing to move Ask /
+     * OfferApproaches — Confirm card comes next; bridge still Proposes after Confirm.
+     */
+    private fun answerCreateMotivation(
+        store: IntentionFlowStore,
+        raw: String,
+        modality: String,
+        nowEpochMs: Long,
+        sourceLabel: String,
+        userTurnAlreadyPosted: Boolean,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): SubmitResult {
+        val qid = pendingMotivationAsk(store)
+            ?: return SubmitResult(false, "No motivation ask pending.", sourceLabel)
+        val question = store.snapshot().openQuestions.firstOrNull { it.id == qid }
+            ?: return SubmitResult(false, "Motivation question missing.", sourceLabel)
+        val state = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == SESSION_INTENTION_ID }
+            ?: return SubmitResult(false, "No adaptive builder state.", sourceLabel)
+
+        when (val sel = ChoiceOptions.resolveSelection(raw, question.optionIds)) {
+            ChoiceOptions.Selection.Empty ->
+                return SubmitResult(false, "Empty answer.", sourceLabel)
+            ChoiceOptions.Selection.NeedsFreeText -> {
+                if (!userTurnAlreadyPosted) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-create-mot-other-$nowEpochMs",
+                            intentionId = SESSION_INTENTION_ID,
+                            role = "user",
+                            text = raw,
+                            nowEpochMs = nowEpochMs,
+                            modality = modality
+                        )
+                    )
+                }
+                postAgent(
+                    store,
+                    nowEpochMs + 1,
+                    "Type your answer in your own words below."
+                )
+                return SubmitResult(
+                    ok = true,
+                    honestyNote = "Other selected — awaiting free text.",
+                    sourceLabel = sourceLabel
+                )
+            }
+            ChoiceOptions.Selection.NotSure,
+            ChoiceOptions.Selection.Skip -> {
+                AdaptiveAnswerPath.deferQuestion(
+                    store = store,
+                    intentionId = SESSION_INTENTION_ID,
+                    questionId = qid,
+                    label = raw,
+                    modality = modality,
+                    nowEpochMs = nowEpochMs + 1,
+                    expectedRevision = state.revision
+                )
+                deactivatePriorBuilderCards(store, nowEpochMs + 2)
+                postAgent(
+                    store,
+                    nowEpochMs + 3,
+                    "Does this look right? Confirm to save the intention, or keep discussing."
+                )
+                projectConfirmCard(store, nowEpochMs + 4)
+                return SubmitResult(true, "Motivation deferred — ready to confirm.", sourceLabel)
+            }
+            is ChoiceOptions.Selection.Chosen,
+            is ChoiceOptions.Selection.FreeText -> {
+                val value = when (sel) {
+                    is ChoiceOptions.Selection.Chosen -> sel.value
+                    is ChoiceOptions.Selection.FreeText -> sel.value
+                    else -> raw
+                }
+                if (!userTurnAlreadyPosted) {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-create-mot-user-$nowEpochMs",
+                            intentionId = SESSION_INTENTION_ID,
+                            role = "user",
+                            text = value,
+                            nowEpochMs = nowEpochMs,
+                            modality = modality
+                        )
+                    )
+                }
+                val apply = AdaptiveBuilderEngine.answerQuestion(
+                    store,
+                    AnswerQuestion(
+                        questionId = qid,
+                        intentionId = SESSION_INTENTION_ID,
+                        normalizedValue = value,
+                        rawValue = value,
+                        modality = modality,
+                        sourceTurnId = "turn-create-mot-ans-$nowEpochMs",
+                        answeredAtEpochMs = nowEpochMs + 1,
+                        idempotencyKey = "idem-create-mot-$qid-${value.hashCode()}",
+                        expectedRevision = state.revision
+                    ),
+                    factKey = AdaptiveBuilderEngine.KEY_MOTIVATION,
+                    timeZone = timeZone
+                )
+                if (!apply.accepted) {
+                    return SubmitResult(false, apply.reason, sourceLabel)
+                }
+                // Do not auto-advance to move Ask — Confirm → bridge → Propose.
+                deactivatePriorBuilderCards(store, nowEpochMs + 2)
+                postAgent(
+                    store,
+                    nowEpochMs + 3,
+                    "Does this look right? Confirm to save the intention, or keep discussing."
+                )
+                projectConfirmCard(store, nowEpochMs + 4)
+                return SubmitResult(true, "Motivation recorded — ready to confirm.", sourceLabel)
+            }
+        }
     }
 
     private fun projectNextPromptCard(store: IntentionFlowStore, nowEpochMs: Long) {
