@@ -766,6 +766,17 @@ object CreateIntentionChat {
         nowEpochMs: Long,
         timeZone: TimeZone = TimeZone.getDefault()
     ): String? {
+        // OC2 / §8.8 — research create: eligibility facts → AdaptiveBuilder Pause.
+        if (shapeTag == "research") {
+            return bridgeResearchAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+
         val minutes = factAnswers["practice_minutes"]?.trim()?.takeIf { it.isNotEmpty() }
         val method = factAnswers["existing_method"]?.trim()?.takeIf { it.isNotEmpty() }
         // Practice-shaped creates (language minutes wheel + method chips). Other
@@ -1002,6 +1013,91 @@ object CreateIntentionChat {
         return store.snapshot().proposals.firstOrNull {
             it.intentionId == intentionId && it.status == ProposalStatus.PENDING
         }?.id
+    }
+
+    /**
+     * Map create eligibility answers onto AdaptiveBuilder keys, then advance to
+     * research Pause — never invents a legal checklist or Propose.
+     *
+     * @return always null (no pending proposal; Pause leaves discovery resumable)
+     */
+    private fun bridgeResearchAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "research", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveEligibility(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        saveEligibility(
+            AdaptiveBuilderEngine.KEY_CITIZENSHIP,
+            factAnswers[AdaptiveBuilderEngine.KEY_CITIZENSHIP]?.trim().orEmpty(),
+            "citizenship"
+        )
+        saveEligibility(
+            AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT,
+            factAnswers[AdaptiveBuilderEngine.KEY_EMPLOYMENT_ARRANGEMENT]?.trim().orEmpty(),
+            "employment"
+        )
+        saveEligibility(
+            AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION,
+            factAnswers[AdaptiveBuilderEngine.KEY_RESIDENCE_DURATION]?.trim().orEmpty(),
+            "residence"
+        )
+
+        // Advance: Ask remaining eligibility if needed, then Pause (no Propose).
+        repeat(8) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> return null
+                is BuilderDecision.Propose -> return null // honesty: never activate legal Propose
+                is BuilderDecision.Ask -> return null // leave next eligibility card for chat
+                else -> Unit
+            }
+        }
+        return null
     }
 
     private fun ensureAdaptiveBuilderState(

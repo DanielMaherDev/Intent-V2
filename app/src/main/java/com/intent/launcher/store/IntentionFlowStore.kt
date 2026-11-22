@@ -883,8 +883,11 @@ class IntentionFlowStore(
                 val answer = command.answerText.trim()
                 if (answer.isEmpty()) return migrated
                 val answers = draft.factAnswers + (command.promptId to answer)
-                // Two answers is enough — avoid endless “needs more questions” loops.
-                val phase = if (answers.size >= 2) {
+                // Advance when the shape’s missing-fact prompts are filled
+                // (language/marathon/business = 2; research eligibility = 3).
+                val shape = draft.shapeTag ?: draft.suggestedShapeTag
+                val required = IntentionBuilder.missingFactPrompts(shape).size.coerceAtLeast(1)
+                val phase = if (answers.size >= required) {
                     BuilderPhase.CONFIRM
                 } else {
                     BuilderPhase.MISSING_FACTS
