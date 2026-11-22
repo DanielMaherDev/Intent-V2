@@ -44,8 +44,10 @@ class ClearCreateSessionAfterApproveTest {
             store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
         )
         CreateIntentionChat.submitChoice(store, "Self-study", now + 30, registry)
+        // Gate C2 (#123): language create surfaces motivation Ask before Confirm.
+        CreateIntentionChat.submitChoice(store, "Work or school", now + 40, registry)
         val commit = CreateIntentionChat.submitChoice(
-            store, "Confirm intention", now + 40, registry
+            store, "Confirm intention", now + 50, registry
         )
         assertTrue(commit.ok)
         assertNotNull(commit.pendingProposalId)
