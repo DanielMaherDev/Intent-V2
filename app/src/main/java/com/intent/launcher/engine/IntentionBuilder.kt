@@ -46,6 +46,8 @@ object IntentionBuilder {
             looksLikeLegalResearch(t) -> "research"
             // Usage / Shorts caps — before language so “Instagram” ≠ Learn Spanish.
             CreatePathSeedHonesty.looksLikeUsageAppTimeSeed(t) -> "app_use"
+            // OC6 — connected partner metric before language (chess ≠ “tutor” language).
+            CreatePathSeedHonesty.looksLikeConnectedMetricSeed(t) -> "chess"
             // Time-limited decision (decide-by date) — before business so “offer”
             // does not land as a startup exploration.
             looksLikeTimeLimitedDecision(t) -> "decision"
@@ -140,6 +142,7 @@ object IntentionBuilder {
             "app_use" -> "Usage target"
             "decision" -> "Make a decision by a date"
             "move" -> "Plan a move"
+            "chess" -> "Raise a connected rating"
             else -> "New intention"
         }
 
@@ -334,6 +337,22 @@ object IntentionBuilder {
                     )
                 )
             )
+            "chess" -> listOf(
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_RATING_BASELINE,
+                    question =
+                        "How should we set the rating baseline? Prefer a real import " +
+                            "when connected; otherwise a manual SAID baseline.",
+                    choiceOptions = CreatePathSeedHonesty.RATING_BASELINE_OPTIONS
+                ),
+                Prompt(
+                    id = AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE,
+                    question =
+                        "What practice mix do you want? Practice stays distinct from " +
+                            "rating — a played game is not proof the rating improved.",
+                    choiceOptions = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS
+                )
+            )
             else -> listOf(
                 Prompt(
                     id = "current_state",
@@ -492,6 +511,7 @@ object IntentionBuilder {
         "app_use" to "App usage",
         "decision" to "Time-limited decision",
         "move" to "Move / relocation",
+        "chess" to "Connected rating",
         "other" to "Something else"
     )
 }

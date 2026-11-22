@@ -525,6 +525,10 @@ object CreateIntentionChat {
                     " Measurement honesty required: UsageStats package foreground only " +
                         "when usage access is granted; cannot identify Shorts/Reels; " +
                         "offer track package time / manual Shorts log / both; never claim exact Shorts minutes."
+                CreatePathSeedHonesty.Kind.CONNECTED_METRIC ->
+                    " Connected-metric honesty: verify baseline from a real provider import " +
+                        "or manual SAID entry; never invent a live partner rating, games, or " +
+                        "lesson completion; practice stays distinct from rating proof."
                 CreatePathSeedHonesty.Kind.TIME_LIMITED_DECISION ->
                     " Frame decide-by-date: help decide by a deadline; never auto-accept " +
                         "or assume the outcome; ask criteria that matter."
@@ -814,6 +818,19 @@ object CreateIntentionChat {
         // OC3 — dated physical goal: race + log method → first-phase Pause (no 8-month plan).
         if (shapeTag == "marathon") {
             return bridgePhysicalTrainingAfterCommit(
+                store = store,
+                intentionId = intentionId,
+                factAnswers = factAnswers,
+                nowEpochMs = nowEpochMs,
+                timeZone = timeZone
+            )
+        }
+
+        // OC6 — connected metric: baseline + practice preference → Pause (no invented rating).
+        if (shapeTag == "chess" ||
+            AdaptiveBuilderEngine.facetsForShape(shapeTag).contains("connected_metric")
+        ) {
+            return bridgeConnectedMetricAfterCommit(
                 store = store,
                 intentionId = intentionId,
                 factAnswers = factAnswers,
@@ -1224,6 +1241,85 @@ object CreateIntentionChat {
             when (next) {
                 is BuilderDecision.Pause -> return null
                 is BuilderDecision.Propose -> return null
+                is BuilderDecision.Ask -> return null
+                else -> Unit
+            }
+        }
+        return null
+    }
+
+    /**
+     * Map create baseline / practice answers onto AdaptiveBuilder keys, then
+     * advance to connected-metric Pause — never invents a live rating or games.
+     *
+     * @return always null (no pending proposal; Pause leaves discovery resumable)
+     */
+    private fun bridgeConnectedMetricAfterCommit(
+        store: IntentionFlowStore,
+        intentionId: String,
+        factAnswers: Map<String, String>,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ): String? {
+        ensureAdaptiveBuilderState(store, intentionId, "chess", nowEpochMs)
+        var t = nowEpochMs
+        fun rev(): Long =
+            store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+
+        fun hasKey(key: String): Boolean =
+            store.snapshot().facts.any {
+                it.intentionId == intentionId &&
+                    it.key == key &&
+                    it.status == FactStatus.ACTIVE
+            }
+
+        fun saveKey(key: String, text: String, suffix: String) {
+            if (hasKey(key) || text.isBlank()) return
+            AdaptiveBuilderEngine.applyDecision(
+                store,
+                BuilderDecision.SaveFact(
+                    intentionId = intentionId,
+                    expectedRevision = rev(),
+                    factDraft = FactDraft(
+                        factId = "fact-create-$suffix-$intentionId",
+                        text = text,
+                        key = key,
+                        rawUtterance = text,
+                        normalizedValue = text
+                    ),
+                    sourceTurnId = "turn-create-bridge-$suffix-$t"
+                ),
+                t,
+                timeZone = timeZone
+            )
+            t += 1
+        }
+
+        saveKey(
+            AdaptiveBuilderEngine.KEY_RATING_BASELINE,
+            factAnswers[AdaptiveBuilderEngine.KEY_RATING_BASELINE]?.trim().orEmpty(),
+            "rating-baseline"
+        )
+        saveKey(
+            AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE,
+            factAnswers[AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE]?.trim().orEmpty(),
+            "practice-preference"
+        )
+
+        repeat(8) {
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return null
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            val applied = AdaptiveBuilderEngine.applyDecision(
+                store, next, t, timeZone = timeZone
+            )
+            t += 2
+            if (!applied.accepted) return null
+            when (next) {
+                is BuilderDecision.Pause -> return null
+                is BuilderDecision.Propose -> return null // honesty: no invented rating Propose
                 is BuilderDecision.Ask -> return null
                 else -> Unit
             }

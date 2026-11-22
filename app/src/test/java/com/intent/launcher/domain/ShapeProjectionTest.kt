@@ -355,6 +355,20 @@ class ShapeProjectionTest {
         )
         assertTrue(researchFacts.defaultFacts.any { it.contains("work legally", ignoreCase = true) })
         assertTrue(researchFacts.defaultFacts.any { it.contains("invented law", ignoreCase = true) })
+
+        val otherFacts = ShapeProjection.project(
+            Intention(
+                id = "o",
+                title = "T",
+                statement = "S",
+                phase = IntentionPhase.EXPLORING,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+                shapeTag = "other"
+            )
+        )
+        assertTrue(otherFacts.defaultFacts.any { it.contains("still taking shape", ignoreCase = true) })
+        assertFalse(otherFacts.defaultFacts.any { it.contains("Spanish", ignoreCase = true) })
     }
 
     @Test

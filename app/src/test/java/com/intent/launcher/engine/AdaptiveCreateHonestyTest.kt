@@ -193,6 +193,66 @@ class AdaptiveCreateHonestyTest {
     }
 
     @Test
+    fun oc6_connectedMetricSeed_agentStatesBaselineHonestyAndPracticeDistinct() {
+        val description = "I want to raise my Chess.com rapid rating from 900 to 1200."
+        assertTrue(CreatePathSeedHonesty.looksLikeConnectedMetricSeed(description))
+        assertEquals("chess", IntentionBuilder.suggestShape(description))
+
+        CreateIntentionChat.begin(store, now + 1, registry)
+        val result = CreateIntentionChat.submitUtterance(
+            store = store,
+            text = description,
+            nowEpochMs = now + 10,
+            registry = registry
+        )
+        assertTrue(result.ok)
+
+        val intention = store.snapshot().intentions.first {
+            it.id == CreateIntentionChat.SESSION_INTENTION_ID
+        }
+        assertEquals("chess", intention.shapeTag)
+
+        val agentTurns = store.snapshot().turns.filter {
+            it.intentionId == CreateIntentionChat.SESSION_INTENTION_ID && it.role == "agent"
+        }
+        val honestyTurn = agentTurns.firstOrNull { turn ->
+            val t = turn.text.lowercase()
+            (t.contains("baseline") || t.contains("import") || t.contains("manual")) &&
+                (t.contains("invent") || t.contains("practice") || t.contains("distinct"))
+        }
+        assertNotNull(
+            "Agent must state connected-metric baseline honesty on create, got: " +
+                agentTurns.map { it.text.take(140) },
+            honestyTurn
+        )
+        val text = honestyTurn!!.text
+        assertTrue(
+            text.contains("invent", ignoreCase = true) ||
+                text.contains("manual", ignoreCase = true)
+        )
+        assertTrue(
+            text.contains("practice", ignoreCase = true) ||
+                text.contains("distinct", ignoreCase = true) ||
+                text.contains("not proof", ignoreCase = true)
+        )
+
+        val choice = store.snapshot().turns
+            .flatMap { it.blocks }
+            .mapNotNull { BuilderAnswerCard.decode(it) as? BuilderAnswerCard.Decoded.Choice }
+            .lastOrNull()
+        assertNotNull(choice)
+        assertTrue(
+            choice!!.options.any { it.contains("manual", ignoreCase = true) } ||
+                choice.options.any { it.contains("Refresh", ignoreCase = true) }
+        )
+        assertFalse(
+            store.snapshot().turns.any {
+                it.text.contains("your rating is now", ignoreCase = true)
+            }
+        )
+    }
+
+    @Test
     fun oc9_jobOfferSeed_agentFramesDecideByDate_notAutoAccept() {
         val description = "Help me decide whether to accept a job offer. I have ten days."
         assertTrue(CreatePathSeedHonesty.looksLikeTimeLimitedDecisionSeed(description))
@@ -269,5 +329,7 @@ class AdaptiveCreateHonestyTest {
         assertFalse(agentText.contains("Shorts", ignoreCase = true))
         assertFalse(agentText.contains("auto-accept", ignoreCase = true))
         assertFalse(agentText.contains("usage access", ignoreCase = true))
+        assertFalse(agentText.contains("Chess.com", ignoreCase = true))
+        assertFalse(agentText.contains("partner rating", ignoreCase = true))
     }
 }
