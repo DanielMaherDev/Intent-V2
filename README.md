@@ -246,7 +246,7 @@ At evening check-out (after what-happened), RAW SAID thoughts are walked one at 
 
 ## Sideload packaging (v0.0.123–v0.0.124)
 
-Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.219.apk` on this branch (main tip: `INTENT-v0.0.219.apk`).
+Published APKs use `keystore/intent-sideload.jks`, **`isDebuggable = false`**, and **no `QUERY_ALL_PACKAGES`** (destination / connection candidates via `<queries>`). Prefer the **release** artifact `INTENT-v0.0.219.apk` on this branch (main tip: `INTENT-v0.0.216.apk`).
 
 ## Voice conversation (Stage 6 / v0.0.18)
 
