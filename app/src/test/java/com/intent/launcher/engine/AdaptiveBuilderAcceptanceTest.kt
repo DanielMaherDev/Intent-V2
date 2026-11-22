@@ -789,7 +789,7 @@ class AdaptiveBuilderAcceptanceTest {
         assertFalse(decision is BuilderDecision.Ask)
     }
 
-    // —— §8.7 Broad ambition ——
+    // —— §8.7 Broad ambition / OTHER §8 ——
     @Test
     fun scenario7_broadAmbition_staysDiscovery_noFictionalLaunchChecklist() {
         AdaptiveBuilderFixtures.seedBusinessDiscovery(store, now)
@@ -798,6 +798,7 @@ class AdaptiveBuilderAcceptanceTest {
         val decision = AdaptiveBuilderEngine.suggestNextDecision(ctx, now, tz)
         assertTrue(decision is BuilderDecision.Ask)
         val ask = decision as BuilderDecision.Ask
+        assertEquals(AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS, ask.purpose)
         assertTrue(
             ask.whyItMatters.contains("premature", ignoreCase = true) ||
                 ask.purpose.contains("skill", ignoreCase = true)
@@ -813,6 +814,135 @@ class AdaptiveBuilderAcceptanceTest {
                     !it.text.contains("premature", ignoreCase = true)
             }
         )
+    }
+
+    @Test
+    fun oc8_sideBusiness_exploreThenValidate_noLaunchOps() {
+        AdaptiveBuilderFixtures.seedBusinessDiscovery(store, now)
+        val id = AdaptiveBuilderFixtures.BUSINESS_ID
+        var t = now
+
+        fun askAndAnswer(purpose: String, value: String, modality: String = "CHIP") {
+            val ctx = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, tz)
+            assertTrue("expected Ask for $purpose, got $next", next is BuilderDecision.Ask)
+            val ask = next as BuilderDecision.Ask
+            assertEquals(purpose, ask.purpose)
+            assertTrue(AdaptiveBuilderEngine.applyDecision(store, ask, t, timeZone = tz).accepted)
+            t += 1
+            val rev = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+            assertTrue(
+                AdaptiveBuilderEngine.answerQuestion(
+                    store,
+                    AnswerQuestion(
+                        questionId = ask.questionId,
+                        intentionId = id,
+                        normalizedValue = value,
+                        rawValue = value,
+                        modality = modality,
+                        sourceTurnId = "turn-oc8-$purpose-$t",
+                        answeredAtEpochMs = t,
+                        idempotencyKey = "idem-oc8-$purpose-$t",
+                        expectedRevision = rev
+                    ),
+                    factKey = purpose,
+                    timeZone = tz
+                ).accepted
+            )
+            t += 1
+        }
+
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS,
+            "customer support and workflow automation",
+            "FREE_TEXT"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET,
+            "About five hours a week"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_EXPLORATION_MODE,
+            "Brainstorm first"
+        )
+
+        val explore = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+        )
+        assertTrue(explore is BuilderDecision.OfferAction)
+        val exploreAction = explore as BuilderDecision.OfferAction
+        assertEquals("explore_ideas", exploreAction.actionDraft.kind)
+        assertTrue(exploreAction.actionDraft.title.contains("Explore ideas", ignoreCase = true))
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, explore, t, timeZone = tz).accepted
+        )
+        t += 1
+        assertTrue(
+            store.snapshot().hypotheses.any {
+                it.intentionId == id && it.text.contains("ideas board", ignoreCase = true)
+            }
+        )
+        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+        )
+        assertTrue(pause is BuilderDecision.Pause)
+        assertTrue(
+            (pause as BuilderDecision.Pause).resumeCue
+                ?.contains("validate", ignoreCase = true) == true
+        )
+        assertTrue(AdaptiveBuilderEngine.applyDecision(store, pause, t, timeZone = tz).accepted)
+
+        val snap = store.snapshot()
+        assertTrue(snap.proposals.none { it.intentionId == id })
+        assertTrue(snap.sessions.none { it.intentionId == id })
+        assertTrue(
+            snap.facts.any {
+                it.intentionId == id &&
+                    it.key == AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET &&
+                    it.status == FactStatus.ACTIVE
+            }
+        )
+
+        // Conversation 2 — validate path on a fresh discovery with test-quickly mode.
+        storeFile = tmp.newFile("oc8-validate.json")
+        store = IntentionFlowStore(storeFile)
+        AdaptiveBuilderFixtures.seedBusinessDiscovery(store, now)
+        t = now
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS,
+            "customer support and workflow automation",
+            "FREE_TEXT"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET,
+            "About five hours a week"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_EXPLORATION_MODE,
+            "Test one idea quickly"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_SELECTED_IDEA,
+            "repetitive support workflows",
+            "FREE_TEXT"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_VALIDATION_APPROACH,
+            "Validate with a few potential customers"
+        )
+        val experiment = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+        )
+        assertTrue(experiment is BuilderDecision.OfferAction)
+        assertEquals(
+            "validation_experiment",
+            (experiment as BuilderDecision.OfferAction).actionDraft.kind
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, experiment, t, timeZone = tz).accepted
+        )
+        assertTrue(store.snapshot().proposals.none { it.intentionId == id })
+        assertTrue(store.snapshot().sessions.none { it.intentionId == id })
     }
 
     // —— §8.9 Cancellation / stale turn ——

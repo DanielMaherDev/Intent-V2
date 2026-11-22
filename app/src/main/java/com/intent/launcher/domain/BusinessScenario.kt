@@ -22,8 +22,9 @@ object BusinessScenario {
         "Figure out whether a neighborhood repair service makes sense before locking a full plan."
 
     val suggestedChips: List<SuggestedChip> = listOf(
-        SuggestedChip("Demand is still unclear", CapabilityRegistry.ID_ADD_HYPOTHESIS),
-        SuggestedChip("Customer chats work best on Wednesdays", CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION),
+        // Explore-before-execute (OTHER §8) — not premature research-hour ops.
+        SuggestedChip("Explore ideas", CapabilityRegistry.ID_CONTINUE_EXPLORING),
+        SuggestedChip("Choose an idea to validate", CapabilityRegistry.ID_ADD_HYPOTHESIS),
         SuggestedChip("Keep this in discovery for now", CapabilityRegistry.ID_CONTINUE_EXPLORING)
     )
 
@@ -82,6 +83,96 @@ object BusinessScenario {
             )
         )
         when {
+            chip.contains("Explore ideas", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_CONTINUE_EXPLORING) &&
+                    !registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)
+                ) {
+                    return
+                }
+                store.apply(
+                    FlowCommand.AddHypothesis(
+                        hypothesisId = "hyp-ideas-board-$now",
+                        intentionId = INTENTION_ID,
+                        text =
+                            "Ideas board open — capture sourced ideas here; none chosen yet.",
+                        nowEpochMs = now
+                    )
+                )
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-business-agent-explore-$now",
+                        intentionId = INTENTION_ID,
+                        role = "agent",
+                        text =
+                            "Starting Explore ideas under your time budget. " +
+                                "Add what you know; we will not invent a launch plan. " +
+                                "When ready, Choose an idea to validate.",
+                        nowEpochMs = now + 1,
+                        blocks = listOf(
+                            ResponseBlock(
+                                blockId = "block-explore-ideas-$now",
+                                type = ResponseBlockType.NEXT_ACTION,
+                                title = "Explore ideas",
+                                body =
+                                    "Guided exploration with a small ideas board — " +
+                                        "no revenue tracker until you have revenue to log.",
+                                sourceLabel = "business_explore",
+                                actions = listOf(
+                                    "Choose an idea to validate",
+                                    "Keep exploring",
+                                    "Keep this in discovery for now"
+                                )
+                            )
+                        )
+                    )
+                )
+                store.apply(
+                    FlowCommand.MarkPhase(
+                        intentionId = INTENTION_ID,
+                        phase = IntentionPhase.EXPLORING,
+                        nowEpochMs = now
+                    )
+                )
+            }
+            chip.contains("Choose an idea to validate", ignoreCase = true) ||
+                chip.contains("idea to validate", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) return
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-business-agent-validate-$now",
+                        intentionId = INTENTION_ID,
+                        role = "agent",
+                        text =
+                            "Pick one idea from the board (or type it). I can propose a " +
+                                "small experiment and a check-in — not business operations " +
+                                "or a sales forecast.",
+                        nowEpochMs = now + 1,
+                        blocks = listOf(
+                            ResponseBlock(
+                                blockId = "block-choose-idea-$now",
+                                type = ResponseBlockType.QUESTION,
+                                title = "Choose an idea to validate",
+                                body =
+                                    "Name the idea to validate. Nothing is assumed chosen " +
+                                        "from brainstorming alone.",
+                                sourceLabel = "business_validate",
+                                actions = listOf(
+                                    "Validate with a few potential customers",
+                                    "Keep exploring",
+                                    "Drop it"
+                                )
+                            )
+                        )
+                    )
+                )
+                store.apply(
+                    FlowCommand.MarkPhase(
+                        intentionId = INTENTION_ID,
+                        phase = IntentionPhase.CLARIFYING,
+                        nowEpochMs = now
+                    )
+                )
+            }
             chip.contains("Demand is still unclear", ignoreCase = true) -> {
                 if (!registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) return
                 store.apply(
