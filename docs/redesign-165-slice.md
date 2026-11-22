@@ -15,6 +15,7 @@
 | §8.9 Cancel | `cancelDiscussThinking()` + **Cancel** banner while `freeTextBusy`; late replies ignored; `CommandGateway.cancelTurn` marker |
 | Spec in repo | `docs/design/intent-redesign-2026-11/{DESIGN_SPEC,README,tokens}.json/md` |
 | Icons | `res/drawable/logo_diamond.png` (+ nav/action PNGs staged) |
+| S-SETTINGS | Appearance / Motion / Assistant (“Use a live assistant”) / Quiet hours / History / Connected apps; key field only when opted in; no schema/heuristic primary copy |
 | APK | `artifacts/INTENT-v0.0.167.apk` |
 
 ## Non-regression
@@ -31,4 +32,4 @@
 - Store media: `media/redesign-165/00-home-empty.png`
 - Adaptive pack: `media/adaptive-builder/de-slice/15-redesign-home-empty-165.png`
 
-Updated: 2026-11-22
+Updated: 2026-11-22 (S-SETTINGS pass)
