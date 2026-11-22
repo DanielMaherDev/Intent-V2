@@ -1403,9 +1403,11 @@ class LauncherViewModel(
     }
 
     /**
-     * After platform STT returns text — chip match or the same Discuss free-text /
-     * [OpenAiDiscussClient] path as typed send when live_llm is CONNECTED.
-     * While [isAssistantSpeaking], routes through [InterruptedVoice.bargeIn].
+     * After platform STT returns text — Gate D2 adaptive Ask uses
+     * [AdaptiveAnswerPath.submitFromVoice] (exact → write; fuzzy → confirm);
+     * otherwise chip match / Discuss free-text / [OpenAiDiscussClient] when
+     * live_llm is CONNECTED. While [isAssistantSpeaking], routes through
+     * [InterruptedVoice.bargeIn].
      */
     fun onVoiceTranscript(transcript: String) {
         if (isAssistantSpeaking) {
@@ -1416,19 +1418,34 @@ class LauncherViewModel(
         freeTextBusy = true
         viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    ConversationCoordinator.submitVoiceTranscript(
-                        store = store,
-                        intention = activeIntention(),
-                        availableChips = conversationChips(),
-                        transcript = transcript,
-                        nowEpochMs = System.currentTimeMillis(),
-                        registry = capabilityRegistry,
-                        access = liveLlmAccess,
-                        client = openAiDiscussClient
-                    )
+                val honesty = withContext(Dispatchers.IO) {
+                    val now = System.currentTimeMillis()
+                    val intention = activeIntention()
+                    when {
+                        intention != null &&
+                            !CreateIntentionChat.isCreateSession(intention) &&
+                            !store.snapshot().builderDraft.active &&
+                            hasActiveAdaptiveQuestion(intention.id) ->
+                            AdaptiveAnswerPath.submitFromVoice(
+                                store = store,
+                                intentionId = intention.id,
+                                transcript = transcript,
+                                nowEpochMs = now,
+                                expectedQuestionId = currentAdaptiveQuestionId(intention.id)
+                            ).honestyNote
+                        else -> ConversationCoordinator.submitVoiceTranscript(
+                            store = store,
+                            intention = intention,
+                            availableChips = conversationChips(),
+                            transcript = transcript,
+                            nowEpochMs = now,
+                            registry = capabilityRegistry,
+                            access = liveLlmAccess,
+                            client = openAiDiscussClient
+                        ).honestyNote
+                    }
                 }
-                voicePathNote = result.honestyNote
+                voicePathNote = honesty
             } finally {
                 freeTextBusy = false
                 refresh()

@@ -358,13 +358,64 @@ object ConversationCoordinator {
         }
     }
 
-    fun matchChip(transcript: String, chips: List<String>): String? {
-        val normalized = transcript.trim().lowercase()
-        chips.firstOrNull { it.equals(transcript.trim(), ignoreCase = true) }?.let { return it }
-        return chips.firstOrNull { chip ->
-            val c = chip.lowercase()
-            normalized.contains(c) || c.contains(normalized)
+    /**
+     * Best-effort chip pick for scenario scripts (exact, else first fuzzy contains).
+     * Adaptive voice certainty uses [classifyChipMatch] instead — fuzzy is uncertain.
+     */
+    fun matchChip(transcript: String, chips: List<String>): String? =
+        when (val classified = classifyChipMatch(transcript, chips)) {
+            is ChipMatch.Exact -> classified.chip
+            is ChipMatch.Ambiguous -> classified.candidates.firstOrNull()
+            ChipMatch.None -> null
         }
+
+    /**
+     * Gate D2 — classify STT against visible chips without auto-committing fuzzy hits.
+     * Exact (ignoreCase) is certain; partial/contains / multi-candidate / soft token
+     * overlap are ambiguous and should confirm before [AnswerQuestion].
+     */
+    fun classifyChipMatch(transcript: String, chips: List<String>): ChipMatch {
+        val trimmed = transcript.trim()
+        if (trimmed.isEmpty() || chips.isEmpty()) return ChipMatch.None
+        chips.firstOrNull { it.equals(trimmed, ignoreCase = true) }?.let {
+            return ChipMatch.Exact(it)
+        }
+        val normalized = trimmed.lowercase()
+        val fuzzy = chips.filter { chip ->
+            val c = chip.lowercase()
+            val shorter = minOf(normalized.length, c.length)
+            if (shorter < MIN_FUZZY_CHARS) return@filter false
+            normalized.contains(c) || c.contains(normalized)
+        }.distinct()
+        if (fuzzy.isNotEmpty()) return ChipMatch.Ambiguous(fuzzy)
+        val soft = softChipCandidates(normalized, chips)
+        return if (soft.isNotEmpty()) ChipMatch.Ambiguous(soft) else ChipMatch.None
+    }
+
+    sealed class ChipMatch {
+        data class Exact(val chip: String) : ChipMatch()
+        /** Partial / multi-candidate / low-confidence resemblance — confirm before write. */
+        data class Ambiguous(val candidates: List<String>) : ChipMatch()
+        data object None : ChipMatch()
+    }
+
+    private const val MIN_FUZZY_CHARS = 3
+
+    /** Token stem overlap when contains-match misses (e.g. slurred STT vs chip words). */
+    private fun softChipCandidates(normalized: String, chips: List<String>): List<String> {
+        val tokens = normalized.split(Regex("[^a-z0-9]+")).filter { it.length >= 4 }
+        if (tokens.isEmpty()) return emptyList()
+        return chips.filter { chip ->
+            val chipTokens = chip.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 4 }
+            chipTokens.any { ct ->
+                tokens.any { t ->
+                    t.startsWith(ct.take(4)) ||
+                        ct.startsWith(t.take(4)) ||
+                        t.contains(ct) ||
+                        ct.contains(t)
+                }
+            }
+        }.distinct()
     }
 
     /**
