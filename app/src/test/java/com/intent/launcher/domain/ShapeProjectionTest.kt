@@ -146,14 +146,21 @@ class ShapeProjectionTest {
         val hyps = store.snapshot().hypotheses.filter { it.intentionId == intention.id }
         val projection = ShapeProjection.project(intention, facts = facts, hypotheses = hyps)
 
-        assertEquals("Your move plan", projection.approachSectionTitle)
-        assertEquals(5, projection.approachSteps.size)
+        assertEquals("Project board", projection.approachSectionTitle)
+        assertEquals(7, projection.approachSteps.size)
+        assertTrue(projection.approachSteps[0].title.startsWith("Next user action"))
+        assertTrue(projection.approachSteps[2].title.startsWith("Waiting on someone"))
+        assertTrue(projection.approachSteps[5].title.startsWith("Due soon"))
+        assertTrue(projection.approachSteps[6].title.startsWith("Reschedule"))
         assertFalse(projection.approachSteps[0].muted)
         assertFalse(projection.approachSteps[1].muted)
         assertTrue(projection.approachSteps[2].muted)
         assertTrue(projection.approachSteps[3].muted)
         assertTrue(projection.approachSteps[4].muted)
-        assertTrue(projection.approachSteps[2].detail.contains("Gated", ignoreCase = true))
+        assertTrue(
+            projection.approachSteps[2].detail.contains("Gated", ignoreCase = true) ||
+                projection.approachSteps[2].detail.contains("waiting", ignoreCase = true)
+        )
         JobOfferScenario.seed(store, now + 3)
         val decision = ShapeProjection.project(
             store.snapshot().intentions.first { it.id == JobOfferScenario.INTENTION_ID }
@@ -305,8 +312,8 @@ class ShapeProjectionTest {
                 shapeTag = "move"
             )
         )
-        assertTrue(move.defaultFacts.any { it.contains("Valencia", ignoreCase = true) })
-        assertTrue(move.defaultFacts.any { it.contains("six weeks", ignoreCase = true) })
+        assertTrue(move.defaultFacts.any { it.contains("relocate", ignoreCase = true) })
+        assertTrue(move.defaultFacts.any { it.contains("renting", ignoreCase = true) })
 
         val decision = ShapeProjection.project(
             Intention(

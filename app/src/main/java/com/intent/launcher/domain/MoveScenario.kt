@@ -27,6 +27,8 @@ object MoveScenario {
     const val HYP_LEASE_ID = "hyp-move-sign-lease-gated"
     const val HYP_NOTICE_ID = "hyp-move-give-notice-gated"
     const val HYP_MOVERS_ID = "hyp-move-book-movers-gated"
+    const val HYP_EXTERNAL_WAIT_ID = "hyp-move-external-wait"
+    const val FACT_EXTERNAL_WAIT_ID = "fact-move-external-wait"
 
     const val TITLE = "Move to Valencia"
     const val STATEMENT =
@@ -34,7 +36,7 @@ object MoveScenario {
 
     val suggestedChips: List<SuggestedChip> = listOf(
         SuggestedChip(
-            "Six weeks — Barcelona to Valencia, renting",
+            "Leave date set — renting, place not found",
             CapabilityRegistry.ID_RECORD_FACT
         ),
         SuggestedChip(
@@ -48,6 +50,22 @@ object MoveScenario {
         SuggestedChip(
             "Schedule weekly apartment search",
             CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION
+        ),
+        SuggestedChip(
+            "Landlord hasn't replied about a viewing",
+            CapabilityRegistry.ID_RECORD_FACT
+        ),
+        SuggestedChip(
+            "Follow up tomorrow",
+            CapabilityRegistry.ID_RECORD_FACT
+        ),
+        SuggestedChip(
+            "Look at another listing now",
+            CapabilityRegistry.ID_RECORD_FACT
+        ),
+        SuggestedChip(
+            "Adjust the search plan",
+            CapabilityRegistry.ID_RECORD_FACT
         )
     )
 
@@ -93,42 +111,74 @@ object MoveScenario {
         store: IntentionFlowStore,
         chip: String,
         now: Long = System.currentTimeMillis(),
-        registry: CapabilityRegistry = CapabilityRegistry.default
+        registry: CapabilityRegistry = CapabilityRegistry.default,
+        intentionId: String = INTENTION_ID
     ) {
-        ensureSeeded(store, now)
+        if (intentionId == INTENTION_ID) {
+            ensureSeeded(store, now)
+        }
+        val id = intentionId
         store.apply(
             FlowCommand.AddConversationTurn(
                 turnId = "turn-move-user-${now}-${chip.hashCode()}",
-                intentionId = INTENTION_ID,
+                intentionId = id,
                 role = "user",
                 text = chip,
                 nowEpochMs = now
             )
         )
         when {
+            chip.contains("Landlord hasn't replied", ignoreCase = true) ||
+                chip.contains("hasn't replied about a viewing", ignoreCase = true) -> {
+                markExternalWait(store, id, now, registry)
+            }
+            chip.contains("Follow up tomorrow", ignoreCase = true) ||
+                chip.contains("Look at another listing", ignoreCase = true) ||
+                chip.contains("Adjust the search plan", ignoreCase = true) -> {
+                if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) return
+                store.apply(
+                    FlowCommand.AddUserFact(
+                        factId = "fact-move-followup-$now",
+                        intentionId = id,
+                        text = "Next user action · $chip",
+                        nowEpochMs = now
+                    )
+                )
+                store.apply(
+                    FlowCommand.AddConversationTurn(
+                        turnId = "turn-move-agent-followup-$now",
+                        intentionId = id,
+                        role = "agent",
+                        text = "Noted as Next user action. Waiting on someone stays marked until " +
+                            "a reply or place is confirmed — no viewing invented.",
+                        nowEpochMs = now + 1
+                    )
+                )
+            }
             chip.contains("Six weeks", ignoreCase = true) ||
+                chip.contains("Leave date set", ignoreCase = true) ||
                 chip.contains("Barcelona to Valencia", ignoreCase = true) -> {
                 if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) return
                 store.apply(
                     FlowCommand.AddUserFact(
                         factId = FACT_DEADLINE_ID,
-                        intentionId = INTENTION_ID,
-                        text = "Moving Barcelona → Valencia in about six weeks; renting",
+                        intentionId = id,
+                        text = "Moving within a fixed leave window; renting",
                         nowEpochMs = now
                     )
                 )
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-move-agent-deadline-$now",
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         role = "agent",
-                        text = "Noted the six-week rent window. Has a place been found yet?",
+                        text = "Noted the leave window while renting. Has a place been found yet?",
                         nowEpochMs = now + 1
                     )
                 )
                 store.apply(
                     FlowCommand.MarkPhase(
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         phase = IntentionPhase.CLARIFYING,
                         nowEpochMs = now
                     )
@@ -144,19 +194,19 @@ object MoveScenario {
                     store.apply(
                         FlowCommand.AddUserFact(
                             factId = FACT_NO_PLACE_ID,
-                            intentionId = INTENTION_ID,
+                            intentionId = id,
                             text = "No place found yet — landlord steps stay gated",
                             nowEpochMs = now
                         )
                     )
                 }
                 if (registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) {
-                    seedDependencyPlan(store, now)
+                    seedDependencyPlan(store, now, id)
                 }
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-move-agent-no-place-$now",
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         role = "agent",
                         text = "Finite plan sketched: search and budget are ready now; " +
                             "lease, notice, and movers stay landlord-gated until a place is confirmed. " +
@@ -166,7 +216,7 @@ object MoveScenario {
                 )
                 store.apply(
                     FlowCommand.MarkPhase(
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         phase = IntentionPhase.CLARIFYING,
                         nowEpochMs = now
                     )
@@ -178,7 +228,7 @@ object MoveScenario {
                 store.apply(
                     FlowCommand.AddUserFact(
                         factId = FACT_BUDGET_ID,
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         text = "Budget is tight until the lease starts",
                         nowEpochMs = now
                     )
@@ -186,7 +236,7 @@ object MoveScenario {
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-move-agent-budget-$now",
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         role = "agent",
                         text = "Timing stays honest: big spend waits on landlord confirmation. " +
                             "Want a weekly apartment-search block while the place is still open?",
@@ -195,7 +245,7 @@ object MoveScenario {
                 )
                 store.apply(
                     FlowCommand.MarkPhase(
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         phase = IntentionPhase.CLARIFYING,
                         nowEpochMs = now
                     )
@@ -210,22 +260,22 @@ object MoveScenario {
                     store.apply(
                         FlowCommand.AddUserFact(
                             factId = FACT_DEADLINE_ID,
-                            intentionId = INTENTION_ID,
-                            text = "Moving Barcelona → Valencia in about six weeks; renting",
+                            intentionId = id,
+                            text = "Moving within a fixed leave window; renting",
                             nowEpochMs = now
                         )
                     )
                 }
                 if (snap.hypotheses.none { it.id == HYP_SEARCH_ID }) {
                     if (registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) {
-                        seedDependencyPlan(store, now)
+                        seedDependencyPlan(store, now, id)
                     }
                 }
                 if (!registry.canProposeRecurringSession()) {
                     store.apply(
                         FlowCommand.AddConversationTurn(
                             turnId = "turn-move-agent-no-schedule-$now",
-                            intentionId = INTENTION_ID,
+                            intentionId = id,
                             role = "agent",
                             text = registry.get(CapabilityRegistry.ID_PROPOSE_RECURRING_SESSION)?.limitNote
                                 ?: "Scheduling is not available.",
@@ -237,7 +287,7 @@ object MoveScenario {
                 store.apply(
                     FlowCommand.ProposeRecurringSession(
                         proposalId = PROPOSAL_ID,
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         title = "Saturday apartment search",
                         summary = "Proposed recurring apartment-search block on Saturdays at 10:00, " +
                             "based on the six-week move window — not a claim that a place exists. " +
@@ -252,7 +302,7 @@ object MoveScenario {
                 store.apply(
                     FlowCommand.AddConversationTurn(
                         turnId = "turn-move-agent-proposal-$now",
-                        intentionId = INTENTION_ID,
+                        intentionId = id,
                         role = "agent",
                         text = "I can schedule a Saturday search block. Landlord-gated steps stay blocked " +
                             "until you confirm a place — INTENT will not invent a lease.",
@@ -267,28 +317,104 @@ object MoveScenario {
      * Finite dependency plan as shared hypotheses — ready vs landlord-gated.
      * Does not invent a place or landlord confirmation.
      */
-    fun seedDependencyPlan(store: IntentionFlowStore, now: Long) {
-        val existing = store.snapshot().hypotheses.map { it.id }.toSet()
-        fun add(id: String, text: String) {
-            if (id in existing) return
+    fun seedDependencyPlan(
+        store: IntentionFlowStore,
+        now: Long,
+        intentionId: String = INTENTION_ID
+    ) {
+        val existing = store.snapshot().hypotheses
+            .filter { it.intentionId == intentionId }
+            .map { it.id }
+            .toSet()
+        fun add(hypId: String, text: String) {
+            if (hypId in existing) return
             store.apply(
                 FlowCommand.AddHypothesis(
-                    hypothesisId = id,
-                    intentionId = INTENTION_ID,
+                    hypothesisId = hypId,
+                    intentionId = intentionId,
                     text = text,
                     nowEpochMs = now
                 )
             )
         }
-        add(HYP_SEARCH_ID, "Ready · Search listings this week")
-        add(HYP_BUDGET_ID, "Ready · Set rent budget and timing within six weeks")
-        add(HYP_LEASE_ID, "Gated · Sign lease — waiting on landlord / place")
-        add(HYP_NOTICE_ID, "Gated · Give Barcelona notice — depends on signed lease")
-        add(HYP_MOVERS_ID, "Gated · Book movers / utilities — depends on landlord move-in date")
+        add(HYP_SEARCH_ID, "Next user action · Ready · Search listings")
+        add(HYP_BUDGET_ID, "Next user action · Ready · Set rent budget and timing")
+        add(HYP_LEASE_ID, "Waiting on someone · Gated · Sign lease — landlord / place")
+        add(HYP_NOTICE_ID, "Waiting on someone · Gated · Give current-place notice — depends on signed lease")
+        add(HYP_MOVERS_ID, "Waiting on someone · Gated · Book movers / utilities — landlord move-in")
     }
 
+    /**
+     * Conversation 2 — external delay: mark viewing / landlord reply as waiting.
+     * Offers follow-up / other listing / adjust search. Never invents a viewing.
+     */
+    fun markExternalWait(
+        store: IntentionFlowStore,
+        intentionId: String,
+        now: Long,
+        registry: CapabilityRegistry = CapabilityRegistry.default
+    ) {
+        if (!registry.isActionable(CapabilityRegistry.ID_RECORD_FACT) &&
+            !registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)
+        ) {
+            return
+        }
+        if (registry.isActionable(CapabilityRegistry.ID_RECORD_FACT)) {
+            store.apply(
+                FlowCommand.AddUserFact(
+                    factId = FACT_EXTERNAL_WAIT_ID,
+                    intentionId = intentionId,
+                    text = "Waiting on someone · Viewing — landlord hasn't replied",
+                    nowEpochMs = now
+                )
+            )
+        }
+        if (registry.isActionable(CapabilityRegistry.ID_ADD_HYPOTHESIS)) {
+            val existing = store.snapshot().hypotheses.any {
+                it.id == HYP_EXTERNAL_WAIT_ID && it.intentionId == intentionId
+            }
+            if (!existing) {
+                store.apply(
+                    FlowCommand.AddHypothesis(
+                        hypothesisId = HYP_EXTERNAL_WAIT_ID,
+                        intentionId = intentionId,
+                        text = "Waiting on someone · Landlord reply on viewing — not booked",
+                        nowEpochMs = now
+                    )
+                )
+            }
+            seedDependencyPlan(store, now, intentionId)
+        }
+        store.apply(
+            FlowCommand.AddConversationTurn(
+                turnId = "turn-move-agent-wait-$now",
+                intentionId = intentionId,
+                role = "agent",
+                text = "I've marked that viewing as Waiting on someone for a reply. " +
+                    "Would you like to follow up tomorrow, look at another listing now, " +
+                    "or adjust the search plan? No viewing is invented as booked.",
+                nowEpochMs = now + 1
+            )
+        )
+    }
+
+    fun hasExternalWait(facts: List<Fact>, hypotheses: List<Hypothesis> = emptyList()): Boolean =
+        facts.any {
+            it.id == FACT_EXTERNAL_WAIT_ID ||
+                it.text.contains("landlord hasn't replied", ignoreCase = true)
+        } || hypotheses.any { it.id == HYP_EXTERNAL_WAIT_ID }
+
     fun placeIsConfirmed(facts: List<Fact>): Boolean =
-        facts.any { it.id == FACT_PLACE_FOUND_ID }
+        facts.any {
+            it.id == FACT_PLACE_FOUND_ID ||
+                (
+                    it.text.contains("place confirmed", ignoreCase = true) ||
+                        it.text.contains("found a place", ignoreCase = true) ||
+                        it.text.contains("signed a lease", ignoreCase = true)
+                    ) &&
+                !it.text.contains("no place", ignoreCase = true) &&
+                !it.text.contains("not found", ignoreCase = true)
+        }
 
     fun approve(store: IntentionFlowStore, now: Long = System.currentTimeMillis()) {
         store.apply(

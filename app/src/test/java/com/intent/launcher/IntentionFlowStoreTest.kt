@@ -421,11 +421,18 @@ class IntentionFlowStoreTest {
             facts = snap.facts.filter { it.intentionId == intention.id },
             hypotheses = snap.hypotheses.filter { it.intentionId == intention.id }
         )
-        assertEquals("Your move plan", projection.approachSectionTitle)
+        assertEquals("Project board", projection.approachSectionTitle)
         assertTrue(projection.approachSteps.any { it.title.contains("Search") && !it.muted })
         assertTrue(projection.approachSteps.any { it.title.contains("Sign lease") && it.muted })
-        assertTrue(projection.approachSteps.any { it.title.contains("movers") && it.muted })
-        assertTrue(projection.approachSteps.any { it.detail.contains("Gated", ignoreCase = true) })
+        assertTrue(projection.approachSteps.any { it.title.contains("movers", ignoreCase = true) && it.muted })
+        assertTrue(
+            projection.approachSteps.any {
+                it.detail.contains("Gated", ignoreCase = true) ||
+                    it.title.contains("Waiting on someone", ignoreCase = true)
+            }
+        )
+        assertTrue(projection.approachSteps.any { it.title.startsWith("Due soon") })
+        assertTrue(projection.approachSteps.any { it.title.startsWith("Reschedule") })
     }
 
     @Test

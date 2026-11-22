@@ -521,7 +521,13 @@ object ConversationCoordinator {
         when (intention?.shapeTag) {
             "marathon" -> MarathonScenario.onChip(store, chip, nowEpochMs, registry)
             "business" -> BusinessScenario.onChip(store, chip, nowEpochMs, registry)
-            "move" -> MoveScenario.onChip(store, chip, nowEpochMs, registry)
+            "move" -> MoveScenario.onChip(
+                store,
+                chip,
+                nowEpochMs,
+                registry,
+                intentionId = activeId ?: MoveScenario.INTENTION_ID
+            )
             "decision" -> {
                 val target = intention ?: store.snapshot().intentions.firstOrNull {
                     it.id == store.snapshot().activeIntentionId

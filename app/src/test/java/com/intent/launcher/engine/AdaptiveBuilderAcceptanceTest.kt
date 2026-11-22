@@ -1552,6 +1552,19 @@ class AdaptiveBuilderAcceptanceTest {
         )
         answerAsk(lease, "Lease ends in six weeks", AdaptiveBuilderEngine.KEY_LEASE_DEADLINE, "lease")
 
+        val housing = next()
+        assertTrue(housing is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_HOUSING_REQUIREMENTS,
+            (housing as BuilderDecision.Ask).purpose
+        )
+        answerAsk(
+            housing,
+            "One-bedroom under 900 euros",
+            AdaptiveBuilderEngine.KEY_HOUSING_REQUIREMENTS,
+            "housing"
+        )
+
         val notice = next()
         assertTrue(notice is BuilderDecision.Ask)
         assertEquals(
@@ -1571,7 +1584,8 @@ class AdaptiveBuilderAcceptanceTest {
         assertTrue(pauseDec.reason.contains("waiting", ignoreCase = true))
         assertTrue(
             pauseDec.reason.contains("invented", ignoreCase = true) ||
-                pauseDec.reason.contains("secured", ignoreCase = true)
+                pauseDec.reason.contains("secured", ignoreCase = true) ||
+                pauseDec.reason.contains("Waiting on someone", ignoreCase = true)
         )
         assertTrue(
             AdaptiveBuilderEngine.applyDecision(store, pauseDec, t, timeZone = tz).accepted
@@ -1580,7 +1594,7 @@ class AdaptiveBuilderAcceptanceTest {
         assertEquals(IntentionPhase.EXPLORING, snap.intentions.first { it.id == id }.phase)
         assertTrue(snap.proposals.none { it.intentionId == id })
         assertTrue(snap.sessions.none { it.intentionId == id })
-        assertEquals(2, AdaptiveBuilderEngine.activeFacts(snap, id).size)
+        assertEquals(3, AdaptiveBuilderEngine.activeFacts(snap, id).size)
         assertFalse(
             snap.turns.any {
                 it.text.contains("viewing booked", ignoreCase = true) ||

@@ -1,5 +1,5 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.207.apk`](./INTENT-v0.0.207.apk) — OC3 dated physical-goal first-phase log method + generic activity-report CorrectFact (20→25 min). Based on tip 0.0.203 (#132). **Hold merge.**
+Latest sideload APK (this branch): [`INTENT-v0.0.211.apk`](./INTENT-v0.0.211.apk) — OC7 generic finite-move project board (Next user action / Waiting on someone / Due soon / Reschedule); no invented viewings. Based on tip 0.0.207 (#133). **Hold merge.**
 
 Do not overwrite lower version APKs.
