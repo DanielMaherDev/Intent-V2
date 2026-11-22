@@ -88,7 +88,7 @@ object AdaptiveAnswerPath {
             )
         }
 
-        // §8.1 / §8.5 — freshness reconfirm chips (tip 0.0.167+ on main).
+        // §8.1 / §8.5 — freshness reconfirm chips.
         if (question.purpose == "reconfirm_move_estimate") {
             val lower = trimmed.lowercase()
             when {
@@ -142,6 +142,7 @@ object AdaptiveAnswerPath {
                     if (!corrected.accepted) {
                         return Result(false, corrected.reason)
                     }
+                    // Close the reconfirm Ask without saving a duplicate purpose-key fact.
                     store.apply(
                         FlowCommand.AnswerOpenQuestion(
                             questionId = activeId,
@@ -190,203 +191,6 @@ object AdaptiveAnswerPath {
                 modality, nowEpochMs, state.revision, question.purpose, timeZone
             )
         }
-    }
-
-    /**
-     * Gate D2 — STT → one AnswerQuestion path with certainty gating.
-     * Exact chip / clear free-text commit immediately; fuzzy / multi / soft chip
-     * resemblance projects a confirm card and writes nothing until Yes (or a
-     * candidate tap on a multi-candidate confirm).
-     */
-    fun submitFromVoice(
-        store: IntentionFlowStore,
-        intentionId: String,
-        transcript: String,
-        nowEpochMs: Long,
-        timeZone: TimeZone = TimeZone.getDefault(),
-        expectedQuestionId: String? = null
-    ): Result {
-        val trimmed = transcript.trim()
-        if (trimmed.isEmpty()) {
-            return Result(false, "No speech recognized — try again or tap a chip.")
-        }
-        val snap = store.snapshot()
-        val state = snap.adaptiveBuilderStates.firstOrNull { it.intentionId == intentionId }
-            ?: return Result(false, "No adaptive builder state for this intention.")
-        val activeId = state.currentQuestionId
-            ?: return Result(false, "No active question — refresh the conversation.")
-        if (expectedQuestionId != null && expectedQuestionId != activeId) {
-            return Result(
-                ok = true,
-                honestyNote = "That card is no longer active. The conversation was refreshed — " +
-                    "answer the current question.",
-                accepted = false
-            )
-        }
-        val question = snap.openQuestions.firstOrNull { it.id == activeId }
-            ?: return Result(false, "Active question missing — refresh.")
-
-        val optionChips = question.optionIds.filter {
-            !ChoiceOptions.isOther(it) && !ChoiceOptions.isDeferral(it)
-        }
-        // MULTI_CHOICE: if the transcript fully names one or more option titles,
-        // commit the same joined value as tap/typed (no false Ambiguous confirm).
-        if (question.answerSchema == AnswerSchema.MULTI_CHOICE) {
-            val named = optionChips.filter { chip ->
-                trimmed.lowercase().contains(chip.lowercase())
-            }
-            if (named.isNotEmpty()) {
-                return submit(
-                    store = store,
-                    intentionId = intentionId,
-                    rawValue = trimmed,
-                    modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
-                    nowEpochMs = nowEpochMs,
-                    timeZone = timeZone,
-                    voiceUncertain = false,
-                    expectedQuestionId = activeId
-                )
-            }
-        }
-        return when (val match = ConversationCoordinator.classifyChipMatch(trimmed, optionChips)) {
-            is ConversationCoordinator.ChipMatch.Exact -> submit(
-                store = store,
-                intentionId = intentionId,
-                rawValue = match.chip,
-                modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
-                nowEpochMs = nowEpochMs,
-                timeZone = timeZone,
-                voiceUncertain = false,
-                expectedQuestionId = activeId
-            )
-            is ConversationCoordinator.ChipMatch.Ambiguous -> {
-                projectVoiceConfirm(store, intentionId, activeId, match.candidates, nowEpochMs)
-                Result(
-                    ok = true,
-                    honestyNote = "Voice was uncertain — confirm before saving.",
-                    needsVoiceConfirm = true,
-                    accepted = false
-                )
-            }
-            ConversationCoordinator.ChipMatch.None -> submit(
-                store = store,
-                intentionId = intentionId,
-                rawValue = trimmed,
-                modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
-                nowEpochMs = nowEpochMs,
-                timeZone = timeZone,
-                voiceUncertain = false,
-                expectedQuestionId = activeId
-            )
-        }
-    }
-
-    /** Active in-chat voice-confirm card, if any. */
-    fun pendingVoiceConfirmBlock(
-        store: IntentionFlowStore,
-        intentionId: String
-    ): ResponseBlock? =
-        store.snapshot().turns
-            .asSequence()
-            .filter { it.intentionId == intentionId }
-            .flatMap { it.blocks }
-            .filter { it.active && VOICE_CONFIRM_LINK in it.linkedObjectIds }
-            .lastOrNull()
-
-    /**
-     * Handle Yes / No on a pending voice-confirm card.
-     * Returns null when [label] is not a voice-confirm action (caller continues normally).
-     */
-    fun resolveVoiceConfirmIfPending(
-        store: IntentionFlowStore,
-        intentionId: String,
-        label: String,
-        modality: String,
-        nowEpochMs: Long,
-        timeZone: TimeZone = TimeZone.getDefault()
-    ): Result? {
-        val confirm = pendingVoiceConfirmBlock(store, intentionId) ?: return null
-        val trimmed = label.trim()
-        val candidates = confirm.actions.filter {
-            it != VOICE_CONFIRM_YES && it != VOICE_CONFIRM_NO &&
-                !ChoiceOptions.isDeferral(it) && !ChoiceOptions.isOther(it)
-        }
-        val isYes = trimmed.equals(VOICE_CONFIRM_YES, ignoreCase = true)
-        val isNo = trimmed.equals(VOICE_CONFIRM_NO, ignoreCase = true)
-        val pickedCandidate = candidates.firstOrNull { it.equals(trimmed, ignoreCase = true) }
-        if (!isYes && !isNo && pickedCandidate == null) return null
-
-        val questionId = confirm.linkedObjectIds.firstOrNull { it != VOICE_CONFIRM_LINK }
-            ?: store.snapshot().adaptiveBuilderStates
-                .firstOrNull { it.intentionId == intentionId }
-                ?.currentQuestionId
-            ?: return Result(false, "Confirm card missing question link.")
-
-        store.apply(
-            FlowCommand.DeactivateBuilderAnswerCards(
-                intentionId = intentionId,
-                nowEpochMs = nowEpochMs,
-                exceptBlockId = null
-            )
-        )
-
-        if (isNo) {
-            store.apply(
-                FlowCommand.AddConversationTurn(
-                    turnId = "turn-voice-reject-$nowEpochMs",
-                    intentionId = intentionId,
-                    role = "user",
-                    text = trimmed,
-                    nowEpochMs = nowEpochMs,
-                    modality = modality
-                )
-            )
-            store.apply(
-                FlowCommand.AddConversationTurn(
-                    turnId = "turn-voice-reject-ack-$nowEpochMs",
-                    intentionId = intentionId,
-                    role = "agent",
-                    text = "Okay — tap a choice or type what you meant.",
-                    nowEpochMs = nowEpochMs + 1
-                )
-            )
-            return Result(
-                ok = true,
-                honestyNote = "Voice guess discarded — answer with a chip or free text.",
-                needsFreeText = true,
-                accepted = false
-            )
-        }
-
-        val candidate = when {
-            pickedCandidate != null -> pickedCandidate
-            isYes -> confirm.body.trim().ifBlank {
-                candidates.singleOrNull().orEmpty()
-            }
-            else -> ""
-        }
-        if (candidate.isBlank()) {
-            return Result(false, "Nothing to confirm — try again.")
-        }
-
-        val snap = store.snapshot()
-        val state = snap.adaptiveBuilderStates.firstOrNull { it.intentionId == intentionId }
-            ?: return Result(false, "No adaptive builder state for this intention.")
-        val question = snap.openQuestions.firstOrNull { it.id == questionId }
-            ?: return Result(false, "Active question missing — refresh.")
-        // Re-activate Ask projection is unnecessary — commit against open question directly.
-        return commitAnswer(
-            store = store,
-            intentionId = intentionId,
-            questionId = questionId,
-            normalizedValue = candidate,
-            rawValue = candidate,
-            modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
-            nowEpochMs = nowEpochMs + 2,
-            expectedRevision = state.revision,
-            factKey = question.purpose,
-            timeZone = timeZone
-        )
     }
 
     private fun bumpClearQuestion(
@@ -457,13 +261,30 @@ object AdaptiveAnswerPath {
                 expectedQuestionId = activeId
             )
             is ConversationCoordinator.ChipMatch.Ambiguous -> {
-                projectVoiceConfirm(store, intentionId, activeId, match.candidates, nowEpochMs)
-                Result(
-                    ok = true,
-                    honestyNote = "Voice was uncertain — confirm before saving.",
-                    needsVoiceConfirm = true,
-                    accepted = false
-                )
+                // MULTI_CHOICE: several chip titles in one transcript is a selection,
+                // not Gate D2 single-choice uncertainty (e.g. "AI … and Learning app").
+                if (question.answerSchema == AnswerSchema.MULTI_CHOICE &&
+                    match.candidates.size >= 2
+                ) {
+                    submit(
+                        store = store,
+                        intentionId = intentionId,
+                        rawValue = match.candidates.joinToString(" and "),
+                        modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
+                        nowEpochMs = nowEpochMs,
+                        timeZone = timeZone,
+                        voiceUncertain = false,
+                        expectedQuestionId = activeId
+                    )
+                } else {
+                    projectVoiceConfirm(store, intentionId, activeId, match.candidates, nowEpochMs)
+                    Result(
+                        ok = true,
+                        honestyNote = "Voice was uncertain — confirm before saving.",
+                        needsVoiceConfirm = true,
+                        accepted = false
+                    )
+                }
             }
             ConversationCoordinator.ChipMatch.None -> submit(
                 store = store,
