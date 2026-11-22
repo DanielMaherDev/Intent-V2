@@ -8,12 +8,13 @@ package com.intent.launcher.engine
  * measure package foreground when usage access is granted; it cannot identify
  * Shorts/Reels. Never claim exact Shorts minutes.
  *
- * OC9 — job-offer / decide-whether-to-accept / N-day deadline: frame decide-by-date
- * (help decide; do not auto-accept; deadline matters).
+ * Time-limited decisions (incl. OC9 job-offer / decide-whether / N-day deadline):
+ * frame decide-by-date (help decide; do not auto-accept / assume yes; deadline matters).
+ * Detection is generic — not title-hardcoded to “job offer”.
  */
 object CreatePathSeedHonesty {
 
-    enum class Kind { USAGE_APP_TIME, JOB_OFFER_DECIDE }
+    enum class Kind { USAGE_APP_TIME, TIME_LIMITED_DECISION }
 
     data class Honesty(
         val kind: Kind,
@@ -42,11 +43,13 @@ object CreatePathSeedHonesty {
     const val USAGE_INTERVENTION_QUESTION =
         "When you approach your limit, how should I approach you?"
 
-    const val JOB_OFFER_AGENT_NOTE =
-        "I'll help you make a decision by a date — not assume the answer is yes or " +
-            "auto-accept the offer. The deadline matters. When exactly is the response " +
-            "due, and what matters most to you: pay, work, flexibility, growth, " +
-            "location, or something else?"
+    const val DECISION_AGENT_NOTE =
+        "I'll help you make a decision by a date — not assume a particular outcome " +
+            "or auto-accept. The deadline matters. When exactly is the response due, " +
+            "and what matters most: pay, work, flexibility, growth, location, or something else?"
+
+    /** @deprecated Prefer [DECISION_AGENT_NOTE]; kept for older tests/string matches. */
+    const val JOB_OFFER_AGENT_NOTE = DECISION_AGENT_NOTE
 
     const val PROMPT_USAGE_ACCESS = "usage_access"
     const val PROMPT_USAGE_INTERVENTION = "usage_intervention"
@@ -91,22 +94,14 @@ object CreatePathSeedHonesty {
         return access && (packageLimit || refuseExact)
     }
 
-    fun liveProseStatesJobOfferHonesty(text: String): Boolean {
-        val t = text.lowercase()
-        val decideFrame =
-            t.contains("decide") || t.contains("decision") || t.contains("deadline")
-        val notAuto =
-            t.contains("auto-accept") || t.contains("not assume") ||
-                t.contains("will not accept") || t.contains("won't accept") ||
-                t.contains("not auto")
-        return decideFrame && notAuto
-    }
+    fun liveProseStatesJobOfferHonesty(text: String): Boolean =
+        liveProseHasDecisionHonesty(text)
 
     /** Merge live model prose with required seed honesty — never drop on casual product mentions. */
     fun mergeLiveProseWithSeedHonesty(formatted: String, honesty: Honesty): String {
         val already = when (honesty.kind) {
             Kind.USAGE_APP_TIME -> liveProseStatesUsageHonesty(formatted)
-            Kind.JOB_OFFER_DECIDE -> liveProseStatesJobOfferHonesty(formatted)
+            Kind.TIME_LIMITED_DECISION -> liveProseHasDecisionHonesty(formatted)
         }
         return if (already) formatted else "$formatted\n\n${honesty.agentNote}"
     }
@@ -125,10 +120,10 @@ object CreatePathSeedHonesty {
                     "How should we measure Instagram / YouTube time for this intention?"
             )
         }
-        if (looksLikeJobOfferDecideSeed(trimmed)) {
+        if (looksLikeTimeLimitedDecisionSeed(trimmed)) {
             return Honesty(
-                kind = Kind.JOB_OFFER_DECIDE,
-                agentNote = JOB_OFFER_AGENT_NOTE
+                kind = Kind.TIME_LIMITED_DECISION,
+                agentNote = DECISION_AGENT_NOTE
             )
         }
         return null
@@ -150,6 +145,11 @@ object CreatePathSeedHonesty {
         return mentionsCapOrAppTime || t.contains("shorts") || t.contains("reels")
     }
 
+    fun looksLikeTimeLimitedDecisionSeed(text: String): Boolean =
+        IntentionBuilder.looksLikeTimeLimitedDecision(text.lowercase()) ||
+            looksLikeJobOfferDecideSeed(text)
+
+    /** OC9-oriented detector kept for tests; subsumed by [looksLikeTimeLimitedDecisionSeed]. */
     fun looksLikeJobOfferDecideSeed(text: String): Boolean {
         val t = text.lowercase()
         val offer = t.contains("job offer") ||
@@ -160,5 +160,18 @@ object CreatePathSeedHonesty {
             Regex("""\b\d+\s*days?\b""").containsMatchIn(t) ||
             t.contains("ten days") || t.contains("two weeks")
         return offer && (decide || (deadline && t.contains("help")))
+    }
+
+    /** True when live/model prose already carries decide-by-date / non-assumption honesty. */
+    fun liveProseHasDecisionHonesty(formatted: String): Boolean {
+        val t = formatted.lowercase()
+        val nonAssume = t.contains("not assume") || t.contains("won't assume") ||
+            t.contains("will not assume") || t.contains("auto-accept") ||
+            t.contains("not auto-accept") || t.contains("will not accept") ||
+            t.contains("won't accept") || t.contains("does not choose") ||
+            t.contains("won't choose") || t.contains("will not choose")
+        val deadlineCue = t.contains("deadline") || t.contains("due") ||
+            t.contains("decide by") || t.contains("by a date")
+        return nonAssume && deadlineCue
     }
 }

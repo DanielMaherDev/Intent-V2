@@ -305,6 +305,16 @@ object BuilderAnswerCard {
                 "When do you expect the move or deadline?"
             AdaptiveBuilderEngine.KEY_PRACTICE_FREQUENCY ->
                 "How often can you practise?"
+            AdaptiveBuilderEngine.KEY_DECIDE_BY_DATE ->
+                "When exactly is the response due?"
+            AdaptiveBuilderEngine.KEY_DECISION_CRITERIA ->
+                "What matters most for this decision?"
+            AdaptiveBuilderEngine.KEY_DECISION_ALTERNATIVES ->
+                "What are you comparing against?"
+            AdaptiveBuilderEngine.KEY_DECISION_UNKNOWNS ->
+                "What information is still unknown?"
+            AdaptiveBuilderEngine.KEY_COMPARISON_REFRESH ->
+                "How should we use the new information?"
             else -> decision.purpose.ifBlank { "Question" }
         }
 

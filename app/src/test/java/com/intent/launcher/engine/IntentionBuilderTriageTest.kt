@@ -157,5 +157,15 @@ class IntentionBuilderTriageTest {
             )
         )
         assertEquals("other", IntentionBuilder.suggestShape("get better sleep"))
+        assertEquals(
+            "decision",
+            IntentionBuilder.suggestShape(
+                "Help me decide whether to accept a job offer. I have ten days."
+            )
+        )
+        assertEquals(
+            "decision",
+            IntentionBuilder.suggestShape("Help me decide between two options by Friday")
+        )
     }
 }
