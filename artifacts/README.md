@@ -1,5 +1,5 @@
 # Artifacts
 
-Latest sideload APK (this branch): [`INTENT-v0.0.211.apk`](./INTENT-v0.0.211.apk) — OC7 generic finite-move project board (Next user action / Waiting on someone / Due soon / Reschedule); no invented viewings. Based on tip 0.0.207 (#133). **Hold merge.**
+Latest sideload APK (this branch): [`INTENT-v0.0.216.apk`](./INTENT-v0.0.216.apk) — generic conditional-process resume after research Pause (employer handling → researching status → Applies/Already done/Not sure → Review plan Propose). Based on tip 0.0.212 (#135).
 
 Do not overwrite lower version APKs.

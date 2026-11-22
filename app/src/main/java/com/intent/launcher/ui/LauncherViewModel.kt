@@ -1185,7 +1185,11 @@ class LauncherViewModel(
         PlayStoreDeepLink.forPackage(packageName, label)
 
     fun conversationChips(): List<String> =
-        ConversationCoordinator.chipsForIntention(activeIntention(), capabilityRegistry)
+        ConversationCoordinator.chipsForIntention(
+            activeIntention(),
+            capabilityRegistry,
+            store = store
+        )
 
     fun onConversationChip(chip: String) {
         val now = System.currentTimeMillis()

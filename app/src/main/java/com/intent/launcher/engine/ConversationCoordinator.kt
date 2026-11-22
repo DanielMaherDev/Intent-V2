@@ -3,7 +3,6 @@ package com.intent.launcher.engine
 import com.intent.launcher.capability.CapabilityRegistry
 import com.intent.launcher.domain.AppUseReductionScenario
 import com.intent.launcher.domain.BusinessScenario
-import com.intent.launcher.domain.EuWorkSpainScenario
 import com.intent.launcher.domain.ChessScenario
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.Intention
@@ -495,7 +494,9 @@ object ConversationCoordinator {
      */
     fun chipsForIntention(
         intention: Intention?,
-        registry: CapabilityRegistry
+        registry: CapabilityRegistry,
+        store: IntentionFlowStore? = null,
+        nowEpochMs: Long = System.currentTimeMillis()
     ): List<String> = when (intention?.shapeTag) {
         "language" -> SpanishScenario.conversationChipsFor(intention, registry)
         "marathon" -> MarathonScenario.conversationChips(registry)
@@ -504,9 +505,33 @@ object ConversationCoordinator {
         "decision" -> DecisionSupport.conversationChips(registry)
         QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.conversationChips(registry)
         "app_use" -> AppUseReductionScenario.conversationChips(registry)
-        "research" -> EuWorkSpainScenario.conversationChips(registry)
+        "research" -> researchChipsForActive(intention, store, nowEpochMs)
         ChessScenario.SHAPE_TAG -> ChessScenario.conversationChips(registry)
         else -> emptyList()
+    }
+
+    /**
+     * Conditional-process Discuss chips for the **active** research intention.
+     * Uses AdaptiveBuilder eligibility — never EuWorkSpainScenario fixture fact ids.
+     */
+    private fun researchChipsForActive(
+        intention: Intention?,
+        store: IntentionFlowStore?,
+        nowEpochMs: Long
+    ): List<String> {
+        val id = intention?.id ?: return emptyList()
+        if (store == null) {
+            return listOf(
+                AdaptiveBuilderEngine.CHIP_CONTINUE_AFTER_RESEARCH,
+                AdaptiveBuilderEngine.CHIP_BUILD_SOURCED_CHECKLIST,
+                AdaptiveBuilderEngine.CHIP_KEEP_CLARIFYING
+            )
+        }
+        val ctx = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, nowEpochMs)
+        val fromBuilder = AdaptiveBuilderEngine.conditionalResearchChips(ctx)
+        if (fromBuilder.isNotEmpty()) return fromBuilder
+        // Eligibility not yet on AdaptiveBuilder — stay quiet (create path owns Asks).
+        return emptyList()
     }
 
     private fun dispatchChip(
@@ -538,7 +563,17 @@ object ConversationCoordinator {
             }
             QuitSmokingScenario.SHAPE_TAG -> QuitSmokingScenario.onChip(store, chip, nowEpochMs, registry)
             "app_use" -> AppUseReductionScenario.onChip(store, chip, nowEpochMs, registry)
-            "research" -> EuWorkSpainScenario.onChip(store, chip, nowEpochMs, registry)
+            "research" -> {
+                val id = activeId
+                if (id != null) {
+                    AdaptiveBuilderEngine.handleConditionalResearchChip(
+                        store = store,
+                        intentionId = id,
+                        chip = chip,
+                        nowEpochMs = nowEpochMs
+                    )
+                }
+            }
             ChessScenario.SHAPE_TAG -> ChessScenario.onChip(store, chip, nowEpochMs, registry)
             "language" -> SpanishScenario.onChip(
                 store,

@@ -241,10 +241,21 @@ fun ConversationScreen(
         choiceBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
             ?: questionBlock?.let { AgentModuleProjection.oneQuestionFromBlock(it) }
             ?: if (!hasTypedAgentCard && chips.isNotEmpty() && nextCard == null && proposalCard == null) {
+                val chipBody = when {
+                    chips.any {
+                        it.contains("sourced research", ignoreCase = true) ||
+                            it.contains("Continue after research", ignoreCase = true) ||
+                            it.contains("Keep clarifying", ignoreCase = true)
+                    } ->
+                        "Eligibility is saved. Resume for a sourced checklist — " +
+                            "requirements stay unverified until you review a plan."
+                    else ->
+                        "Your answer helps me suggest the right practice."
+                }
                 AgentModuleProjection.oneQuestionFromChips(
                     chips = chips,
                     headline = conversationHeadline,
-                    body = "Your answer helps me suggest the right practice."
+                    body = chipBody
                 )
             } else {
                 null
