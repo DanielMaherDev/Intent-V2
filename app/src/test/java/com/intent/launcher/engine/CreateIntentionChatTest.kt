@@ -268,6 +268,9 @@ class CreateIntentionChatTest {
         CreateIntentionChat.submitChoice(
             store, "Not yet", now + 30, registry
         )
+        CreateIntentionChat.submitChoice(
+            store, "Moving or travel", now + 35, registry
+        )
         val commit = CreateIntentionChat.submitChoice(
             store, "Confirm intention", now + 40, registry
         )
@@ -428,6 +431,7 @@ class CreateIntentionChatTest {
             store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
         )
         CreateIntentionChat.submitChoice(store, "Not yet", now + 30, registry)
+        CreateIntentionChat.submitChoice(store, "Moving or travel", now + 35, registry)
         CreateIntentionChat.submitChoice(store, "Confirm intention", now + 40, registry)
         assertFalse(
             "After Confirm, adaptive state exists — Discuss/CorrectFact owns the shell",
@@ -449,6 +453,7 @@ class CreateIntentionChatTest {
             store, 20, PracticeMinuteChoices.UNIT, now + 20, registry
         )
         CreateIntentionChat.submitChoice(store, "Not yet", now + 30, registry)
+        CreateIntentionChat.submitChoice(store, "Moving or travel", now + 35, registry)
         CreateIntentionChat.submitChoice(store, "Confirm intention", now + 40, registry)
         val id = CreateIntentionChat.SESSION_INTENTION_ID
         val prior = store.snapshot().facts.first {
