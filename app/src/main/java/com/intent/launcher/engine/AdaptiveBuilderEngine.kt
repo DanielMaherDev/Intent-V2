@@ -98,6 +98,32 @@ object AdaptiveBuilderEngine {
     }
 
     /**
+     * Project the next policy decision into the store when it is an Ask
+     * (e.g. §8.1 freshness reconfirm). No-op when Propose/Offer already pending
+     * or when an open Ask for the same purpose already exists.
+     *
+     * @return true when a new Ask was applied
+     */
+    fun projectPendingAsk(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Boolean {
+        val ctx = projectContext(store.snapshot(), intentionId, nowEpochMs, timeZone) ?: return false
+        val next = suggestNextDecision(ctx, nowEpochMs, timeZone)
+        if (next !is BuilderDecision.Ask) return false
+        val alreadyOpen = store.snapshot().openQuestions.any {
+            it.intentionId == intentionId &&
+                it.purpose == next.purpose &&
+                it.state != OpenQuestionState.ANSWERED &&
+                it.state != OpenQuestionState.DECLINED
+        }
+        if (alreadyOpen) return false
+        return applyDecision(store, next, nowEpochMs, timeZone = timeZone).accepted
+    }
+
+    /**
      * Deterministic next-move policy for tests and Conversation hooks.
      * Not an LLM — ranks by consequence; zero questions for small errands.
      */
@@ -532,6 +558,52 @@ object AdaptiveBuilderEngine {
             }
         }
         return ApplyResult(true, "ok", validation.decisionKind, store.snapshot())
+    }
+
+    /**
+     * §8.5 — replace an ACTIVE [KEY_MOVE_ESTIMATE] with a new relative/absolute
+     * utterance via [BuilderDecision.CorrectFact]. Prior fact stays CORRECTED.
+     */
+    fun correctMoveEstimate(
+        store: IntentionFlowStore,
+        intentionId: String,
+        newUtterance: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        sourceTurnId: String? = null
+    ): ApplyResult {
+        val prior = store.snapshot().facts.firstOrNull {
+            it.intentionId == intentionId &&
+                it.key == KEY_MOVE_ESTIMATE &&
+                it.status == FactStatus.ACTIVE
+        } ?: return ApplyResult(
+            false,
+            "No active move estimate to correct.",
+            "CorrectFact",
+            store.snapshot()
+        )
+        val rev = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId }?.revision ?: 0L
+        val phrase = CreateIntentionChat.extractRelativePhrase(newUtterance)
+            ?: newUtterance.trim()
+        return applyDecision(
+            store,
+            BuilderDecision.CorrectFact(
+                intentionId = intentionId,
+                expectedRevision = rev,
+                existingFactId = prior.id,
+                replacement = FactDraft(
+                    factId = "fact-move-corrected-$intentionId-$nowEpochMs",
+                    text = phrase,
+                    key = KEY_MOVE_ESTIMATE,
+                    rawUtterance = newUtterance.trim(),
+                    approximate = RelativeDateAnchoring.looksRelative(newUtterance)
+                ),
+                sourceTurnId = sourceTurnId ?: "turn-correct-move-$nowEpochMs"
+            ),
+            nowEpochMs,
+            timeZone = timeZone
+        )
     }
 
     fun answerQuestion(

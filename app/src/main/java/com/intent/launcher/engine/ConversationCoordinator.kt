@@ -70,7 +70,7 @@ object ConversationCoordinator {
                 null
             } else {
                 registry.get(CapabilityRegistry.ID_LIVE_LLM)?.limitNote
-                    ?: "Local heuristics — not a live model."
+                    ?: "On-device reply — not a live model."
             },
             sourceLabel = LiveLlmProbe.discussSourceLabel(registry)
         )
@@ -128,8 +128,7 @@ object ConversationCoordinator {
                 channel = Channel.VOICE_TRANSCRIPT,
                 appliedChip = matched,
                 storedTranscript = trimmed,
-                honestyNote = "Matched your spoken choice to a chip — same path as tapping it. " +
-                    "Local heuristics — no live LLM interpretation.",
+                honestyNote = "Matched your spoken choice to a chip — same path as tapping it.",
                 sourceLabel = sourceLabel
             )
         }
@@ -264,13 +263,13 @@ object ConversationCoordinator {
         if (!live || client == null || apiKey.isNullOrBlank()) {
             val reason = when {
                 !access.hasApiKeyConfigured() ->
-                    "No OpenAI API key configured — local heuristics only."
+                    "No assistant key configured — on-device replies only."
                 !access.userOptedIn() ->
-                    "Live OpenAI is off until you opt in under Settings."
+                    "Live assistant is off until you opt in under Settings."
                 !access.liveClientEnabled() || client == null ->
-                    "Live Discuss client is not available in this session."
+                    "Live assistant is not available in this session."
                 else ->
-                    "Live Discuss is not CONNECTED."
+                    "Live assistant is not connected."
             }
             store.apply(
                 FlowCommand.AddConversationTurn(

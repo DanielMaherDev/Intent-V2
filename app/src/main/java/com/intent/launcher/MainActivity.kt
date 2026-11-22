@@ -61,6 +61,7 @@ import com.intent.launcher.ui.screens.TodayScreen
 import com.intent.launcher.ui.screens.ThoughtTriageScreen
 import com.intent.launcher.ui.screens.TrackerScreen
 import com.intent.launcher.ui.screens.TrashScreen
+import com.intent.launcher.ui.screens.WhatWeKnowScreen
 import com.intent.launcher.ui.components.OverflowMenuItem
 import com.intent.launcher.engine.FloaterActionDrawer
 import com.intent.launcher.engine.HistoryTrashMenus
@@ -242,6 +243,14 @@ class MainActivity : ComponentActivity() {
                                 when (action) {
                                     FloaterDrawerAction.ASK -> openAskFromDrawerRequest++
                                     FloaterDrawerAction.TODAY -> openTodayFromDrawerRequest++
+                                    FloaterDrawerAction.CHECK_IN -> {
+                                        vm.confirmDailyCheckIn()
+                                    }
+                                    FloaterDrawerAction.CHECK_OUT -> {
+                                        pendingCheckOutDefer = false
+                                        pendingWhatHappened = ""
+                                        showCheckOutWhatHappened = true
+                                    }
                                     FloaterDrawerAction.CAPTURE -> {
                                         thoughtCaptureSource = CaptureThought.SOURCE_FLOATER
                                         showThoughtCapture = true
@@ -538,6 +547,9 @@ class MainActivity : ComponentActivity() {
                                 onToggleErrand = { vm.toggleErrand(it) },
                                 onSettings = { nav.navigate("settings") },
                                 overflowItems = listOf(
+                                    OverflowMenuItem("Settings") {
+                                        nav.navigate("settings")
+                                    },
                                     OverflowMenuItem(HistoryTrashMenus.MENU_HISTORY) {
                                         nav.navigate("history")
                                     },
@@ -637,6 +649,20 @@ class MainActivity : ComponentActivity() {
                                                 .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                                         )
                                     }
+                                },
+                                screenTimeBarVisible = vm.screenTimeBarPrefVisible,
+                                onScreenTimeBarVisibleChange = { visible ->
+                                    vm.setScreenTimeBarVisible(visible)
+                                },
+                                usageAccessGranted =
+                                    vm.screenTimeBarObservation?.permissionGranted == true ||
+                                        vm.usageObservation?.permissionGranted == true,
+                                onAllowUsageAccess = {
+                                    startActivity(
+                                        Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
                                 },
                                 onBack = {
                                     vm.clearConnectionUnlinkNote()
@@ -745,11 +771,20 @@ class MainActivity : ComponentActivity() {
                                 hierarchy = vm.hierarchyForActive(),
                                 onOpenRelatedIntention = { id -> vm.openRelatedIntention(id) },
                                 onWorkThisOut = {
-                                    when (active?.phase) {
-                                        IntentionPhase.PROPOSAL_PENDING -> nav.navigate("proposal")
+                                    val reconfirmOpen = vm.snapshot.openQuestions.any {
+                                        it.intentionId == active?.id &&
+                                            it.purpose == "reconfirm_move_estimate" &&
+                                            it.state != com.intent.launcher.domain.OpenQuestionState.ANSWERED &&
+                                            it.state != com.intent.launcher.domain.OpenQuestionState.DECLINED
+                                    }
+                                    when {
+                                        reconfirmOpen -> nav.navigate("conversation")
+                                        active?.phase == IntentionPhase.PROPOSAL_PENDING ->
+                                            nav.navigate("proposal")
                                         else -> nav.navigate("conversation")
                                     }
                                 },
+                                onOpenWhatWeKnow = { nav.navigate("know") },
                                 onBack = { nav.popBackStack() },
                                 onMoveIntentionToTrash = { vm.softDeleteActiveIntention() },
                                 onMoveSessionToTrash = { sessionId -> vm.softDeleteSession(sessionId) },
@@ -773,6 +808,23 @@ class MainActivity : ComponentActivity() {
                                 openQuestions = vm.snapshot.openQuestions.filter {
                                     it.intentionId == active?.id
                                 },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        composable("know") {
+                            val active = vm.activeIntention()
+                            WhatWeKnowScreen(
+                                facts = vm.snapshot.facts.filter { it.intentionId == active?.id },
+                                hypotheses = vm.snapshot.hypotheses.filter {
+                                    it.intentionId == active?.id
+                                },
+                                evidence = vm.snapshot.evidence.filter {
+                                    it.intentionId == active?.id
+                                },
+                                defaultFacts = intentionProjection.defaultFacts,
+                                onBack = { nav.popBackStack() },
+                                onEditFact = { nav.navigate("conversation") },
+                                onAddFact = { nav.navigate("conversation") },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -876,6 +928,7 @@ class MainActivity : ComponentActivity() {
                                 onMicClick = { onConversationMicClick() },
                                 onSendFreeText = { vm.onDiscussFreeText(it) },
                                 freeTextBusy = vm.freeTextBusy,
+                                onCancelThinking = { vm.cancelDiscussThinking() },
                                 assistantSpeaking = vm.isAssistantSpeaking,
                                 onStopSpeaking = { vm.stopAssistantSpeech() },
                                 onSpeakAloud = { vm.beginSpeakingLatestAgentReply() },

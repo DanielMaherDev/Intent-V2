@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -44,8 +45,8 @@ import com.intent.launcher.ui.components.SmallLabel
 import com.intent.launcher.ui.theme.IntentColors
 
 /**
- * Settings — primary surface matches redesign: Appearance + optional live assistant.
- * Longer quiet / motion / snapshot tools stay below the fold as secondary.
+ * Settings — S-SETTINGS target: Appearance, Motion, Assistant, Quiet hours,
+ * History, Connected apps. No banned developer jargon on the primary surface.
  */
 @Composable
 fun SettingsScreen(
@@ -79,6 +80,21 @@ fun SettingsScreen(
 ) {
     var draftKey by remember { mutableStateOf("") }
     var showMore by remember { mutableStateOf(false) }
+    // Unused honesty params kept for call-site compatibility; primary UI omits them (S-SETTINGS).
+    @Suppress("UNUSED_VARIABLE")
+    val _quietHonesty = quietModeHonestyNote
+    @Suppress("UNUSED_VARIABLE")
+    val _quietStatus = quietModeStatusLabel
+    @Suppress("UNUSED_VARIABLE")
+    val _animHonesty = animationBudgetHonestyNote
+    @Suppress("UNUSED_VARIABLE")
+    val _animStatus = animationBudgetStatusLabel
+    @Suppress("UNUSED_VARIABLE")
+    val _liveHonesty = liveLlmHonestyNote
+    @Suppress("UNUSED_VARIABLE")
+    val _liveStatus = liveLlmStatusLabel
+    @Suppress("UNUSED_VARIABLE")
+    val _schema = schemaVersion
 
     Column(
         modifier = modifier
@@ -88,7 +104,7 @@ fun SettingsScreen(
             .padding(horizontal = 19.dp, vertical = 15.dp)
     ) {
         ScreenTopBar(contextLabel = "Settings", onBack = onBack)
-        Spacer(modifier = Modifier.height(23.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Settings",
             style = MaterialTheme.typography.headlineLarge,
@@ -99,12 +115,7 @@ fun SettingsScreen(
 
         SectionTitle("Appearance")
         Spacer(modifier = Modifier.height(10.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
-                .background(IntentColors.Card, RoundedCornerShape(16.dp))
-        ) {
+        PreferenceGroup {
             ThemePreference.entries.forEachIndexed { index, option ->
                 val selected = themePreference == option
                 val label = when (option) {
@@ -113,96 +124,129 @@ fun SettingsScreen(
                     ThemePreference.DARK -> "Dark"
                     ThemePreference.HIGH_CONTRAST -> "High contrast"
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onThemePreferenceChange(option) }
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = IntentColors.Ink,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (selected) {
-                        Icon(
-                            imageVector = Icons.Outlined.Check,
-                            contentDescription = "Selected",
-                            tint = IntentColors.Ink
-                        )
-                    }
-                }
-                if (index < ThemePreference.entries.lastIndex) {
-                    Spacer(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .padding(horizontal = 16.dp)
-                            .background(IntentColors.Line)
-                    )
-                }
+                PreferenceRow(
+                    label = label,
+                    selected = selected,
+                    onClick = { onThemePreferenceChange(option) },
+                    showDivider = index < ThemePreference.entries.lastIndex
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(28.dp))
-        SectionTitle("Conversation")
+        SectionTitle("Motion")
+        Spacer(modifier = Modifier.height(10.dp))
+        PreferenceGroup {
+            ReducedMotionPreference.entries.forEachIndexed { index, option ->
+                val selected = reducedMotionPreference == option
+                val label = when (option) {
+                    ReducedMotionPreference.FOLLOW_SYSTEM -> "Match this phone"
+                    ReducedMotionPreference.PREFER_REDUCED -> "Reduce motion"
+                }
+                PreferenceRow(
+                    label = label,
+                    selected = selected,
+                    onClick = { onReducedMotionPreferenceChange(option) },
+                    showDivider = index < ReducedMotionPreference.entries.lastIndex
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+        SectionTitle("Assistant")
         Spacer(modifier = Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Use live assistant",
-                style = MaterialTheme.typography.bodyLarge,
-                color = IntentColors.Ink,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Use a live assistant",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = IntentColors.Ink
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Optional. Your key stays on this device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Muted
+                )
+            }
             Switch(
                 checked = liveLlmOptedIn,
                 onCheckedChange = onLiveLlmOptInChange,
-                enabled = liveLlmKeyPresent || draftKey.isNotBlank()
+                enabled = liveLlmKeyPresent || draftKey.isNotBlank() || liveLlmOptedIn
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "Optional. Your key stays on this device.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = IntentColors.Muted
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(
-            value = draftKey,
-            onValueChange = { draftKey = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Enter key (stored locally)") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = IntentColors.Accent,
-                unfocusedBorderColor = IntentColors.Line,
-                unfocusedContainerColor = IntentColors.Card,
-                focusedContainerColor = IntentColors.Card
+        if (liveLlmOptedIn) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = draftKey,
+                onValueChange = { draftKey = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Key") },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = IntentColors.Accent,
+                    unfocusedBorderColor = IntentColors.Line,
+                    unfocusedContainerColor = IntentColors.Card,
+                    focusedContainerColor = IntentColors.Card
+                )
             )
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        IntentPrimaryButton(
-            text = "Save key on device",
-            onClick = {
-                onSaveRuntimeApiKey(draftKey)
-                draftKey = ""
+            Spacer(modifier = Modifier.height(12.dp))
+            IntentPrimaryButton(
+                text = "Save",
+                onClick = {
+                    onSaveRuntimeApiKey(draftKey)
+                    draftKey = ""
+                }
+            )
+            if (liveLlmKeyPresent) {
+                Spacer(modifier = Modifier.height(8.dp))
+                IntentQuietLink(
+                    text = "Remove key",
+                    onClick = onClearRuntimeApiKey
+                )
             }
-        )
-        if (liveLlmKeyPresent) {
-            Spacer(modifier = Modifier.height(8.dp))
-            IntentSecondaryButton(
-                text = "Clear on-device key",
-                onClick = onClearRuntimeApiKey
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+        SectionTitle("Quiet hours")
+        Spacer(modifier = Modifier.height(10.dp))
+        if (showOpenDndSettings) {
+            ChevronRow(
+                title = "Open Do Not Disturb",
+                subtitle = "INTENT cannot silence notifications itself.",
+                onClick = onOpenDndSettings
+            )
+        } else {
+            Text(
+                text = "INTENT cannot silence notifications itself.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = IntentColors.Muted
             )
         }
+
+        Spacer(modifier = Modifier.height(28.dp))
+        SectionTitle("History")
+        Spacer(modifier = Modifier.height(10.dp))
+        ChevronRow(
+            title = "See history",
+            subtitle = null,
+            onClick = onOpenHistory
+        )
+
+        Spacer(modifier = Modifier.height(28.dp))
+        SectionTitle("Connected apps")
+        Spacer(modifier = Modifier.height(10.dp))
+        ChevronRow(
+            title = "Apps you use",
+            subtitle = null,
+            onClick = onOpenConnections
+        )
 
         Spacer(modifier = Modifier.height(28.dp))
         IntentQuietLink(
@@ -211,61 +255,6 @@ fun SettingsScreen(
         )
 
         if (showMore) {
-            Spacer(modifier = Modifier.height(22.dp))
-            SectionTitle("Motion")
-            Spacer(modifier = Modifier.height(10.dp))
-            ReducedMotionPreference.entries.forEach { option ->
-                val selected = reducedMotionPreference == option
-                val label = when (option) {
-                    ReducedMotionPreference.FOLLOW_SYSTEM -> "Follow system"
-                    ReducedMotionPreference.PREFER_REDUCED -> "Prefer reduced motion"
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                if (selected) {
-                    IntentPrimaryButton(
-                        text = label,
-                        onClick = { onReducedMotionPreferenceChange(option) }
-                    )
-                } else {
-                    IntentSecondaryButton(
-                        text = label,
-                        onClick = { onReducedMotionPreferenceChange(option) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-            SectionTitle("Do Not Disturb")
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "INTENT cannot silence other apps. Open system Do Not Disturb when you need device quiet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Muted
-            )
-            if (showOpenDndSettings) {
-                Spacer(modifier = Modifier.height(12.dp))
-                IntentSecondaryButton(
-                    text = "Open system Do Not Disturb",
-                    onClick = onOpenDndSettings
-                )
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-            SectionTitle("Local history")
-            Spacer(modifier = Modifier.height(10.dp))
-            IntentSecondaryButton(
-                text = "Open History",
-                onClick = onOpenHistory
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-            SectionTitle("App connections")
-            Spacer(modifier = Modifier.height(10.dp))
-            IntentSecondaryButton(
-                text = "Open connections",
-                onClick = onOpenConnections
-            )
-
             Spacer(modifier = Modifier.height(22.dp))
             SectionTitle("Local snapshot")
             Spacer(modifier = Modifier.height(10.dp))
@@ -291,48 +280,109 @@ fun SettingsScreen(
                     color = IntentColors.Warm
                 )
             }
-
-            Spacer(modifier = Modifier.height(22.dp))
-            SectionTitle("About")
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "INTENT v$versionName · schema $schemaVersion",
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Ink
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Data stays on this device until you export it.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Muted
-            )
-            if (animationBudgetHonestyNote.isNotBlank() || animationBudgetStatusLabel.isNotBlank()) {
-                Spacer(modifier = Modifier.height(14.dp))
-                SmallLabel(text = animationBudgetStatusLabel, color = IntentColors.Muted)
-            }
-            if (quietModeHonestyNote.isNotBlank() || quietModeStatusLabel.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                SmallLabel(text = quietModeStatusLabel, color = IntentColors.Muted)
-            }
             if (showQuietSilenceToggle) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 SmallLabel(
                     text = "Silence toggle is not available in this build.",
                     color = IntentColors.Warm
                 )
             }
-            if (liveLlmHonestyNote.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                SmallLabel(text = liveLlmStatusLabel, color = IntentColors.Muted)
-            }
-        } else {
-            Spacer(modifier = Modifier.height(22.dp))
-            Text(
-                text = "INTENT v$versionName",
-                style = MaterialTheme.typography.bodyMedium,
-                color = IntentColors.Muted
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
+        Text(
+            text = "INTENT v$versionName",
+            style = MaterialTheme.typography.bodyMedium,
+            color = IntentColors.Muted
+        )
+    }
+}
+
+@Composable
+private fun PreferenceGroup(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+            .background(IntentColors.Card, RoundedCornerShape(16.dp)),
+        content = { content() }
+    )
+}
+
+@Composable
+private fun PreferenceRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    showDivider: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = IntentColors.Ink,
+            modifier = Modifier.weight(1f)
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = "Selected",
+                tint = IntentColors.Accent
             )
         }
+    }
+    if (showDivider) {
+        Spacer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .padding(horizontal = 16.dp)
+                .background(IntentColors.Line)
+        )
+    }
+}
+
+@Composable
+private fun ChevronRow(
+    title: String,
+    subtitle: String?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, IntentColors.Line, RoundedCornerShape(16.dp))
+            .background(IntentColors.Card, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = IntentColors.Ink
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = IntentColors.Muted
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = IntentColors.Muted
+        )
     }
 }
 

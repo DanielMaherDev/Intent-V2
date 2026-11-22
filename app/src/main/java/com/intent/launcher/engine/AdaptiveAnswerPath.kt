@@ -4,6 +4,7 @@ import com.intent.launcher.domain.AdaptiveBuilderState
 import com.intent.launcher.domain.AnswerQuestion
 import com.intent.launcher.domain.FlowCommand
 import com.intent.launcher.domain.OpenQuestionState
+import com.intent.launcher.domain.RelativeDateAnchoring
 import com.intent.launcher.domain.ResponseBlock
 import com.intent.launcher.domain.ResponseBlockType
 import com.intent.launcher.store.IntentionFlowStore
@@ -72,6 +73,83 @@ object AdaptiveAnswerPath {
             )
         }
 
+        // §8.1 / §8.5 — freshness reconfirm chips.
+        if (question.purpose == "reconfirm_move_estimate") {
+            val lower = trimmed.lowercase()
+            when {
+                lower.contains("still about") || lower == "yes" || lower.contains("still right") -> {
+                    store.apply(
+                        FlowCommand.AddConversationTurn(
+                            turnId = "turn-reconfirm-ok-$nowEpochMs",
+                            intentionId = intentionId,
+                            role = "user",
+                            text = trimmed,
+                            nowEpochMs = nowEpochMs,
+                            modality = modality
+                        )
+                    )
+                    store.apply(
+                        FlowCommand.AnswerOpenQuestion(
+                            questionId = activeId,
+                            intentionId = intentionId,
+                            answerText = "Still about right",
+                            nowEpochMs = nowEpochMs,
+                            sourceTurnId = "turn-reconfirm-ok-$nowEpochMs",
+                            modality = modality,
+                            idempotencyKey = "idem-reconfirm-ok-$nowEpochMs",
+                            factId = null
+                        )
+                    )
+                    bumpClearQuestion(store, intentionId, nowEpochMs)
+                    return Result(
+                        ok = true,
+                        honestyNote = "Move timing confirmed — prior estimate unchanged.",
+                        accepted = true
+                    )
+                }
+                lower.contains("update") || lower.contains("change the date") -> {
+                    return Result(
+                        ok = true,
+                        honestyNote = "Update the date — type the new estimate below " +
+                            "(for example “in about six months”).",
+                        needsFreeText = true
+                    )
+                }
+                RelativeDateAnchoring.looksRelative(trimmed) -> {
+                    val corrected = AdaptiveBuilderEngine.correctMoveEstimate(
+                        store = store,
+                        intentionId = intentionId,
+                        newUtterance = trimmed,
+                        nowEpochMs = nowEpochMs,
+                        timeZone = timeZone,
+                        sourceTurnId = "turn-reconfirm-correct-$nowEpochMs"
+                    )
+                    if (!corrected.accepted) {
+                        return Result(false, corrected.reason)
+                    }
+                    // Close the reconfirm Ask without saving a duplicate purpose-key fact.
+                    store.apply(
+                        FlowCommand.AnswerOpenQuestion(
+                            questionId = activeId,
+                            intentionId = intentionId,
+                            answerText = trimmed,
+                            nowEpochMs = nowEpochMs,
+                            sourceTurnId = "turn-reconfirm-correct-$nowEpochMs",
+                            modality = modality,
+                            idempotencyKey = "idem-reconfirm-correct-$nowEpochMs",
+                            factId = null
+                        )
+                    )
+                    bumpClearQuestion(store, intentionId, nowEpochMs)
+                    return Result(
+                        ok = true,
+                        honestyNote = "Move estimate updated — prior estimate stays on record as corrected.",
+                        accepted = true
+                    )
+                }
+            }
+        }
+
         return when (val selection = ChoiceOptions.resolveSelection(trimmed, question.optionIds)) {
             ChoiceOptions.Selection.Empty -> Result(false, "Empty answer.")
             ChoiceOptions.Selection.NeedsFreeText -> Result(
@@ -98,6 +176,25 @@ object AdaptiveAnswerPath {
                 modality, nowEpochMs, state.revision, question.purpose, timeZone
             )
         }
+    }
+
+    private fun bumpClearQuestion(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long
+    ) {
+        val prior = store.snapshot().adaptiveBuilderStates
+            .firstOrNull { it.intentionId == intentionId } ?: return
+        store.apply(
+            FlowCommand.SetAdaptiveBuilderState(
+                state = prior.copy(
+                    currentQuestionId = null,
+                    revision = prior.revision + 1,
+                    updatedAtEpochMs = nowEpochMs
+                ),
+                nowEpochMs = nowEpochMs
+            )
+        )
     }
 
     fun commitAnswer(

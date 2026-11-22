@@ -70,21 +70,18 @@ object LiveLlmProbe {
     private fun resolveLimitNote(access: LiveLlmAccess, status: CapabilityStatus): String =
         when (status) {
             CapabilityStatus.NOT_SUPPORTED ->
-                "No LLM API key configured. Discuss uses labeled local heuristics " +
-                    "(scripted chips / templates) — not a live model. Never writes OBSERVED " +
-                    "from model output; never auto-Completes sessions."
+                "No assistant key configured. Discuss uses on-device replies " +
+                    "(scripted chips / templates) — not a live model."
             CapabilityStatus.DENIED ->
-                "An LLM key may be available, but live Discuss is off until you opt in. " +
-                    "Showing local heuristics only — not model suggestions."
+                "An assistant key may be available, but live Discuss is off until you opt in. " +
+                    "Showing on-device replies only."
             CapabilityStatus.TEMPORARILY_UNAVAILABLE ->
                 "Key and opt-in are ready, but the live Discuss client is disabled. " +
-                    "Still using labeled local heuristics — not claiming LIVE."
+                    "Still using on-device replies."
             CapabilityStatus.CONNECTED ->
-                "Live OpenAI Discuss is connected. Replies are model-generated suggestions " +
-                    "only: user must confirm before SAID facts or FlowCommands. Never writes " +
-                    "OBSERVED from the model; never auto-Completes sessions."
+                "Live assistant is connected. Replies are suggestions only — " +
+                    "you confirm before anything is stored or scheduled."
             else ->
-                "Discuss path honesty unknown — treat replies as local heuristics " +
-                    "(keyConfigured=${access.hasApiKeyConfigured()})."
+                "Discuss path unknown — treat replies as on-device."
         }
 }

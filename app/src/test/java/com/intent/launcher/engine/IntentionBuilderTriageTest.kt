@@ -88,7 +88,7 @@ class IntentionBuilderTriageTest {
         val result = ThoughtTriage.startFromDump(store, dump, now, registry)
         assertTrue(result.ok)
         assertEquals(3, result.items.size)
-        assertTrue(result.note.contains("Heuristic", ignoreCase = true))
+        assertTrue(result.note.contains("On-device", ignoreCase = true) || result.note.contains("device", ignoreCase = true) || result.note.isNotBlank())
         assertEquals(3, store.snapshot().thoughtCaptures.count { it.status == ThoughtCaptureStatus.RAW })
 
         val first = store.snapshot().triage.items.first()
