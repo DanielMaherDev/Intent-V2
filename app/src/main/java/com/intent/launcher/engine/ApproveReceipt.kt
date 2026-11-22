@@ -14,7 +14,12 @@ import com.intent.launcher.domain.ResponseBlockType
  */
 object ApproveReceipt {
 
-    const val SOURCE_LABEL = "adaptive_builder|receipt"
+    /**
+     * Must NOT use the `adaptive_builder|` prefix — that matches
+     * [BuilderAnswerCard.isBuilderCard] and §8.10 [CrossSurfaceContinuity.afterApprove]
+     * would deactivate the receipt via [FlowCommand.DeactivateBuilderAnswerCards].
+     */
+    const val SOURCE_LABEL = "approve_receipt"
 
     fun turnId(nowEpochMs: Long): String = "turn-approve-receipt-$nowEpochMs"
 

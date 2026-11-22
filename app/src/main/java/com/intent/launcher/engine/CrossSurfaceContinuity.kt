@@ -50,25 +50,17 @@ object CrossSurfaceContinuity {
         timeZone: TimeZone = TimeZone.getDefault(),
         registry: CapabilityRegistry = CapabilityRegistry.default
     ) {
-        store.apply(
-            FlowCommand.SetActiveIntention(
-                intentionId = intentionId,
-                nowEpochMs = nowEpochMs
-            )
-        )
-        store.apply(
-            FlowCommand.DeactivateBuilderAnswerCards(
-                intentionId = intentionId,
-                nowEpochMs = nowEpochMs + 1
-            )
-        )
-        // Also clear create-shell cards if approve remapped onto a durable id
+        // Gate E3: ApproveProposal already sets activeIntentionId, deactivates
+        // proposal/builder cards, and writes ApproveReceipt atomically. Do not
+        // re-apply SetActiveIntention / Deactivate here — those reversible
+        // companions would steal last-undoable away from Approve.
+        // Still clear create-shell cards if approve remapped onto a durable id
         // while the create greeting still lives under intention-creating.
         if (intentionId != CreateIntentionChat.SESSION_INTENTION_ID) {
             store.apply(
                 FlowCommand.DeactivateBuilderAnswerCards(
                     intentionId = CreateIntentionChat.SESSION_INTENTION_ID,
-                    nowEpochMs = nowEpochMs + 2
+                    nowEpochMs = nowEpochMs + 1
                 )
             )
         }
@@ -76,7 +68,7 @@ object CrossSurfaceContinuity {
         val snap = store.snapshot()
         val session = snap.sessions.firstOrNull { it.id == sessionId }
             ?: snap.sessions.firstOrNull { it.intentionId == intentionId }
-        val next = NextActionEngine.recommend(snap, nowEpochMs + 3, timeZone, registry)
+        val next = NextActionEngine.recommend(snap, nowEpochMs + 2, timeZone, registry)
         val scheduleLine = session?.let {
             "day ${it.dayOfWeek} · %02d:%02d · approved".format(it.hour, it.minute)
         } ?: next.detail
@@ -95,7 +87,7 @@ object CrossSurfaceContinuity {
                 intentionId = intentionId,
                 role = "agent",
                 text = "Routine is active. $scheduleLine — same next action as Home.",
-                nowEpochMs = nowEpochMs + 4,
+                nowEpochMs = nowEpochMs + 3,
                 blocks = listOf(
                     ResponseBlock(
                         blockId = "block-active-schedule-$nowEpochMs",

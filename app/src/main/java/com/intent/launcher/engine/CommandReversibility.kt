@@ -61,8 +61,22 @@ object CommandReversibility {
                 )
             is FlowCommand.MarkPhase ->
                 Reversibility(true, "Marked phase for ${command.intentionId}")
-            is FlowCommand.AddConversationTurn ->
-                Reversibility(true, "Added conversation turn ${command.turnId}")
+            is FlowCommand.AddConversationTurn -> {
+                // §8.10 Active-schedule projection is a companion of Approve — not a
+                // separate Undo target (Gate E3 keeps last-undoable on ApproveProposal).
+                val isActiveSchedule = command.blocks.any {
+                    it.sourceLabel == CrossSurfaceContinuity.ACTIVE_SCHEDULE_SOURCE
+                }
+                if (isActiveSchedule) {
+                    Reversibility(
+                        reversible = false,
+                        summary = "Projected active schedule ${command.turnId}",
+                        irreversibleReason = null
+                    )
+                } else {
+                    Reversibility(true, "Added conversation turn ${command.turnId}")
+                }
+            }
             is FlowCommand.CaptureThought ->
                 Reversibility(true, "Captured thought ${command.thoughtId}")
             is FlowCommand.CaptureErrand ->
@@ -154,7 +168,12 @@ object CommandReversibility {
                     "Remap intention ${command.fromIntentionId} → ${command.toIntentionId}"
                 )
             is FlowCommand.DeactivateBuilderAnswerCards ->
-                Reversibility(true, "Deactivate builder cards ${command.intentionId}")
+                // Card deactivation is projection hygiene — not a user Undo target.
+                Reversibility(
+                    reversible = false,
+                    summary = "Deactivate builder cards ${command.intentionId}",
+                    irreversibleReason = null
+                )
             is FlowCommand.PurgeTrashItem ->
                 Reversibility(
                     reversible = false,
