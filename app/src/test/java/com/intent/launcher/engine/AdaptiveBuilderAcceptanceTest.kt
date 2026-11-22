@@ -882,15 +882,50 @@ class AdaptiveBuilderAcceptanceTest {
                 it.intentionId == id && it.text.contains("ideas board", ignoreCase = true)
             }
         )
-        val pause = AdaptiveBuilderEngine.suggestNextDecision(
+        // After Explore ideas: Ask for selected idea (Discuss AdaptiveAnswerPath),
+        // not a forever-Pause that strands OfferAction off the active path.
+        val chooseIdea = AdaptiveBuilderEngine.suggestNextDecision(
             AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
         )
-        assertTrue(pause is BuilderDecision.Pause)
-        assertTrue(
-            (pause as BuilderDecision.Pause).resumeCue
-                ?.contains("validate", ignoreCase = true) == true
+        assertTrue(chooseIdea is BuilderDecision.Ask)
+        assertEquals(
+            AdaptiveBuilderEngine.KEY_SELECTED_IDEA,
+            (chooseIdea as BuilderDecision.Ask).purpose
         )
-        assertTrue(AdaptiveBuilderEngine.applyDecision(store, pause, t, timeZone = tz).accepted)
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_SELECTED_IDEA,
+            "repetitive support workflows",
+            "FREE_TEXT"
+        )
+        askAndAnswer(
+            AdaptiveBuilderEngine.KEY_VALIDATION_APPROACH,
+            "Validate with a few potential customers"
+        )
+        val exploreThenExperiment = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+        )
+        assertTrue(exploreThenExperiment is BuilderDecision.OfferAction)
+        assertEquals(
+            "validation_experiment",
+            (exploreThenExperiment as BuilderDecision.OfferAction).actionDraft.kind
+        )
+        assertTrue(
+            exploreThenExperiment.actionDraft.title
+                .contains("Small validation experiment", ignoreCase = true)
+        )
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(
+                store, exploreThenExperiment, t, timeZone = tz
+            ).accepted
+        )
+        assertTrue(
+            store.snapshot().turns.any { turn ->
+                turn.intentionId == id &&
+                    turn.blocks.any {
+                        it.title.contains("Small validation experiment", ignoreCase = true)
+                    }
+            }
+        )
 
         val snap = store.snapshot()
         assertTrue(snap.proposals.none { it.intentionId == id })
@@ -940,6 +975,116 @@ class AdaptiveBuilderAcceptanceTest {
         )
         assertTrue(
             AdaptiveBuilderEngine.applyDecision(store, experiment, t, timeZone = tz).accepted
+        )
+        assertTrue(store.snapshot().proposals.none { it.intentionId == id })
+        assertTrue(store.snapshot().sessions.none { it.intentionId == id })
+    }
+
+    /**
+     * Discuss/active path — after Explore ideas, the Choose-an-idea chip projects
+     * an Adaptive Ask; AdaptiveAnswerPath answers advance to Small validation
+     * experiment OfferAction (same honesty as create/JVM validate-fast).
+     */
+    @Test
+    fun ambition_discussPath_chooseIdeaChip_surfacesValidationOfferAction() {
+        AdaptiveBuilderFixtures.seedBusinessDiscovery(store, now)
+        val id = AdaptiveBuilderFixtures.BUSINESS_ID
+        var t = now
+
+        fun save(key: String, value: String) {
+            val ctx = AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!
+            assertTrue(
+                AdaptiveBuilderEngine.applyDecision(
+                    store,
+                    BuilderDecision.SaveFact(
+                        intentionId = id,
+                        expectedRevision = ctx.revision,
+                        factDraft = FactDraft(
+                            factId = "fact-discuss-$key",
+                            text = value,
+                            key = key,
+                            rawUtterance = value,
+                            normalizedValue = value
+                        ),
+                        sourceTurnId = "turn-discuss-$key"
+                    ),
+                    t,
+                    timeZone = tz
+                ).accepted
+            )
+            t += 1
+        }
+
+        save(AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS, "workflow automation")
+        save(AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET, "About five hours a week")
+        save(AdaptiveBuilderEngine.KEY_EXPLORATION_MODE, "Brainstorm first")
+
+        val explore = AdaptiveBuilderEngine.suggestNextDecision(
+            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!, t, tz
+        )
+        assertTrue(explore is BuilderDecision.OfferAction)
+        assertTrue(
+            AdaptiveBuilderEngine.applyDecision(store, explore, t, timeZone = tz).accepted
+        )
+        t += 1
+
+        // Discuss chip — AdaptiveBuilder, not BusinessScenario fixture card.
+        assertTrue(
+            AdaptiveBuilderEngine.handleAmbitionExplorationChip(
+                store = store,
+                intentionId = id,
+                chip = AdaptiveBuilderEngine.CHIP_CHOOSE_IDEA_TO_VALIDATE,
+                nowEpochMs = t,
+                timeZone = tz
+            )
+        )
+        t += 5
+        val state = store.snapshot().adaptiveBuilderStates.first { it.intentionId == id }
+        assertNotNull(state.currentQuestionId)
+        val openQ = store.snapshot().openQuestions.first {
+            it.id == state.currentQuestionId
+        }
+        assertEquals(AdaptiveBuilderEngine.KEY_SELECTED_IDEA, openQ.purpose)
+
+        val ideaAnswer = AdaptiveAnswerPath.submit(
+            store = store,
+            intentionId = id,
+            rawValue = "repetitive support workflows",
+            modality = "FREE_TEXT",
+            nowEpochMs = t,
+            timeZone = tz,
+            expectedQuestionId = state.currentQuestionId
+        )
+        assertTrue(ideaAnswer.accepted)
+        t += 10
+
+        // advanceAfterAnswer should have projected validation-approach Ask.
+        val afterIdea = store.snapshot().adaptiveBuilderStates.first { it.intentionId == id }
+        assertNotNull(afterIdea.currentQuestionId)
+        val approachQ = store.snapshot().openQuestions.first {
+            it.id == afterIdea.currentQuestionId
+        }
+        assertEquals(AdaptiveBuilderEngine.KEY_VALIDATION_APPROACH, approachQ.purpose)
+
+        val approachAnswer = AdaptiveAnswerPath.submit(
+            store = store,
+            intentionId = id,
+            rawValue = "Validate with a few potential customers",
+            modality = "TEXT_CHIP",
+            nowEpochMs = t,
+            timeZone = tz,
+            expectedQuestionId = afterIdea.currentQuestionId
+        )
+        assertTrue(approachAnswer.accepted)
+
+        assertTrue(
+            "Discuss path must surface Small validation experiment OfferAction card",
+            store.snapshot().turns.any { turn ->
+                turn.intentionId == id &&
+                    turn.blocks.any {
+                        it.title.contains("Small validation experiment", ignoreCase = true)
+                    }
+            }
         )
         assertTrue(store.snapshot().proposals.none { it.intentionId == id })
         assertTrue(store.snapshot().sessions.none { it.intentionId == id })

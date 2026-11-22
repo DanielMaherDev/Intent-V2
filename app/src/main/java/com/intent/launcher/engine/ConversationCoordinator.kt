@@ -545,7 +545,21 @@ object ConversationCoordinator {
         val activeId = intention?.id
         when (intention?.shapeTag) {
             "marathon" -> MarathonScenario.onChip(store, chip, nowEpochMs, registry)
-            "business" -> BusinessScenario.onChip(store, chip, nowEpochMs, registry)
+            "business" -> {
+                val id = activeId
+                if (id != null &&
+                    AdaptiveBuilderEngine.handleAmbitionExplorationChip(
+                        store = store,
+                        intentionId = id,
+                        chip = chip,
+                        nowEpochMs = nowEpochMs
+                    )
+                ) {
+                    // Adaptive Ask / OfferAction — skip fixture ResponseBlock path.
+                } else {
+                    BusinessScenario.onChip(store, chip, nowEpochMs, registry)
+                }
+            }
             "move" -> MoveScenario.onChip(
                 store,
                 chip,

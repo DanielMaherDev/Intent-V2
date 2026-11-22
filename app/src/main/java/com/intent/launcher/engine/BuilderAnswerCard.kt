@@ -315,6 +315,16 @@ object BuilderAnswerCard {
                 "What information is still unknown?"
             AdaptiveBuilderEngine.KEY_COMPARISON_REFRESH ->
                 "How should we use the new information?"
+            AdaptiveBuilderEngine.KEY_SELECTED_IDEA ->
+                AdaptiveBuilderEngine.CHIP_CHOOSE_IDEA_TO_VALIDATE
+            AdaptiveBuilderEngine.KEY_VALIDATION_APPROACH ->
+                "How do you want to validate this idea?"
+            AdaptiveBuilderEngine.KEY_SKILLS_OR_INTERESTS ->
+                "What skills or interests should shape exploration?"
+            AdaptiveBuilderEngine.KEY_WEEKLY_TIME_BUDGET ->
+                "How much time can you put into this each week?"
+            AdaptiveBuilderEngine.KEY_EXPLORATION_MODE ->
+                "How do you want to explore?"
             else -> decision.purpose.ifBlank { "Question" }
         }
 

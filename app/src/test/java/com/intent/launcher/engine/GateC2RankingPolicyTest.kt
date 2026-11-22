@@ -405,12 +405,15 @@ class GateC2RankingPolicyTest {
             tz
         )
         assertTrue(
-            "ambition must Pause after Explore ideas (not invent ops), got $afterExplore",
-            afterExplore is BuilderDecision.Pause
+            "ambition must Ask for a selected idea after Explore ideas " +
+                "(Discuss AdaptiveAnswerPath → validation OfferAction), got $afterExplore",
+            afterExplore is BuilderDecision.Ask &&
+                (afterExplore as BuilderDecision.Ask).purpose ==
+                AdaptiveBuilderEngine.KEY_SELECTED_IDEA
         )
         assertTrue(
-            (afterExplore as BuilderDecision.Pause).resumeCue
-                ?.contains("validate", ignoreCase = true) == true
+            "ambition must not invent launch ops after Explore ideas",
+            store.snapshot().proposals.none { it.intentionId == bizId }
         )
         val bizAskCount = store.snapshot().openQuestions.count {
             it.intentionId == bizId && it.state != OpenQuestionState.OPEN
