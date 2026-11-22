@@ -137,7 +137,9 @@ object BuilderAnswerCard {
         title: String,
         body: String,
         promptId: String,
-        options: List<String>
+        options: List<String>,
+        /** Create-path cards omit Not sure / Skip; adaptive Ask keeps deferral. */
+        includeDeferral: Boolean = true
     ): ResponseBlock =
         ResponseBlock(
             blockId = blockId,
@@ -146,7 +148,11 @@ object BuilderAnswerCard {
             body = body,
             sourceLabel = encodeKind(KIND_MULTI, promptId),
             linkedObjectIds = listOf(promptId),
-            actions = ChoiceOptions.withDeferralOptions(options),
+            actions = if (includeDeferral) {
+                ChoiceOptions.withDeferralOptions(options)
+            } else {
+                ChoiceOptions.withOther(options)
+            },
             active = true
         )
 
@@ -325,6 +331,8 @@ object BuilderAnswerCard {
                 "How much time can you put into this each week?"
             AdaptiveBuilderEngine.KEY_EXPLORATION_MODE ->
                 "How do you want to explore?"
+            AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE ->
+                "What practice approaches do you want?"
             else -> decision.purpose.ifBlank { "Question" }
         }
 

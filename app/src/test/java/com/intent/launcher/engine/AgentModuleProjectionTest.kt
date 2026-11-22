@@ -118,6 +118,31 @@ class AgentModuleProjectionTest {
         assertTrue(card.options.any { it.equals("Other", ignoreCase = true) })
         assertEquals("ONE QUESTION", card.provenanceChip)
         assertTrue(card.freeTextHint.contains("Other", ignoreCase = true))
+        assertFalse(card.multiSelect)
+    }
+
+    @Test
+    fun oneQuestion_multiChoiceAsk_enablesToggleSelectionNotRadio() {
+        val block = BuilderAnswerCard.multiChoiceBlock(
+            blockId = "b-practice",
+            title = "What practice approaches do you want? Pick all that apply.",
+            body =
+                "Pick all that apply, then tap Done. " +
+                    "Combination means selecting several — not a fourth option.",
+            promptId = AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE,
+            options = CreatePathSeedHonesty.PRACTICE_PREFERENCE_OPTIONS,
+            includeDeferral = false
+        )
+        val card = AgentModuleProjection.oneQuestionFromBlock(block)
+        assertNotNull(card)
+        assertTrue(card!!.multiSelect)
+        assertEquals("PICK ALL THAT APPLY", card.provenanceChip)
+        assertTrue(card.options.contains("Playing games"))
+        assertTrue(card.options.contains("Reviewing games"))
+        assertTrue(card.options.contains("Studying"))
+        assertTrue(card.options.any { ChoiceOptions.isOther(it) })
+        assertFalse(card.options.any { it.equals("A combination", ignoreCase = true) })
+        assertFalse(card.body.contains("Pick one below", ignoreCase = true))
     }
 
     @Test

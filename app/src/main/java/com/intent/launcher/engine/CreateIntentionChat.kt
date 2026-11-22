@@ -297,17 +297,18 @@ object CreateIntentionChat {
                         )
                     is BuilderAnswerCard.Decoded.Choice ->
                         answerChoiceText(
-                            store, prompt.id, trimmed, decoded, nowEpochMs, registry, sourceLabel
+                            store, prompt.id, trimmed, decoded.options, nowEpochMs, registry, sourceLabel
+                        )
+                    is BuilderAnswerCard.Decoded.MultiChoice ->
+                        answerChoiceText(
+                            store, prompt.id, trimmed, decoded.options, nowEpochMs, registry, sourceLabel
                         )
                     else ->
                         answerChoiceText(
                             store,
                             prompt.id,
                             trimmed,
-                            BuilderAnswerCard.Decoded.Choice(
-                                prompt.id,
-                                prompt.choiceOptions.orEmpty()
-                            ),
+                            prompt.choiceOptions.orEmpty(),
                             nowEpochMs,
                             registry,
                             sourceLabel
@@ -489,11 +490,13 @@ object CreateIntentionChat {
 
         // Prefer the active in-chat card prompt id (e.g. OC5 usage_measurement)
         // over nextPrompt, which only knows IntentionBuilder missing-fact ids.
-        val activeChoice = latestActiveBuilderCard(store)?.let { BuilderAnswerCard.decode(it) }
-            as? BuilderAnswerCard.Decoded.Choice
-        val promptId = activeChoice?.promptId
-            ?: IntentionBuilder.nextPrompt(draft)?.id
-            ?: return confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
+        // MULTI_CHOICE cards decode as MultiChoice — still carry the prompt id.
+        val activeDecoded = latestActiveBuilderCard(store)?.let { BuilderAnswerCard.decode(it) }
+        val promptId = when (activeDecoded) {
+            is BuilderAnswerCard.Decoded.Choice -> activeDecoded.promptId
+            is BuilderAnswerCard.Decoded.MultiChoice -> activeDecoded.promptId
+            else -> IntentionBuilder.nextPrompt(draft)?.id
+        } ?: return confirmAndCommit(store, nowEpochMs, registry, sourceLabel)
 
         if (ChoiceOptions.isOther(trimmed)) {
             postAgent(
@@ -708,12 +711,12 @@ object CreateIntentionChat {
         store: IntentionFlowStore,
         promptId: String,
         text: String,
-        spec: BuilderAnswerCard.Decoded.Choice,
+        options: List<String>,
         nowEpochMs: Long,
         registry: CapabilityRegistry,
         sourceLabel: String
     ): SubmitResult {
-        when (val sel = ChoiceOptions.resolveSelection(text, spec.options)) {
+        when (val sel = ChoiceOptions.resolveSelection(text, options)) {
             ChoiceOptions.Selection.Empty ->
                 return SubmitResult(false, "Empty answer.", sourceLabel)
             ChoiceOptions.Selection.NeedsFreeText -> {
@@ -2402,16 +2405,30 @@ object CreateIntentionChat {
                 val options = prompt.choiceOptions.orEmpty().ifEmpty {
                     listOf("Not sure yet")
                 }
-                BuilderAnswerCard.choiceBlock(
-                    blockId = "block-create-choice-$nowEpochMs",
-                    title = prompt.question,
-                    body = "Pick one below, or choose Other and type your own answer.",
-                    spec = BuilderAnswerCard.ChoiceSpec(
+                if (prompt.multiSelect) {
+                    BuilderAnswerCard.multiChoiceBlock(
+                        blockId = "block-create-multi-$nowEpochMs",
+                        title = prompt.question,
+                        body =
+                            "Pick all that apply, then tap Done. " +
+                                "Combination means selecting several — not a fourth option. " +
+                                "Or choose Other and type your own answer.",
                         promptId = prompt.id,
                         options = options,
                         includeDeferral = false
                     )
-                )
+                } else {
+                    BuilderAnswerCard.choiceBlock(
+                        blockId = "block-create-choice-$nowEpochMs",
+                        title = prompt.question,
+                        body = "Pick one below, or choose Other and type your own answer.",
+                        spec = BuilderAnswerCard.ChoiceSpec(
+                            promptId = prompt.id,
+                            options = options,
+                            includeDeferral = false
+                        )
+                    )
+                }
             }
         }
         store.apply(

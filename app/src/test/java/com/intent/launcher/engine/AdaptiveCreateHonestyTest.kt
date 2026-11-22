@@ -307,6 +307,67 @@ class AdaptiveCreateHonestyTest {
     }
 
     @Test
+    fun oc6_practicePreferenceAsk_isMultiChoice_dualSelectPersists() {
+        val description = "I want to raise my Chess.com rapid rating from 900 to 1200."
+        CreateIntentionChat.begin(store, now + 1, registry)
+        assertTrue(
+            CreateIntentionChat.submitUtterance(
+                store = store,
+                text = description,
+                nowEpochMs = now + 10,
+                registry = registry
+            ).ok
+        )
+
+        val baseline = store.snapshot().turns
+            .flatMap { it.blocks }
+            .mapNotNull { BuilderAnswerCard.decode(it) as? BuilderAnswerCard.Decoded.Choice }
+            .lastOrNull()
+        assertNotNull(baseline)
+        assertEquals(AdaptiveBuilderEngine.KEY_RATING_BASELINE, baseline!!.promptId)
+
+        CreateIntentionChat.submitChoice(
+            store,
+            "Use manual baseline (e.g. 900)",
+            now + 20,
+            registry
+        )
+
+        val practiceBlock = store.snapshot().turns
+            .flatMap { it.blocks }
+            .filter { it.active }
+            .lastOrNull { BuilderAnswerCard.isBuilderCard(it) }
+        assertNotNull(practiceBlock)
+        val practice = BuilderAnswerCard.decode(practiceBlock!!)
+        assertTrue(
+            "Practice ask must be MULTI_CHOICE, got $practice",
+            practice is BuilderAnswerCard.Decoded.MultiChoice
+        )
+        val multi = practice as BuilderAnswerCard.Decoded.MultiChoice
+        assertEquals(AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE, multi.promptId)
+        assertTrue(multi.options.contains("Playing games"))
+        assertTrue(multi.options.contains("Reviewing games"))
+        assertTrue(multi.options.contains("Studying"))
+        assertFalse(multi.options.any { it.equals("A combination", ignoreCase = true) })
+        assertTrue(practiceBlock.body.contains("Pick all that apply", ignoreCase = true))
+        assertFalse(practiceBlock.body.contains("Pick one below", ignoreCase = true))
+
+        val card = AgentModuleProjection.oneQuestionFromBlock(practiceBlock)
+        assertNotNull(card)
+        assertTrue(card!!.multiSelect)
+        assertEquals("PICK ALL THAT APPLY", card.provenanceChip)
+
+        val dual = "Playing games and Reviewing games"
+        assertTrue(
+            CreateIntentionChat.submitChoice(store, dual, now + 30, registry).ok
+        )
+        assertEquals(
+            dual,
+            store.snapshot().builderDraft.factAnswers[AdaptiveBuilderEngine.KEY_PRACTICE_PREFERENCE]
+        )
+    }
+
+    @Test
     fun oc9_jobOfferSeed_agentFramesDecideByDate_notAutoAccept() {
         val description = "Help me decide whether to accept a job offer. I have ten days."
         assertTrue(CreatePathSeedHonesty.looksLikeTimeLimitedDecisionSeed(description))
