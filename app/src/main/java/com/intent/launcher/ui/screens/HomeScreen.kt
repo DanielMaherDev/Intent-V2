@@ -818,13 +818,14 @@ private fun CompactErrandChecklist(
         }
     }
     Spacer(modifier = Modifier.height(6.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    // Stack controls vertically so Open list / Edit / Undo stay on-screen
+    // (a horizontal Row clipped Edit+Undo on empty-home narrow width).
+    Column(modifier = Modifier.fillMaxWidth()) {
         IntentQuietButton(text = "Open list", onClick = onOpenList)
+        Spacer(modifier = Modifier.height(4.dp))
         IntentQuietButton(text = "Edit", onClick = onEdit)
         if (onUndo != null) {
+            Spacer(modifier = Modifier.height(4.dp))
             IntentQuietButton(text = "Undo", onClick = onUndo)
         }
     }
