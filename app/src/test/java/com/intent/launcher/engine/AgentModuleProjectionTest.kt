@@ -61,6 +61,15 @@ class AgentModuleProjectionTest {
         assertEquals("Learn Spanish", card.metaSecondary)
         assertFalse(card.fromBlock)
 
+        val discuss = begin.copy(
+            kind = NextActionKind.DISCUSS,
+            label = "Discuss your Thursday session",
+            discussLabel = "Discuss"
+        )
+        val discussCard = AgentModuleProjection.nextForYouFromNextAction(discuss, "Learn Spanish")
+        assertNotNull(discussCard)
+        assertEquals("Discuss your Thursday session", discussCard!!.title)
+
         val review = begin.copy(kind = NextActionKind.REVIEW_PROPOSAL)
         assertNull(AgentModuleProjection.nextForYouFromNextAction(review, "Learn Spanish"))
     }

@@ -1585,7 +1585,7 @@ class LauncherViewModel(
                     role = "agent",
                     text = "Activated: ${pending.title}. First session is on your schedule — " +
                         "it can appear on Home when relevant. Undo available.",
-                    nowEpochMs = now + 1,
+                    nowEpochMs = now + 10,
                     blocks = listOf(
                         com.intent.launcher.domain.ResponseBlock(
                             blockId = "block-receipt-$now",
@@ -1600,6 +1600,7 @@ class LauncherViewModel(
                     )
                 )
             )
+            // Gateway already projected Active schedule; keep receipt for Undo chrome.
         }
         refresh()
     }
