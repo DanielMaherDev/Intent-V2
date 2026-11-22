@@ -40,6 +40,8 @@ object AdaptiveBuilderEngine {
     const val KEY_PRACTICE_DURATION = "practice_duration"
     const val KEY_PRACTICE_TIME = "practice_time"
     const val KEY_PRACTICE_DAYS = "practice_days"
+    /** Approach multiselect Ask — chip/tap and typed free text share this purpose. */
+    const val KEY_SELECTED_APPROACHES = "selected_approaches"
 
     /** OC2 / §8.8 conditional process eligibility. */
     const val KEY_CITIZENSHIP = "citizenship"
@@ -311,38 +313,33 @@ object AdaptiveBuilderEngine {
         if (!hasSelectedApproaches &&
             context.confirmedFacts.any { it.key == KEY_MOVE_ESTIMATE }
         ) {
-            return BuilderDecision.OfferApproaches(
-                intentionId = context.intentionId,
-                expectedRevision = context.revision,
-                approachDrafts = listOf(
-                    ApproachDraft(
-                        approachId = "approach-ai-practice",
-                        title = "AI conversation practice",
-                        summary = "Guided Spanish practice in INTENT.",
-                        actor = ApproachActor.INTENT,
-                        capabilityNote = "Guided session objective + typed result; shared agent history."
-                    ),
-                    ApproachDraft(
-                        approachId = "approach-learning-app",
-                        title = "Learning app",
-                        summary = "Launch an installed language app.",
-                        actor = ApproachActor.APP,
-                        capabilityNote = "Launch and optional foreground timing — not lesson completion."
-                    ),
-                    ApproachDraft(
-                        approachId = "approach-offline",
-                        title = "Offline practice",
-                        summary = "Practice with a person or offline materials.",
-                        actor = ApproachActor.PERSON
-                    ),
-                    ApproachDraft(
-                        approachId = "approach-other",
-                        title = "Something else",
-                        summary = "Open response for another method.",
-                        actor = ApproachActor.EXTERNAL
-                    )
+            val drafts = defaultApproachDrafts()
+            // Seed candidates once; then Ask MULTI_CHOICE so chip/tap and typed
+            // free text both resolve through AdaptiveAnswerPath → AnswerQuestion.
+            if (context.approaches.isEmpty()) {
+                return BuilderDecision.OfferApproaches(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    approachDrafts = drafts
                 )
-            )
+            }
+            if (context.openQuestions.none {
+                    it.purpose == KEY_SELECTED_APPROACHES &&
+                        it.state == OpenQuestionState.ASKED
+                }
+            ) {
+                return BuilderDecision.Ask(
+                    intentionId = context.intentionId,
+                    expectedRevision = context.revision,
+                    questionId = "q-approaches-${context.intentionId}",
+                    whyItMatters = "Which ways of learning appeal to you?",
+                    answerSchema = AnswerSchema.MULTI_CHOICE,
+                    purpose = KEY_SELECTED_APPROACHES,
+                    blocksWhat = "routine_proposal",
+                    options = drafts.map { it.title },
+                    priority = 60
+                )
+            }
         }
         return BuilderDecision.Pause(
             intentionId = context.intentionId,
@@ -1120,4 +1117,54 @@ object AdaptiveBuilderEngine {
     /** Simulated month offset helper for interrupted-session tests. */
     fun plusDays(epochMs: Long, days: Int): Long =
         epochMs + TimeUnit.DAYS.toMillis(days.toLong())
+
+    fun defaultApproachDrafts(): List<ApproachDraft> = listOf(
+        ApproachDraft(
+            approachId = "approach-ai-practice",
+            title = "AI conversation practice",
+            summary = "Guided Spanish practice in INTENT.",
+            actor = ApproachActor.INTENT,
+            capabilityNote = "Guided session objective + typed result; shared agent history."
+        ),
+        ApproachDraft(
+            approachId = "approach-learning-app",
+            title = "Learning app",
+            summary = "Launch an installed language app.",
+            actor = ApproachActor.APP,
+            capabilityNote = "Launch and optional foreground timing — not lesson completion."
+        ),
+        ApproachDraft(
+            approachId = "approach-offline",
+            title = "Offline practice",
+            summary = "Practice with a person or offline materials.",
+            actor = ApproachActor.PERSON
+        ),
+        ApproachDraft(
+            approachId = "approach-other",
+            title = "Something else",
+            summary = "Open response for another method.",
+            actor = ApproachActor.EXTERNAL
+        )
+    )
+
+    /**
+     * Map a chip / typed answer onto approach ids by title (or id) containment.
+     * Multi-select answers may join titles with commas / "and" / "+".
+     */
+    fun matchApproachIds(
+        snapshot: IntentionSnapshot,
+        intentionId: String,
+        rawValue: String
+    ): List<String> {
+        val lower = rawValue.lowercase()
+        if (lower.isBlank()) return emptyList()
+        return snapshot.approaches
+            .filter { it.intentionId == intentionId }
+            .filter { approach ->
+                lower.contains(approach.title.lowercase()) ||
+                    lower.contains(approach.id.lowercase())
+            }
+            .map { it.id }
+            .distinct()
+    }
 }

@@ -250,14 +250,60 @@ object AdaptiveAnswerPath {
                 accepted = false
             )
         }
-        val ctx = AdaptiveBuilderEngine.projectContext(
-            store.snapshot(), intentionId, nowEpochMs + 2, timeZone
-        )
-        if (ctx != null) {
-            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, nowEpochMs + 2, timeZone)
-            AdaptiveBuilderEngine.applyDecision(store, next, nowEpochMs + 3, timeZone = timeZone)
+        // §8.2 / Gate D2: approach Ask answers also SelectApproaches so chip/tap
+        // and typed free text write the same SELECTED approach records.
+        if (factKey == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES) {
+            val approachIds = AdaptiveBuilderEngine.matchApproachIds(
+                store.snapshot(), intentionId, normalizedValue
+            )
+            if (approachIds.isNotEmpty()) {
+                val rev = store.snapshot().adaptiveBuilderStates
+                    .firstOrNull { it.intentionId == intentionId }
+                    ?.revision
+                    ?: expectedRevision
+                AdaptiveBuilderEngine.selectApproaches(
+                    store = store,
+                    intentionId = intentionId,
+                    approachIds = approachIds,
+                    nowEpochMs = nowEpochMs + 2,
+                    sourceTurnId = turnId,
+                    expectedRevision = rev,
+                    modality = modality
+                )
+            }
         }
+        advanceAfterAnswer(store, intentionId, nowEpochMs + 3, timeZone)
         return Result(ok = true, honestyNote = "Answer recorded.", accepted = true)
+    }
+
+    /**
+     * Apply up to two policy steps so OfferApproaches can seed candidates and the
+     * follow-up MULTI_CHOICE Ask lands as the active card in the same turn.
+     */
+    private fun advanceAfterAnswer(
+        store: IntentionFlowStore,
+        intentionId: String,
+        nowEpochMs: Long,
+        timeZone: TimeZone
+    ) {
+        var t = nowEpochMs
+        repeat(2) {
+            val state = store.snapshot().adaptiveBuilderStates
+                .firstOrNull { it.intentionId == intentionId }
+            if (state?.currentQuestionId != null) return
+            val ctx = AdaptiveBuilderEngine.projectContext(
+                store.snapshot(), intentionId, t, timeZone
+            ) ?: return
+            val next = AdaptiveBuilderEngine.suggestNextDecision(ctx, t, timeZone)
+            AdaptiveBuilderEngine.applyDecision(store, next, t, timeZone = timeZone)
+            t += 1
+            when (next) {
+                is com.intent.launcher.domain.BuilderDecision.Ask,
+                is com.intent.launcher.domain.BuilderDecision.Propose,
+                is com.intent.launcher.domain.BuilderDecision.Pause -> return
+                else -> Unit
+            }
+        }
     }
 
     fun deferQuestion(

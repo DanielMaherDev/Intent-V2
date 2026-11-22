@@ -150,113 +150,163 @@ class AdaptiveBuilderAcceptanceTest {
         )
     }
 
-    // —— §8.2 Multimodal choice (tap vs speech → same AnswerQuestion records) ——
+    // —— §8.2 Multimodal choice (chip/tap vs typed free text → same records) ——
     @Test
-    fun scenario2_multimodalChoice_tapAndSpeechSameRecords() {
-        AdaptiveBuilderFixtures.seedSpanishDiscovery(store, now)
+    fun scenario2_multimodalChoice_tapAndTypedSameRecords() {
         val id = AdaptiveBuilderFixtures.SPANISH_ID
-        var t = now
-        fun rev(): Long =
-            AdaptiveBuilderEngine.projectContext(store.snapshot(), id, t, tz)!!.revision
+        val approachValue = "AI conversation practice and Learning app"
+        val expectedApproachIds = setOf("approach-ai-practice", "approach-learning-app")
 
-        AdaptiveBuilderEngine.applyDecision(
-            store,
-            BuilderDecision.Ask(
-                intentionId = id,
-                expectedRevision = rev(),
-                questionId = "q-lang-multi",
-                whyItMatters = "Target language changes tools.",
-                answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
-                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
-                options = listOf("Spanish", "French", "Other")
-            ),
-            t,
-            timeZone = tz
-        )
-        // Ask projects a BuilderAnswerCard (Gate D), not a bare QUESTION.
-        val askBlock = store.snapshot().turns.flatMap { it.blocks }
-            .first { "q-lang-multi" in it.linkedObjectIds }
-        assertTrue(BuilderAnswerCard.isBuilderCard(askBlock))
-        assertNotNull(BuilderAnswerCard.decode(askBlock))
+        fun seedApproachAsk(target: IntentionFlowStore, questionId: String): String {
+            AdaptiveBuilderFixtures.seedSpanishDiscovery(target, now)
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.OfferApproaches(
+                    intentionId = id,
+                    expectedRevision = 0L,
+                    approachDrafts = AdaptiveBuilderEngine.defaultApproachDrafts()
+                ),
+                now,
+                timeZone = tz
+            )
+            val rev = AdaptiveBuilderEngine.projectContext(target.snapshot(), id, now, tz)!!.revision
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.Ask(
+                    intentionId = id,
+                    expectedRevision = rev,
+                    questionId = questionId,
+                    whyItMatters = "Which ways of learning appeal to you?",
+                    answerSchema = com.intent.launcher.domain.AnswerSchema.MULTI_CHOICE,
+                    purpose = AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES,
+                    options = AdaptiveBuilderEngine.defaultApproachDrafts().map { it.title }
+                ),
+                now + 1,
+                timeZone = tz
+            )
+            return questionId
+        }
 
-        t += 5
+        fun selectedApproachIds(target: IntentionFlowStore): Set<String> =
+            target.snapshot().approaches
+                .filter { it.intentionId == id && it.status == ApproachStatus.SELECTED }
+                .map { it.id }
+                .toSet()
+
+        fun approachFactText(target: IntentionFlowStore): String? =
+            AdaptiveBuilderEngine.activeFacts(target.snapshot(), id)
+                .firstOrNull { it.key == AdaptiveBuilderEngine.KEY_SELECTED_APPROACHES }
+                ?.text
+
+        // Chip/tap path (TEXT_CHIP) — multi-select value via one AnswerQuestion.
+        val tapQ = seedApproachAsk(store, "q-approaches-tap")
+        val tapBlock = store.snapshot().turns.flatMap { it.blocks }
+            .first { tapQ in it.linkedObjectIds }
+        assertTrue(BuilderAnswerCard.isBuilderCard(tapBlock))
+        assertNotNull(BuilderAnswerCard.decode(tapBlock))
+
         val tap = AdaptiveAnswerPath.submit(
             store = store,
             intentionId = id,
-            rawValue = "Spanish",
-            modality = "TEXT_CHIP",
-            nowEpochMs = t,
-            timeZone = tz,
-            expectedQuestionId = "q-lang-multi"
-        )
-        assertTrue(tap.honestyNote, tap.accepted)
-        val afterTap = store.snapshot()
-        assertEquals(
-            OpenQuestionState.ANSWERED,
-            afterTap.openQuestions.first { it.id == "q-lang-multi" }.state
-        )
-        assertTrue(
-            AdaptiveBuilderEngine.activeFacts(afterTap, id)
-                .any { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE && it.text == "Spanish" }
-        )
-
-        // Fresh run: speech with same value + modality VOICE yields same fact key (idempotent shape).
-        val storeB = IntentionFlowStore(tmp.newFile("adaptive-builder-voice.json"))
-        AdaptiveBuilderFixtures.seedSpanishDiscovery(storeB, now)
-        AdaptiveBuilderEngine.applyDecision(
-            storeB,
-            BuilderDecision.Ask(
-                intentionId = id,
-                expectedRevision = 0L,
-                questionId = "q-lang-voice",
-                whyItMatters = "Target language changes tools.",
-                answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
-                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
-                options = listOf("Spanish", "French", "Other")
-            ),
-            now,
-            timeZone = tz
-        )
-        val speech = AdaptiveAnswerPath.submit(
-            store = storeB,
-            intentionId = id,
-            rawValue = "Spanish",
-            modality = "VOICE_TRANSCRIPT",
+            rawValue = approachValue,
+            modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
             nowEpochMs = now + 10,
             timeZone = tz,
-            expectedQuestionId = "q-lang-voice"
+            expectedQuestionId = tapQ
         )
-        assertTrue(speech.honestyNote, speech.accepted)
-        val voiceFact = AdaptiveBuilderEngine.activeFacts(storeB.snapshot(), id)
-            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
-        assertEquals("Spanish", voiceFact.text)
+        assertTrue(tap.honestyNote, tap.accepted)
+        assertEquals(expectedApproachIds, selectedApproachIds(store))
+        assertEquals(approachValue, approachFactText(store))
         assertEquals(
             OpenQuestionState.ANSWERED,
-            storeB.snapshot().openQuestions.first { it.id == "q-lang-voice" }.state
+            store.snapshot().openQuestions.first { it.id == tapQ }.state
         )
 
-        // Uncertain voice → confirm card, no fact write yet.
-        val storeC = IntentionFlowStore(tmp.newFile("adaptive-builder-unc.json"))
-        AdaptiveBuilderFixtures.seedSpanishDiscovery(storeC, now)
-        AdaptiveBuilderEngine.applyDecision(
-            storeC,
-            BuilderDecision.Ask(
-                intentionId = id,
-                expectedRevision = 0L,
-                questionId = "q-lang-unc",
-                whyItMatters = "Need language",
-                answerSchema = com.intent.launcher.domain.AnswerSchema.FREE_TEXT,
-                purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE
-            ),
-            now,
-            timeZone = tz
+        // Fresh run: typed free text (FREE_TEXT) with the same value → same approach + fact.
+        val storeTyped = IntentionFlowStore(tmp.newFile("adaptive-builder-typed.json"))
+        val typedQ = seedApproachAsk(storeTyped, "q-approaches-typed")
+        val typed = AdaptiveAnswerPath.submit(
+            store = storeTyped,
+            intentionId = id,
+            rawValue = approachValue,
+            modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+            nowEpochMs = now + 20,
+            timeZone = tz,
+            expectedQuestionId = typedQ
         )
+        assertTrue(typed.honestyNote, typed.accepted)
+        assertEquals(expectedApproachIds, selectedApproachIds(storeTyped))
+        assertEquals(approachValue, approachFactText(storeTyped))
+        assertEquals(
+            approachFactText(store),
+            approachFactText(storeTyped)
+        )
+        assertEquals(
+            selectedApproachIds(store),
+            selectedApproachIds(storeTyped)
+        )
+
+        // Fact Ask: chip tap vs typed free text write the same key/value (no divergent plan).
+        fun seedLanguageAsk(target: IntentionFlowStore, questionId: String) {
+            AdaptiveBuilderFixtures.seedSpanishDiscovery(target, now)
+            AdaptiveBuilderEngine.applyDecision(
+                target,
+                BuilderDecision.Ask(
+                    intentionId = id,
+                    expectedRevision = 0L,
+                    questionId = questionId,
+                    whyItMatters = "Target language changes tools.",
+                    answerSchema = com.intent.launcher.domain.AnswerSchema.SINGLE_CHOICE,
+                    purpose = AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE,
+                    options = listOf("Spanish", "French", "Other")
+                ),
+                now,
+                timeZone = tz
+            )
+        }
+        val storeLangTap = IntentionFlowStore(tmp.newFile("adaptive-builder-lang-tap.json"))
+        seedLanguageAsk(storeLangTap, "q-lang-tap")
+        assertTrue(
+            AdaptiveAnswerPath.submit(
+                store = storeLangTap,
+                intentionId = id,
+                rawValue = "Spanish",
+                modality = ConversationCoordinator.Channel.TEXT_CHIP.name,
+                nowEpochMs = now + 30,
+                timeZone = tz,
+                expectedQuestionId = "q-lang-tap"
+            ).accepted
+        )
+        val storeLangTyped = IntentionFlowStore(tmp.newFile("adaptive-builder-lang-typed.json"))
+        seedLanguageAsk(storeLangTyped, "q-lang-typed")
+        assertTrue(
+            AdaptiveAnswerPath.submit(
+                store = storeLangTyped,
+                intentionId = id,
+                rawValue = "Spanish",
+                modality = ConversationCoordinator.Channel.FREE_TEXT.name,
+                nowEpochMs = now + 40,
+                timeZone = tz,
+                expectedQuestionId = "q-lang-typed"
+            ).accepted
+        )
+        val tapLang = AdaptiveBuilderEngine.activeFacts(storeLangTap.snapshot(), id)
+            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        val typedLang = AdaptiveBuilderEngine.activeFacts(storeLangTyped.snapshot(), id)
+            .first { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
+        assertEquals(tapLang.key, typedLang.key)
+        assertEquals(tapLang.text, typedLang.text)
+        assertEquals("Spanish", typedLang.text)
+
+        // Uncertain voice still confirms without writing (Gate D2) — no STT stack invented.
+        val storeUnc = IntentionFlowStore(tmp.newFile("adaptive-builder-unc.json"))
+        seedLanguageAsk(storeUnc, "q-lang-unc")
         val unc = AdaptiveAnswerPath.submit(
-            store = storeC,
+            store = storeUnc,
             intentionId = id,
             rawValue = "Spanish",
-            modality = "VOICE_TRANSCRIPT",
-            nowEpochMs = now + 20,
+            modality = ConversationCoordinator.Channel.VOICE_TRANSCRIPT.name,
+            nowEpochMs = now + 50,
             timeZone = tz,
             voiceUncertain = true,
             expectedQuestionId = "q-lang-unc"
@@ -264,7 +314,7 @@ class AdaptiveBuilderAcceptanceTest {
         assertTrue(unc.needsVoiceConfirm)
         assertFalse(unc.accepted)
         assertTrue(
-            AdaptiveBuilderEngine.activeFacts(storeC.snapshot(), id)
+            AdaptiveBuilderEngine.activeFacts(storeUnc.snapshot(), id)
                 .none { it.key == AdaptiveBuilderEngine.KEY_TARGET_LANGUAGE }
         )
     }
