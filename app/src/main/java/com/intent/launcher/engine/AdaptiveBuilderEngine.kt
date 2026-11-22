@@ -141,7 +141,8 @@ object AdaptiveBuilderEngine {
 
     /**
      * Deterministic next-move policy for tests and Conversation hooks.
-     * Not an LLM — ranks by consequence; zero questions for small errands.
+     * Not an LLM — ranks by consequence; skips duplicates / unresolved repeats;
+     * zero questions for small errands; no fixed questionnaire length.
      */
     fun suggestNextDecision(
         context: BuilderContext,
@@ -162,7 +163,7 @@ object AdaptiveBuilderEngine {
         }
         if (context.typeFacets.any { it == "ambition" || it == "exploration" } &&
             context.confirmedFacts.isEmpty() &&
-            context.openQuestions.none { it.state == OpenQuestionState.ASKED }
+            !hasUnresolvedPurpose(context, "skills_or_interests")
         ) {
             // Broad ambition: one discovery question, never a fictional launch checklist.
             return BuilderDecision.Ask(
@@ -231,7 +232,11 @@ object AdaptiveBuilderEngine {
                 )
             }
         }
-        if (context.pendingProposals.isEmpty() && hasSelectedApproaches && !hasFrequency) {
+        if (context.pendingProposals.isEmpty() &&
+            hasSelectedApproaches &&
+            !hasFrequency &&
+            !hasUnresolvedPurpose(context, KEY_PRACTICE_FREQUENCY)
+        ) {
             return BuilderDecision.Ask(
                 intentionId = context.intentionId,
                 expectedRevision = context.revision,
@@ -249,10 +254,7 @@ object AdaptiveBuilderEngine {
         if (moveFact != null) {
             val freshness = RelativeDateAnchoring.freshnessCheck(moveFact, nowEpochMs, timeZone = timeZone)
             if (freshness.needsReconfirm &&
-                context.openQuestions.none {
-                    it.purpose == "reconfirm_move_estimate" &&
-                        it.state != OpenQuestionState.ANSWERED
-                }
+                !hasUnresolvedPurpose(context, "reconfirm_move_estimate")
             ) {
                 return BuilderDecision.Ask(
                     intentionId = context.intentionId,
@@ -269,7 +271,8 @@ object AdaptiveBuilderEngine {
         }
 
         if (context.confirmedFacts.none { it.key == KEY_TARGET_LANGUAGE } &&
-            context.typeFacets.contains("language_learning")
+            context.typeFacets.contains("language_learning") &&
+            !hasUnresolvedPurpose(context, KEY_TARGET_LANGUAGE)
         ) {
             return BuilderDecision.Ask(
                 intentionId = context.intentionId,
@@ -283,7 +286,8 @@ object AdaptiveBuilderEngine {
             )
         }
         if (context.confirmedFacts.none { it.key == KEY_MOTIVATION } &&
-            context.confirmedFacts.any { it.key == KEY_TARGET_LANGUAGE }
+            context.confirmedFacts.any { it.key == KEY_TARGET_LANGUAGE } &&
+            !hasUnresolvedPurpose(context, KEY_MOTIVATION)
         ) {
             return BuilderDecision.Ask(
                 intentionId = context.intentionId,
@@ -297,7 +301,8 @@ object AdaptiveBuilderEngine {
             )
         }
         if (context.confirmedFacts.none { it.key == KEY_MOVE_ESTIMATE } &&
-            context.confirmedFacts.any { it.key == KEY_MOTIVATION }
+            context.confirmedFacts.any { it.key == KEY_MOTIVATION } &&
+            !hasUnresolvedPurpose(context, KEY_MOVE_ESTIMATE)
         ) {
             return BuilderDecision.Ask(
                 intentionId = context.intentionId,
@@ -348,6 +353,12 @@ object AdaptiveBuilderEngine {
             resumeCue = "Continue discussion"
         )
     }
+
+    /** Unanswered OPEN/ASKED/DEFERRED purpose — do not mint a duplicate Ask. */
+    private fun hasUnresolvedPurpose(context: BuilderContext, purpose: String): Boolean =
+        context.openQuestions.any {
+            it.purpose == purpose && it.state != OpenQuestionState.ANSWERED
+        }
 
     /**
      * OC2 / §8.8 — ask eligibility, then pause for sourced research.
